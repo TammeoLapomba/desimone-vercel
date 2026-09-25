@@ -1,0 +1,241 @@
+{
+  "name": "W_DS_TEXT_GENERATION_v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ds-text-generation",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "position": [
+        240,
+        300
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://YOUR_PROJECT.supabase.co/rest/v1/articles?id=eq.{{ $json.body.article_id }}&select=id,name,product_type,notes,measurements,collection_id(name),coral_material_id(name),metal_material_id(name)",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "YOUR_SERVICE_ROLE_KEY"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_SERVICE_ROLE_KEY"
+            }
+          ]
+        }
+      },
+      "id": "fetch-article",
+      "name": "Fetch_Article",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        440,
+        300
+      ],
+      "typeVersion": 4
+    },
+    {
+      "parameters": {
+        "jsCode": "const a = $input.first().json[0]\nconst measurements = a.measurements\n  ? `Larghezza: ${a.measurements.width_cm || '—'}cm, Lunghezza: ${a.measurements.length_cm || '—'}cm, Peso: ${a.measurements.weight_g || '—'}g`\n  : 'Misure non disponibili'\n\nconst prompt = `Sei un copywriter specializzato in gioielleria luxury italiana artigianale.\nGenera descrizioni commerciali per questo gioiello:\n\nTipo: ${a.product_type}\nNome: ${a.name}\nCollezione: ${a.collection_id?.name || ''}\nCorallo: ${a.coral_material_id?.name || ''}\nMetallo: ${a.metal_material_id?.name || ''}\nMisure: ${measurements}\nNote artigiano: ${a.notes || 'nessuna'}\n\nTono: luxury, artigianale napoletano, autentico. Evita cliché generici.\nFai riferimento alla tradizione corallara di Torre del Greco dove pertinente.\n\nRispondi SOLO con JSON valido (nessun testo prima o dopo):\n{\n  \"description_it\": \"150-200 parole\",\n  \"description_en\": \"150-200 words\",\n  \"description_fr\": \"150-200 mots\",\n  \"tags\": [\"max 8 tag lowercase specifici al prodotto\"]\n}`\n\nreturn [{ json: { prompt, article_id: a.id } }]"
+      },
+      "id": "build-gemini-prompt",
+      "name": "Build_Gemini_Prompt",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        640,
+        300
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.apiyi.com/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_APIYI_KEY"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"model\": \"gemini-2.0-flash\", \"messages\": [{ \"role\": \"user\", \"content\": \"{{ $json.prompt }}\" }], \"response_format\": { \"type\": \"json_object\" } }"
+      },
+      "id": "call-gemini",
+      "name": "Call_Gemini",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        840,
+        300
+      ],
+      "typeVersion": 4
+    },
+    {
+      "parameters": {
+        "jsCode": "const raw = $input.first().json.choices[0].message.content\nlet parsed\ntry {\n  parsed = JSON.parse(raw)\n} catch(e) {\n  throw new Error('Gemini response non è JSON valido: ' + raw.substring(0, 200))\n}\n\nif (!parsed.description_it || !parsed.description_en || !parsed.description_fr) {\n  throw new Error('Gemini response mancante dei campi richiesti')\n}\n\nreturn [{\n  json: {\n    article_id: $('Build_Gemini_Prompt').item.json.article_id,\n    description_it: parsed.description_it,\n    description_en: parsed.description_en,\n    description_fr: parsed.description_fr,\n    tags: parsed.tags || []\n  }\n}]"
+      },
+      "id": "parse-response",
+      "name": "Parse_Response",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1040,
+        300
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://YOUR_PROJECT.supabase.co/rest/v1/articles?id=eq.{{ $json.article_id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "YOUR_SERVICE_ROLE_KEY"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_SERVICE_ROLE_KEY"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Prefer",
+              "value": "return=minimal"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"description_it\": \"{{ $json.description_it }}\", \"description_en\": \"{{ $json.description_en }}\", \"description_fr\": \"{{ $json.description_fr }}\", \"tags\": {{ JSON.stringify($json.tags) }}, \"status\": \"ready\" }"
+      },
+      "id": "update-article-ready",
+      "name": "Update_Article_Ready",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        1240,
+        300
+      ],
+      "typeVersion": 4
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://YOUR_PROJECT.supabase.co/rest/v1/articles?id=eq.{{ $json.article_id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "apikey",
+              "value": "YOUR_SERVICE_ROLE_KEY"
+            },
+            {
+              "name": "Authorization",
+              "value": "Bearer YOUR_SERVICE_ROLE_KEY"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"status\": \"draft\" }"
+      },
+      "id": "mark-article-error",
+      "name": "Mark_Article_Error",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [
+        1040,
+        480
+      ],
+      "typeVersion": 4
+    }
+  ],
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Fetch_Article",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch_Article": {
+      "main": [
+        [
+          {
+            "node": "Build_Gemini_Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build_Gemini_Prompt": {
+      "main": [
+        [
+          {
+            "node": "Call_Gemini",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Call_Gemini": {
+      "main": [
+        [
+          {
+            "node": "Parse_Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse_Response": {
+      "main": [
+        [
+          {
+            "node": "Update_Article_Ready",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "1",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  }
+}

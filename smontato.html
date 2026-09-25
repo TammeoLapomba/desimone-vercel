@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>De Simone OS — Smontato</title>
+
+  <!-- PWA -->
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#1A1814">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="De Simone">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
+
+  <meta name="description" content="Atelier Antonino De Simone — Archivio pezzi lavorati non assemblati">
+
+  <link rel="stylesheet" href="css/variables.css">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/layout.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/mobile.css">
+</head>
+<body>
+<a href="#smontato-main" class="skip-link">Vai al contenuto principale</a>
+<div id="toast" role="status" aria-live="polite"></div>
+<div class="app-shell">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar" aria-label="Navigazione principale">
+    <div class="sidebar-logo" aria-hidden="true">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+    </div>
+    <nav class="sidebar-nav" aria-label="Menu">
+      <a href="/catalog.html" class="nav-item" aria-label="Montato — Catalogo articoli"
+         title="Montato">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        <span class="nav-item-label">Montato</span>
+      </a>
+      <a href="/smontato.html" class="nav-item active" aria-label="Smontato — Pezzi lavorati" aria-current="page"
+         title="Smontato">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+        <span class="nav-item-label">Smontato</span>
+      </a>
+    </nav>
+  </aside>
+
+  <!-- LEFT PANEL: Categorie Smontato -->
+  <div class="left-panel">
+    <!-- Tab Montato / Smontato -->
+    <div class="catalog-type-tabs">
+      <a href="/catalog.html" class="catalog-type-tab">Montato</a>
+      <a href="/smontato.html" class="catalog-type-tab active">Smontato</a>
+    </div>
+
+    <div class="panel-header">
+      <div style="font-family:var(--editorial);font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--coral-pink);margin-bottom:8px;">Magazzino</div>
+      <div style="font-family:var(--serif);font-size:16px;color:white;font-weight:700;">Pezzi Lavorati</div>
+      <div style="font-family:var(--editorial);font-size:13px;color:var(--silver);font-style:italic;margin-top:2px;">Non assemblati</div>
+    </div>
+
+    <div style="margin:12px 16px;display:flex;gap:8px;">
+      <div style="position:relative;flex:1;">
+        <svg style="position:absolute;left:9px;top:50%;transform:translateY(-50%);width:13px;height:13px;color:rgba(255,255,255,0.3);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+        <input id="searchInput" type="search" aria-label="Cerca pezzi" style="width:100%;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);border-radius:6px;padding:7px 10px 7px 30px;font-family:var(--editorial);font-size:13px;color:white;outline:none;" placeholder="Cerca…">
+      </div>
+      <button id="btnOpenFilters" style="width:34px;border-radius:6px;background:rgba(255,255,255,0.05);border:1px solid rgba(255,255,255,0.08);color:white;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;" aria-label="Filtri">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      </button>
+    </div>
+
+    <div style="padding:12px 16px 6px;font-family:var(--editorial);font-size:9px;letter-spacing:2.5px;text-transform:uppercase;color:rgba(255,255,255,0.25);flex-shrink:0;">Categorie</div>
+    <div id="categoryList" style="flex: 1; overflow-y: auto; min-height: 0; display: flex; flex-direction: column; padding-bottom: 24px;"></div>
+
+    <div style="padding:12px 16px; border-top: 1px solid rgba(255,255,255,0.05); background: var(--ebony-mid); flex-shrink:0;">
+      <button class="btn-primary" id="btnNewCategory" style="width:100%;justify-content:center;">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+        Nuova Categoria
+      </button>
+    </div>
+  </div>
+
+  <!-- MAIN -->
+  <main class="main" id="smontato-main">
+    <div class="topbar" role="toolbar" aria-label="Azioni smontato">
+      <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0;">
+        <div style="font-family:var(--editorial);font-size:13px;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" id="breadcrumb">Smontato · Tutti i fili</div>
+        <div id="categoryActions" style="display:none; gap:6px; margin-left:4px;">
+          <button class="btn-ghost topbar-hide-mobile" id="btnEditCategory" style="padding:2px 8px; font-size:11px;">Modifica</button>
+          <button class="btn-ghost topbar-hide-mobile" id="btnDeleteCategory" style="padding:2px 8px; font-size:11px; color:var(--coral);">Elimina</button>
+        </div>
+      </div>
+      <div style="font-family:var(--mono);font-size:11px;color:var(--text-muted);" id="itemCount" aria-live="polite"></div>
+      <div style="display:flex;gap:8px;flex-shrink:0;">
+        <button class="btn-primary topbar-hide-mobile" id="btnNewItem">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Nuovo Filo
+        </button>
+      </div>
+    </div>
+    <div class="catalog-area">
+      <div id="itemsGrid" role="list" aria-label="Fili smontati" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:16px;"></div>
+    </div>
+  </main>
+
+</div>
+
+<!-- MODAL nuova categoria -->
+<div class="modal-overlay" id="categoryModal" role="dialog" aria-modal="true" aria-labelledby="categoryModalTitle">
+  <div class="modal" style="max-width:400px;">
+    <div class="modal-header">
+      <div>
+        <div class="modal-eyebrow">Smontato · Impostazioni</div>
+        <div class="modal-title" id="categoryModalTitle">Nuova Categoria</div>
+      </div>
+      <button style="background:none;border:none;cursor:pointer;color:var(--text-muted);padding:4px;" onclick="document.getElementById('categoryModal').classList.remove('open')">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <div class="form-row full">
+        <div class="form-field">
+          <label class="field-label">Tipo Categoria <span class="field-required">*</span></label>
+          <select class="field-input field-select" id="f_cat_name">
+            <option value="">Seleziona tipo…</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row full">
+        <div class="form-field">
+          <label class="field-label">Codice identificativo (SKU)<span class="field-required">*</span></label>
+          <input type="text" class="field-input" id="f_cat_sku" maxlength="3" style="text-transform:uppercase;font-family:var(--mono);" placeholder="es. PAL">
+          <span style="font-family:var(--editorial);font-size:11px;color:var(--text-muted);margin-top:4px;display:block;">Comporrà il codice SKU, es: SM-PAL-00001</span>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer" style="justify-content:flex-end;">
+      <button class="btn-primary" id="btnSaveCategory">Salva Categoria</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL placeholder nuovo pezzo -->
+<div id="rawItemModalRoot"></div>
+
+<!-- POPUP Filtri (Task 6) -->
+<div class="modal-overlay" id="filtersModal" role="dialog" aria-modal="true" aria-labelledby="filtersModalTitle">
+  <div class="modal" style="max-width:320px; align-self: flex-start; margin-top: 100px;">
+    <div class="modal-header" style="border-bottom:1px solid var(--ivory-dark); padding: 12px 16px;">
+      <div class="modal-title" id="filtersModalTitle" style="font-size: 14px;">Filtri Avanzati</div>
+      <button style="background:none;border:none;cursor:pointer;color:var(--text-muted);padding:4px;" onclick="document.getElementById('filtersModal').classList.remove('open')">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body" style="padding:16px;">
+      <div class="form-row full">
+        <div class="form-field">
+          <label class="field-label">Categoria</label>
+          <select class="field-input field-select" id="filterCategory">
+            <option value="">Tutte le categorie</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row full">
+        <div class="form-field">
+          <label class="field-label">Colore</label>
+          <select class="field-input field-select" id="filterColor">
+            <option value="">Tutti i colori</option>
+            <option value="Corallo Rosso del Mediterraneo">Corallo Rosso del Mediterraneo</option>
+            <option value="Corallo Rosa">Corallo Rosa</option>
+            <option value="Corallo Sciacca">Corallo Sciacca</option>
+            <option value="Corallo Bianco">Corallo Bianco</option>
+            <option value="Altro">Altro</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-row full">
+        <div class="form-field">
+          <label class="field-label">Qualità</label>
+          <select class="field-input field-select" id="filterQuality">
+            <option value="">Tutte le qualità</option>
+            <option value="I">I</option>
+            <option value="II">II</option>
+            <option value="III">III</option>
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer" style="justify-content:space-between; padding: 12px 16px; border-top:1px solid var(--ivory-dark);">
+      <button class="btn-ghost" id="btnClearFilters" style="padding: 6px 12px; font-size:12px;">Applica Filtri</button>
+    </div>
+  </div>
+</div>
+
+<script src="config.js"></script>
+<script type="module" src="js/smontato.js"></script>
+<script type="module" src="js/pwa.js"></script>
+</body>
+</html>

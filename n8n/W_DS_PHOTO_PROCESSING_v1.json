@@ -1,0 +1,225 @@
+{
+  "name": "W_DS_PHOTO_PROCESSING_v1",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "ds-photo-processing",
+        "responseMode": "onReceived",
+        "options": {}
+      },
+      "id": "webhook-trigger",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "position": [240, 300],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "=https://YOUR_PROJECT.supabase.co/rest/v1/photos?article_id=eq.{{ $json.body.article_id }}&photo_type=eq.raw&processing_status=eq.pending&select=id,storage_path,public_url,article_id",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "YOUR_SERVICE_ROLE_KEY" },
+            { "name": "Authorization", "value": "Bearer YOUR_SERVICE_ROLE_KEY" }
+          ]
+        }
+      },
+      "id": "fetch-pending-photos",
+      "name": "Fetch_Pending_Photos",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [440, 300],
+      "typeVersion": 4
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "number": [{ "value1": "={{ $json.length }}", "operation": "larger", "value2": 0 }]
+        }
+      },
+      "id": "if-has-photos",
+      "name": "IF_Has_Photos",
+      "type": "n8n-nodes-base.if",
+      "position": [640, 300],
+      "typeVersion": 1
+    },
+    {
+      "parameters": { "batchSize": 1, "options": {} },
+      "id": "loop-photos",
+      "name": "Loop_Photos",
+      "type": "n8n-nodes-base.splitInBatches",
+      "position": [840, 200],
+      "typeVersion": 3
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://YOUR_PROJECT.supabase.co/rest/v1/photos?id=eq.{{ $json.id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "YOUR_SERVICE_ROLE_KEY" },
+            { "name": "Authorization", "value": "Bearer YOUR_SERVICE_ROLE_KEY" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "bodyParameters": { "parameters": [{ "name": "processing_status", "value": "processing" }] },
+        "specifyBody": "json",
+        "jsonBody": "={ \"processing_status\": \"processing\" }"
+      },
+      "id": "mark-processing",
+      "name": "Mark_Processing",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [1040, 200],
+      "typeVersion": 4
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://fal.run/fal-ai/birefnet",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "Authorization", "value": "Key YOUR_FAL_API_KEY" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"image_url\": \"{{ $('Loop_Photos').item.json.public_url }}\", \"model\": \"General Use (Heavy)\", \"output_format\": \"png\" }"
+      },
+      "id": "fal-bg-removal",
+      "name": "FAL_BG_Removal",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [1240, 200],
+      "typeVersion": 4
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://YOUR_PROJECT.supabase.co/rest/v1/photos",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "YOUR_SERVICE_ROLE_KEY" },
+            { "name": "Authorization", "value": "Bearer YOUR_SERVICE_ROLE_KEY" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"article_id\": \"{{ $('Loop_Photos').item.json.article_id }}\", \"storage_path\": \"processed/{{ $('Loop_Photos').item.json.article_id }}/{{ $('Loop_Photos').item.json.id }}.png\", \"public_url\": \"{{ $json.image.url }}\", \"photo_type\": \"processed\", \"is_cover\": false, \"processing_status\": \"done\", \"processed_at\": \"{{ new Date().toISOString() }}\" }"
+      },
+      "id": "insert-processed-photo",
+      "name": "Insert_Processed_Photo",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [1440, 200],
+      "typeVersion": 4
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://YOUR_PROJECT.supabase.co/rest/v1/photos?id=eq.{{ $('Loop_Photos').item.json.id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "YOUR_SERVICE_ROLE_KEY" },
+            { "name": "Authorization", "value": "Bearer YOUR_SERVICE_ROLE_KEY" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"processing_status\": \"done\", \"processed_at\": \"{{ new Date().toISOString() }}\" }"
+      },
+      "id": "mark-done",
+      "name": "Mark_Done",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [1640, 200],
+      "typeVersion": 4
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://YOUR_PROJECT.supabase.co/rest/v1/articles?id=eq.{{ $('Webhook').item.json.body.article_id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "YOUR_SERVICE_ROLE_KEY" },
+            { "name": "Authorization", "value": "Bearer YOUR_SERVICE_ROLE_KEY" },
+            { "name": "Content-Type", "value": "application/json" },
+            { "name": "Prefer", "value": "return=minimal" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"status\": \"processing\" }"
+      },
+      "id": "update-article-processing",
+      "name": "Update_Article_Processing",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [1840, 200],
+      "typeVersion": 4
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://YOUR_VPS/webhook/ds-text-generation",
+        "sendHeaders": true,
+        "headerParameters": { "parameters": [{ "name": "Content-Type", "value": "application/json" }] },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"article_id\": \"{{ $('Webhook').item.json.body.article_id }}\" }"
+      },
+      "id": "trigger-text-gen",
+      "name": "Trigger_Text_Generation",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [2040, 200],
+      "typeVersion": 4
+    },
+    {
+      "parameters": {
+        "method": "PATCH",
+        "url": "=https://YOUR_PROJECT.supabase.co/rest/v1/photos?id=eq.{{ $('Loop_Photos').item.json.id }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            { "name": "apikey", "value": "YOUR_SERVICE_ROLE_KEY" },
+            { "name": "Authorization", "value": "Bearer YOUR_SERVICE_ROLE_KEY" },
+            { "name": "Content-Type", "value": "application/json" }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={ \"processing_status\": \"failed\", \"error_message\": \"FAL.ai processing failed\" }"
+      },
+      "id": "mark-failed",
+      "name": "Mark_Failed",
+      "type": "n8n-nodes-base.httpRequest",
+      "position": [1440, 420],
+      "typeVersion": 4
+    }
+  ],
+  "connections": {
+    "Webhook": { "main": [[{ "node": "Fetch_Pending_Photos", "type": "main", "index": 0 }]] },
+    "Fetch_Pending_Photos": { "main": [[{ "node": "IF_Has_Photos", "type": "main", "index": 0 }]] },
+    "IF_Has_Photos": { "main": [[{ "node": "Loop_Photos", "type": "main", "index": 0 }], []] },
+    "Loop_Photos": { "main": [[{ "node": "Mark_Processing", "type": "main", "index": 0 }], [{ "node": "Update_Article_Processing", "type": "main", "index": 0 }]] },
+    "Mark_Processing": { "main": [[{ "node": "FAL_BG_Removal", "type": "main", "index": 0 }]] },
+    "FAL_BG_Removal": { "main": [[{ "node": "Insert_Processed_Photo", "type": "main", "index": 0 }]] },
+    "Insert_Processed_Photo": { "main": [[{ "node": "Mark_Done", "type": "main", "index": 0 }]] },
+    "Mark_Done": { "main": [[{ "node": "Loop_Photos", "type": "main", "index": 0 }]] },
+    "Update_Article_Processing": { "main": [[{ "node": "Trigger_Text_Generation", "type": "main", "index": 0 }]] }
+  },
+  "active": false,
+  "settings": { "executionOrder": "v1" },
+  "versionId": "1",
+  "meta": { "templateCredsSetupCompleted": false }
+}

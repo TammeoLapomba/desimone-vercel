@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>De Simone OS — Accesso</title>
+  <link rel="stylesheet" href="css/variables.css">
+  <link rel="stylesheet" href="css/base.css">
+  <style>
+    body { display:flex; align-items:center; justify-content:center; min-height:100vh; background:var(--ebony); }
+    .login-box {
+      background: white; width: 380px; padding: 40px;
+      border-radius: 4px; box-shadow: 0 24px 64px rgba(0,0,0,0.4);
+    }
+    .login-logo { text-align:center; margin-bottom:32px; }
+    .login-logo svg { fill:var(--coral); width:32px; height:32px; }
+    .login-title { font-family:var(--serif); font-size:22px; text-align:center; margin-bottom:4px; }
+    .login-sub { font-family:var(--editorial); font-style:italic; font-size:13px; color:var(--text-muted); text-align:center; margin-bottom:28px; }
+    .login-error { color:var(--coral); font-size:13px; font-family:var(--editorial); margin-bottom:12px; display:none; }
+  </style>
+</head>
+<body>
+<div class="login-box">
+  <div class="login-logo">
+    <svg viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+  </div>
+  <div class="login-title">De Simone OS</div>
+  <div class="login-sub">Torre del Greco · Dal 1830</div>
+  <div class="login-error" id="loginError"></div>
+  <div class="form-field" style="margin-bottom:16px;">
+    <label class="field-label">Email</label>
+    <input type="email" id="emailInput" class="field-input" placeholder="nome@desimone.it">
+  </div>
+  <div class="form-field" style="margin-bottom:24px;">
+    <label class="field-label">Password</label>
+    <input type="password" id="passwordInput" class="field-input" placeholder="••••••••">
+  </div>
+  <button class="btn-primary" id="loginBtn" style="width:100%;justify-content:center;" onclick="doLogin()">
+    Accedi
+  </button>
+</div>
+
+<script src="config.js"></script>
+<script type="module">
+  import { signIn } from './js/supabase.js'
+
+  window.doLogin = async () => {
+    const email = document.getElementById('emailInput').value
+    const password = document.getElementById('passwordInput').value
+    const errEl = document.getElementById('loginError')
+    const btn = document.getElementById('loginBtn')
+
+    btn.textContent = 'Accesso...'
+    btn.disabled = true
+    errEl.style.display = 'none'
+
+    try {
+      await signIn(email, password)
+      window.location.href = '/catalog.html'
+    } catch(e) {
+      errEl.textContent = 'Email o password non validi.'
+      errEl.style.display = 'block'
+      btn.textContent = 'Accedi'
+      btn.disabled = false
+    }
+  }
+
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Enter') window.doLogin()
+  })
+</script>
+</body>
+</html>

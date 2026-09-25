@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>De Simone OS — Modifica Articolo</title>
+
+  <!-- PWA -->
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#1A1814">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="De Simone">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
+
+  <link rel="stylesheet" href="css/variables.css">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/layout.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/mobile.css">
+  <style>
+    .editor-section {
+      background: rgba(255,255,255,0.03);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 8px;
+      padding: 24px;
+      margin-bottom: 24px;
+    }
+    .editor-title {
+      font-family: var(--editorial);
+      font-size: 16px;
+      color: var(--coral-pink);
+      margin-bottom: 16px;
+      border-bottom: 1px solid rgba(255,255,255,0.08);
+      padding-bottom: 8px;
+    }
+  </style>
+</head>
+<body>
+<div id="toast" role="status" aria-live="polite"></div>
+<div class="app-shell">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar" aria-label="Navigazione principale">
+    <div class="sidebar-logo" aria-hidden="true">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+    </div>
+    <nav class="sidebar-nav" aria-label="Menu">
+      <a href="/catalog.html" class="nav-item active" aria-label="Torna al Catalogo">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+      </a>
+    </nav>
+  </aside>
+
+  <!-- MAIN AREA -->
+  <main class="main" style="padding: 0; overflow-y: auto;">
+    <div class="topbar" style="border-bottom: 1px solid rgba(255,255,255,0.08); padding: 0 32px;">
+      <a href="/catalog.html" style="color:var(--text-muted); text-decoration:none; display:flex; align-items:center; gap:8px; font-family:var(--editorial); font-size:14px;">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg> Torna al catalogo
+      </a>
+      <div style="margin-left:auto; display:flex; gap:12px;">
+        <button class="btn-ghost" id="btnCancel">Annulla</button>
+        <button class="btn-primary" id="btnSave">Salva Modifiche</button>
+      </div>
+    </div>
+
+    <div style="max-width: 720px; margin: 40px auto; padding: 0 16px 120px; " class="editor-content">
+      <h1 style="font-family:var(--serif); font-size:28px; margin-bottom:8px;" id="headerName">Modifica Articolo</h1>
+      <p style="font-family:var(--mono); fill:var(--text-muted); font-size:12px; margin-bottom:32px; color:var(--text-muted);" id="headerSku">Caricamento...</p>
+
+      <div class="editor-section">
+        <div class="editor-title">Identità</div>
+        <div class="form-row full">
+          <div class="form-field">
+            <label class="field-label">Collezione <span class="field-required">*</span></label>
+            <select class="field-select" id="f_collection"></select>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-field">
+            <label class="field-label">Tipo prodotto <span class="field-required">*</span></label>
+            <select class="field-select" id="f_type">
+              <option value="bracciale">Bracciale</option>
+              <option value="collana">Collana</option>
+              <option value="anello">Anello</option>
+              <option value="orecchini">Orecchini</option>
+              <option value="spilla">Spilla</option>
+              <option value="ciondolo">Ciondolo</option>
+              <option value="altro">Altro</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label class="field-label">SKU</label>
+            <input type="text" class="field-input" id="f_sku" disabled style="background:rgba(255,255,255,0.02); color:var(--text-muted);">
+          </div>
+        </div>
+        <div class="form-row full" style="margin-top:16px;">
+          <div class="form-field">
+            <label class="field-label">Note interne</label>
+            <textarea class="field-input field-textarea" id="f_notes" rows="3"></textarea>
+          </div>
+        </div>
+      </div>
+
+      <div class="editor-section">
+        <div class="editor-title">Materiali & Prezzi</div>
+        <div class="form-row">
+          <div class="form-field">
+            <label class="field-label">Corallo <span class="field-required">*</span></label>
+            <select class="field-select" id="f_coral"></select>
+          </div>
+          <div class="form-field">
+            <label class="field-label">Materiale montatura <span class="field-required">*</span></label>
+            <select class="field-select" id="f_metal"></select>
+          </div>
+        </div>
+        <div class="form-row" style="margin-top:16px;">
+          <div class="form-field">
+            <label class="field-label">Prezzo retail (€) <span class="field-required">*</span></label>
+            <input type="number" class="field-input" id="f_price_retail" min="0" step="1">
+          </div>
+          <div class="form-field">
+            <label class="field-label">Prezzo ingrosso (€)</label>
+            <input type="number" class="field-input" id="f_price_wholesale" min="0" step="1">
+          </div>
+        </div>
+      </div>
+
+      <div class="editor-section">
+        <div class="editor-title">Misure & Magazzino</div>
+        <div class="form-row triple">
+          <div class="form-field">
+            <label class="field-label">Stock Totale</label>
+            <input type="number" class="field-input" id="f_stock" min="0" placeholder="0">
+          </div>
+          <div class="form-field">
+            <label class="field-label">Peso (g)</label>
+            <input type="number" class="field-input" id="f_weight" min="0" step="0.1">
+          </div>
+          <div class="form-field"></div>
+        </div>
+        <div class="form-row triple" style="margin-top:16px;">
+          <div class="form-field">
+            <label class="field-label">Larghezza (cm)</label>
+            <input type="number" class="field-input" id="f_width">
+          </div>
+          <div class="form-field">
+            <label class="field-label">Lunghezza (cm)</label>
+            <input type="number" class="field-input" id="f_length">
+          </div>
+          <div class="form-field">
+            <label class="field-label">Altezza (cm)</label>
+            <input type="number" class="field-input" id="f_height">
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script src="config.js"></script>
+<script type="module" src="js/article.js"></script>
+<script type="module" src="js/pwa.js"></script>
+</body>
+</html>

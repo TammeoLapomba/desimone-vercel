@@ -1,0 +1,36 @@
+:root {
+  /* Brand palette De Simone */
+  --coral:        #C94030;
+  --coral-dark:   #A8331F;
+  --coral-pink:   #E8A898;
+  --coral-white:  #D4C4B8;
+  --ivory:        #F5F0E8;
+  --ivory-dark:   #EDE6D8;
+  --ebony:        #1A1814;
+  --ebony-mid:    #2A2620;
+  --ebony-light:  #3A3630;
+  --gold:         #C9A84C;
+  --silver:       #B8B4AE;
+
+  /* Text */
+  --text-primary:   #1A1814;
+  --text-secondary: #6B6560;
+  --text-muted:     #9B948D;
+
+  /* Typography */
+  --serif:     'Libre Baskerville', serif;
+  --editorial: 'Cormorant Garamond', serif;
+  --mono:      'DM Mono', monospace;
+
+  /* Layout */
+  --sidebar-w:     64px;
+  --left-panel-w:  280px;
+  --topbar-h:      56px;
+
+  /* Z-index scale */
+  --z-base:    10;
+  --z-panel:   20;
+  --z-modal:   200;
+  --z-toast:   300;
+  --z-top:     400;
+}
