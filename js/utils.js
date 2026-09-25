@@ -5,6 +5,12 @@ export function formatPrice(amount, currency = '€') {
   return `${currency} ${Number(amount).toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
 }
 
+// SKU generato dall'app (generate_sku): CODICE-CORALLO-METALLO-NNN.
+// Gli articoli importati dal sito hanno il codice originale: SKU e nome non vanno ricalcolati.
+export function isAppSku(sku) {
+  return /^[A-Z0-9]{4}-[A-Z]{2,3}-[A-Z]{2,3}-\d{3}$/.test(sku || '')
+}
+
 export function statusLabel(status) {
   const map = { draft: 'Bozza', processing: 'Processing', ready: 'Pronto', published: 'Pubblicato' }
   return map[status] || status

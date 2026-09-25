@@ -1,6 +1,6 @@
 // js/catalog.js
 import { supabase, requireAuth, getCollections, getArticles, subscribeToArticleStatus, signOut } from './supabase.js'
-import { formatPrice, statusLabel, statusClass, getCoverPhoto, showToast, debounce } from './utils.js'
+import { formatPrice, statusLabel, statusClass, getCoverPhoto, showToast, debounce, isAppSku } from './utils.js'
 import { openArticleModal } from './article-form.js'
 import { initMobileNav, initHamburger, addDetailPanelCloseBtn, closeDrawer } from './pwa.js'
 
@@ -287,7 +287,7 @@ function setupListeners() {
 
     try {
       if (isEditingCollection) {
-        if (!confirm('Avviso: Modificando la collezione, SKU e Nome di tutti i suoi articoli verranno ricalcolati e sovrascritti. Continuare?')) return
+        if (!confirm('Avviso: Modificando la collezione, SKU e Nome degli articoli creati dall\'app verranno ricalcolati e sovrascritti (gli articoli con codice originale restano invariati). Continuare?')) return
         const coll = currentCollections.find(c => c.id === currentCollectionId)
         const oldCode = coll.description_it || coll.slug.substring(0, 4).toUpperCase()
 
@@ -298,6 +298,7 @@ function setupListeners() {
 
         const relatedArticles = allArticles.filter(a => a.collection_id === currentCollectionId)
         for (const a of relatedArticles) {
+          if (!isAppSku(a.sku)) continue
           let updatedSku = a.sku
           if (code !== oldCode) {
             updatedSku = code + a.sku.substring(4)

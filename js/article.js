@@ -1,6 +1,6 @@
 // js/article.js
 import { supabase, requireAuth, getCollections, getMaterials, getArticleById, updateArticle } from './supabase.js'
-import { showToast } from './utils.js'
+import { showToast, isAppSku } from './utils.js'
 
 let articleId = null
 let currentArticle = null
@@ -77,14 +77,18 @@ function setupListeners() {
   })
 
   document.getElementById('btnSave').addEventListener('click', async () => {
-    // Validazione base
+    // Validazione base — corallo, metallo e prezzo servono a generate_sku solo per gli SKU dell'app
+    const appSku = isAppSku(currentArticle.sku)
     if (!document.getElementById('f_collection').value) return showToast('Seleziona una collezione')
     if (!document.getElementById('f_type').value) return showToast('Seleziona il tipo prodotto')
-    if (!document.getElementById('f_coral').value) return showToast('Seleziona il tipo di corallo')
-    if (!document.getElementById('f_metal').value) return showToast('Seleziona il tipo di metallo')
-    if (!document.getElementById('f_price_retail').value) return showToast('Inserisci il prezzo retail')
+    if (appSku && !document.getElementById('f_coral').value) return showToast('Seleziona il tipo di corallo')
+    if (appSku && !document.getElementById('f_metal').value) return showToast('Seleziona il tipo di metallo')
+    if (appSku && !document.getElementById('f_price_retail').value) return showToast('Inserisci il prezzo retail')
 
-    if (!confirm('ATTENZIONE: Stai per sovrascrivere in modo permanente i dati di questo articolo. Il nome a display verrà ricalcolato. Vuoi procedere?')) {
+    const confirmMsg = appSku
+      ? 'ATTENZIONE: Stai per sovrascrivere in modo permanente i dati di questo articolo. Il nome a display verrà ricalcolato. Vuoi procedere?'
+      : 'ATTENZIONE: Stai per sovrascrivere in modo permanente i dati di questo articolo. Codice e nome originali restano invariati. Vuoi procedere?'
+    if (!confirm(confirmMsg)) {
       return
     }
 
@@ -120,7 +124,7 @@ function setupListeners() {
       const newCoral = document.getElementById('f_coral').value
       const newMetal = document.getElementById('f_metal').value
 
-      if (newColl !== currentArticle.collection_id || newCoral !== currentArticle.coral_material_id || newMetal !== currentArticle.metal_material_id) {
+      if (appSku && (newColl !== currentArticle.collection_id || newCoral !== currentArticle.coral_material_id || newMetal !== currentArticle.metal_material_id)) {
          const { data: newSku, error: skuError } = await supabase.rpc('generate_sku', {
             p_collection_id: newColl,
             p_coral_id: newCoral,
@@ -131,11 +135,11 @@ function setupListeners() {
       }
 
       const updates = {
-        name: dynamicName,
+        name: appSku ? dynamicName : currentArticle.name,
         product_type: pType,
         collection_id: newColl,
-        coral_material_id: newCoral,
-        metal_material_id: newMetal,
+        coral_material_id: newCoral || null,
+        metal_material_id: newMetal || null,
         sku: sku,
         notes: document.getElementById('f_notes').value.trim() || null,
         price_retail: Number(document.getElementById('f_price_retail').value) || null,
