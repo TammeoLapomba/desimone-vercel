@@ -29,7 +29,7 @@ export function initMobileNav({ onNewArticle, onOpenDrawer } = {}) {
   if (document.querySelector('.mobile-nav')) return
 
   const isCatalog = window.location.pathname.includes('catalog') || window.location.pathname === '/'
-  const isSmontato = window.location.pathname.includes('smontato')
+  const isSemilavorato = window.location.pathname.includes('semilavorato')
 
   const nav = document.createElement('nav')
   nav.className = 'mobile-nav'
@@ -43,11 +43,11 @@ export function initMobileNav({ onNewArticle, onOpenDrawer } = {}) {
       Montato
     </a>
 
-    <a href="smontato.html" class="mobile-nav-item ${isSmontato ? 'active' : ''}" aria-label="Smontato">
+    <a href="semilavorato.html" class="mobile-nav-item ${isSemilavorato ? 'active' : ''}" aria-label="Semilavorato">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
         <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
       </svg>
-      Smontato
+      Semilavorato
     </a>
 
     <button class="mobile-fab" id="mobileNewArticleBtn" aria-label="Nuovo elemento">

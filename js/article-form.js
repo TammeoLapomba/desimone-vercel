@@ -1,9 +1,10 @@
 // js/article-form.js
-import { supabase, getCollections, getMaterials, insertArticle, uploadPhoto } from './supabase.js'
+import { supabase, getCollections, getMaterials, getProductTypes, insertArticle, uploadPhoto } from './supabase.js'
 import { buildSkuPreview, showToast } from './utils.js'
 import { initPhotoUpload } from './photo-upload.js'
 
 let collections = []
+let productTypes = []
 let corals = []
 let metals = []
 let photoUploader = null
@@ -14,8 +15,9 @@ export async function openArticleModal({ onSuccess }) {
 
   // Load data if not already loaded
   if (!collections.length) {
-    [collections, corals, metals] = await Promise.all([
+    [collections, productTypes, corals, metals] = await Promise.all([
       getCollections(),
+      getProductTypes(),
       getMaterials('coral'),
       getMaterials('metal')
     ])
@@ -64,7 +66,7 @@ function renderModal() {
               <label class="field-label">Tipo prodotto <span class="field-required">*</span></label>
               <select class="field-select" id="f_type">
                 <option value="">Seleziona…</option>
-                ${['bracciale', 'collana', 'anello', 'orecchini', 'spilla', 'ciondolo', 'altro'].map(t => `<option value="${t}">${t.charAt(0).toUpperCase() + t.slice(1)}</option>`).join('')}
+                ${productTypes.map(t => `<option value="${t.id}">${t.name}</option>`).join('')}
               </select>
             </div>
           </div>
@@ -218,8 +220,8 @@ function setupFormListeners() {
   function updateNamePreview() {
     const collSel = document.getElementById('f_collection')
     const collName = collSel.options[collSel.selectedIndex]?.text || ''
-    const pType = document.getElementById('f_type').value
-    const pTypeName = pType ? pType.charAt(0).toUpperCase() + pType.slice(1) : ''
+    const typeSel = document.getElementById('f_type')
+    const pTypeName = typeSel.value ? typeSel.options[typeSel.selectedIndex].text : ''
     const customName = document.getElementById('f_name')?.value.trim() || ''
     if (!pTypeName && !collName) return
     const preview = [pTypeName, collName, customName].filter(Boolean).join(' ')
@@ -290,8 +292,8 @@ function setupFormListeners() {
 
       const collSel = document.getElementById('f_collection')
       const collName = collSel.options[collSel.selectedIndex].text
-      const pType = document.getElementById('f_type').value
-      const pTypeName = pType.charAt(0).toUpperCase() + pType.slice(1)
+      const typeSel = document.getElementById('f_type')
+      const pTypeName = typeSel.options[typeSel.selectedIndex].text
       const customName = document.getElementById('f_name')?.value.trim() || ''
       const dynamicName = [pTypeName, collName, customName].filter(Boolean).join(' ') +
         (l ? ` ${l}cm` : '')
@@ -299,7 +301,7 @@ function setupFormListeners() {
       const article = await insertArticle({
         collection_id: collId,
         name: dynamicName,
-        product_type: pType,
+        product_type_id: typeSel.value,
         coral_material_id: coralId,
         metal_material_id: metalId,
         sku: skuData,

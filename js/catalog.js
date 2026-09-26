@@ -102,8 +102,7 @@ function renderGrid(articles) {
     const cover = getCoverPhoto(a.photos)
     const collName = a.collections?.name || ''
     
-    const pType = a.product_type || ''
-    const pTypeName = pType ? pType.charAt(0).toUpperCase() + pType.slice(1) : ''
+    const pTypeName = a.product_type?.name || ''
     const l = a.measurements?.length_cm ? ` ${a.measurements.length_cm}cm` : ''
     const computedName = `${pTypeName} ${collName}${l}`.trim()
     const dispName = computedName || a.name
@@ -154,8 +153,7 @@ function openDetail(articleId) {
   const inner = document.getElementById('detailInner')
   const cover = getCoverPhoto(a.photos)
 
-  const pType = a.product_type || ''
-  const pTypeName = pType ? pType.charAt(0).toUpperCase() + pType.slice(1) : ''
+  const pTypeName = a.product_type?.name || ''
   const l = a.measurements?.length_cm ? ` ${a.measurements.length_cm}cm` : ''
   const computedName = `${pTypeName} ${a.collections?.name || ''}${l}`.trim()
   const dispName = computedName || a.name
@@ -298,8 +296,7 @@ function setupListeners() {
           if (code !== oldCode) {
             updatedSku = code + a.sku.substring(4)
           }
-          const pType = a.product_type || ''
-          const pTypeName = pType ? pType.charAt(0).toUpperCase() + pType.slice(1) : ''
+          const pTypeName = a.product_type?.name || ''
           const l = a.measurements?.length_cm ? ` ${a.measurements.length_cm}cm` : ''
           const updatedName = `${pTypeName} ${name}${l}`.trim()
 

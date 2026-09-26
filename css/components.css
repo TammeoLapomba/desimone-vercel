@@ -214,7 +214,7 @@
   color: rgba(255,255,255,0.3);
 }
 
-/* ── Catalog type tabs (Montato / Smontato) ─────────────────── */
+/* ── Catalog type tabs (Montato / Semilavorato) ─────────────────── */
 .catalog-type-tabs {
   display: flex;
   border-bottom: 1px solid rgba(255,255,255,0.06);
@@ -240,7 +240,7 @@
   border-bottom-color: var(--coral);
 }
 
-/* ── Raw Item card (catalogo smontato) ──────────────────────── */
+/* ── Raw Item card (catalogo semilavorato) ──────────────────────── */
 .raw-item-card {
   background: white;
   border-radius: 4px;

@@ -44,14 +44,25 @@ export async function getMaterials(type = null) {
   return data
 }
 
+export async function getProductTypes() {
+  const { data, error } = await supabase
+    .from('product_types')
+    .select('id, name, slug')
+    .eq('active', true)
+    .order('sort_order')
+  if (error) throw error
+  return data
+}
+
 export async function getArticles(collectionId = null) {
   let query = supabase
     .from('articles')
     .select(`
-      id, name, sku, product_type, status, channel,
+      id, name, sku, product_type_id, status, channel,
       price_retail, price_wholesale, stock_retail, stock_wholesale,
       collection_id, coral_material_id, metal_material_id, created_at,
       collections(name, slug),
+      product_type:product_types(name),
       coral:materials!coral_material_id(name, code),
       metal:materials!metal_material_id(name, code),
       photos(id, public_url, is_cover, photo_type, sort_order),
@@ -137,7 +148,7 @@ export function subscribeToArticleStatus(onUpdate) {
     .subscribe()
 }
 
-// ── Smontato helpers ──────────────────────────────────────────
+// ── Semilavorato helpers ──────────────────────────────────────────
 
 export async function getRawCategories() {
   const { data, error } = await supabase

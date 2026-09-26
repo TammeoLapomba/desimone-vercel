@@ -1,4 +1,4 @@
-// js/smontato.js
+// js/semilavorato.js
 import { requireAuth, getRawCategories, getRawItems, insertRawCategory, updateRawItem, deleteRawCategory } from './supabase.js'
 import { showToast, debounce } from './utils.js'
 import { openRawItemModal } from './raw-form.js'
@@ -47,7 +47,7 @@ async function loadCategories() {
 
     list.querySelectorAll('[data-category-id]').forEach(el => el.classList.remove('active'))
     item.classList.add('active')
-    document.getElementById('breadcrumb').textContent = `Smontato · ${item.dataset.categoryName}`
+    document.getElementById('breadcrumb').textContent = `Semilavorato · ${item.dataset.categoryName}`
     renderGrid(allItems.filter(i => !currentCategoryId || i.category_id === currentCategoryId))
     closeDrawer()
   })
@@ -97,7 +97,7 @@ function renderGrid(items) {
       grid.innerHTML = `<div style="grid-column:1/-1;padding:64px 24px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:16px;">
         <svg style="width:48px;height:48px;color:rgba(201,168,76,0.5);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
         <div style="font-family:var(--serif);font-size:22px;color:white;">Il tuo magazzino è vuoto</div>
-        <div style="font-family:var(--editorial);font-size:14px;color:var(--text-muted);max-width:300px;">Per iniziare a inserire i fili smontati, crea la tua prima Categoria dalla barra laterale (es. Pallini, Cannette, ecc).</div>
+        <div style="font-family:var(--editorial);font-size:14px;color:var(--text-muted);max-width:300px;">Per iniziare a inserire i fili semilavorati, crea la tua prima Categoria dalla barra laterale (es. Pallini, Cannette, ecc).</div>
       </div>`
     } else {
       grid.innerHTML = `<div style="grid-column:1/-1;padding:48px;text-align:center;font-family:var(--serif);font-size:18px;color:var(--text-muted);">Nessun filo trovato</div>`
@@ -411,7 +411,7 @@ function setupListeners() {
       showToast('Categoria eliminata')
       currentCategoryId = null
       document.getElementById('categoryActions').style.display = 'none'
-      document.getElementById('breadcrumb').textContent = 'Smontato · Tutti i fili'
+      document.getElementById('breadcrumb').textContent = 'Semilavorato · Tutti i fili'
       await refresh()
     } catch (err) { showToast('Errore: ' + err.message) }
   })

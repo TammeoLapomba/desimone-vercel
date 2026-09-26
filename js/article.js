@@ -1,5 +1,5 @@
 // js/article.js
-import { supabase, requireAuth, getCollections, getMaterials, getArticleById, updateArticle } from './supabase.js'
+import { supabase, requireAuth, getCollections, getMaterials, getProductTypes, getArticleById, updateArticle } from './supabase.js'
 import { showToast, isAppSku } from './utils.js'
 
 let articleId = null
@@ -18,13 +18,15 @@ async function init() {
 
   try {
     // Carica dipendenze
-    const [corals, metals] = await Promise.all([
+    const [productTypes, corals, metals] = await Promise.all([
+      getProductTypes(),
       getMaterials('coral'),
       getMaterials('metal')
     ])
     collections = await getCollections()
 
     populateSelect('f_collection', collections, 'id', 'name', 'Seleziona collezione…')
+    populateSelect('f_type', productTypes, 'id', 'name', 'Seleziona…')
     populateSelect('f_coral', corals, 'id', 'name', 'Seleziona…', 'code')
     populateSelect('f_metal', metals, 'id', 'name', 'Seleziona…', 'code')
 
@@ -37,7 +39,7 @@ async function init() {
 
     // Popola campi form
     document.getElementById('f_collection').value = currentArticle.collection_id
-    document.getElementById('f_type').value = currentArticle.product_type
+    document.getElementById('f_type').value = currentArticle.product_type_id
     document.getElementById('f_sku').value = currentArticle.sku
     document.getElementById('f_notes').value = currentArticle.notes || ''
     
@@ -99,8 +101,8 @@ function setupListeners() {
     try {
       const collSel = document.getElementById('f_collection')
       const collName = collSel.options[collSel.selectedIndex].text
-      const pType = document.getElementById('f_type').value
-      const pTypeName = pType.charAt(0).toUpperCase() + pType.slice(1)
+      const typeSel = document.getElementById('f_type')
+      const pTypeName = typeSel.options[typeSel.selectedIndex].text
       const l = document.getElementById('f_length').value
 
       const dynamicName = `${pTypeName} ${collName}${l ? ' ' + l + 'cm' : ''}`
@@ -136,7 +138,7 @@ function setupListeners() {
 
       const updates = {
         name: appSku ? dynamicName : currentArticle.name,
-        product_type: pType,
+        product_type_id: typeSel.value,
         collection_id: newColl,
         coral_material_id: newCoral || null,
         metal_material_id: newMetal || null,

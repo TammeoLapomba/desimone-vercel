@@ -105,6 +105,14 @@ const TYPE_RULES = [
   [/\b(spill[ae]|fermagli?o|brooch)\b/, 'spilla'],
 ]
 const TYPE_BY_CATEGORY = { anello: 'anello', bracciale: 'bracciale', collane: 'collana', orecchini: 'orecchini', pendente: 'ciondolo', fermaglio: 'spilla' }
+// Oggetti che non sono gioielli: solo dopo le categorie, così un "Cuore" nella categoria pendente resta ciondolo
+const OTHER_TYPE_RULES = [
+  [/\b(gemelli|cufflinks?)\b/, 'gemelli'],
+  [/\b(quadrett[oi])\b/, 'quadretto'],
+  [/\b(portatovaglioli|napkin rings?)\b/, 'portatovaglioli'],
+  [/\b(ram[oi]|branch(es)?)\b/, 'ramo-di-corallo'],
+  [/\b(cuor[ei]|hearts?)\b/, 'cuore'],
+]
 
 const CORAL_RULES = [
   [/sciacca/, 'CS'],
@@ -178,9 +186,10 @@ function transform(p, { collectionSlug, enBySku, enOnly }) {
   const attr = n => p.attributes.find(a => a.name === n)?.terms.map(t => decode(t.name)) || []
 
   const catSlugs = p.categories.map(c => c.slug)
+  // Slug di product_types; null = non riconosciuto, l'import si ferma
   const product_type = firstMatch(lname, TYPE_RULES)
     || catSlugs.map(s => TYPE_BY_CATEGORY[s]).find(Boolean)
-    || 'altro'
+    || firstMatch(lname, OTHER_TYPE_RULES)
 
   const color = attr('Colore')[0]?.toLowerCase()
   const coral = firstMatch(lname, CORAL_RULES) || firstMatch(ldesc, CORAL_RULES)
@@ -323,6 +332,13 @@ async function importToSupabase(articles) {
     throw new Error(`Nel database ci sono ${foreign.length} collezioni e ${foreignArt.length} articoli non di questo import. Esegui prima supabase/pulizia_catalogo.sql`)
   }
 
+  const untyped = articles.filter(a => !a.product_type)
+  if (untyped.length) {
+    throw new Error(`Tipo prodotto non riconosciuto per: ${untyped.map(a => `${a.sku} (${a.name})`).join(', ')}. Aggiungi una regola in TYPE_RULES o OTHER_TYPE_RULES`)
+  }
+  const types = await rest('GET', 'product_types?select=id,slug')
+  const typeId = Object.fromEntries(types.map(t => [t.slug, t.id]))
+
   // Materiali
   const mats = await rest('GET', 'materials?select=id,code')
   const missing = MATERIALS.filter(([code]) => !mats.some(m => m.code === code))
@@ -343,7 +359,7 @@ async function importToSupabase(articles) {
   const toInsert = articles.filter(a => !artId[a.sku]).map(a => ({
     collection_id: collId[ourSlugs.get(a.collectionSlug).slug],
     name: a.name,
-    product_type: a.product_type,
+    product_type_id: typeId[a.product_type],
     coral_material_id: a.coral ? matId[a.coral] : null,
     metal_material_id: a.metal ? matId[a.metal] : null,
     sku: a.sku,
@@ -382,6 +398,7 @@ const args = process.argv.slice(2)
 const { articles, report } = await loadCatalog()
 console.log(`\nTotale: ${articles.length} articoli`)
 report.shared.forEach(s => console.log('  condiviso:', s))
+articles.filter(a => !a.product_type).forEach(a => console.log('  tipo non riconosciuto:', a.sku, a.name))
 if (report.enOnly.length) console.log('  solo sito EN:', report.enOnly.join(', '))
 
 const previewPath = args[args.indexOf('--preview') + 1]

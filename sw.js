@@ -1,8 +1,8 @@
-const CACHE_NAME = 'desimone-os-v7'
+const CACHE_NAME = 'desimone-os-v8'
 
 const SHELL_ASSETS = [
   '/catalog.html',
-  '/smontato.html',
+  '/semilavorato.html',
   '/article.html',
   '/login.html',
   '/config.js',
@@ -12,7 +12,7 @@ const SHELL_ASSETS = [
   '/css/components.css',
   '/css/mobile.css',
   '/js/catalog.js',
-  '/js/smontato.js',
+  '/js/semilavorato.js',
   '/js/raw-form.js',
   '/js/supabase.js',
   '/js/article-form.js',

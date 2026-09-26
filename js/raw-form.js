@@ -1,4 +1,4 @@
-// js/raw-form.js — Modale inserimento/modifica filo smontato
+// js/raw-form.js — Modale inserimento/modifica filo semilavorato
 import { insertRawItem, updateRawItem, uploadRawPhoto } from './supabase.js'
 import { showToast } from './utils.js'
 import { initPhotoUpload } from './photo-upload.js'
@@ -20,7 +20,7 @@ export function openRawItemModal({ item = null, categories = [], defaultCategory
     <div class="modal" style="max-width:560px;">
       <div class="modal-header">
         <div>
-          <div class="modal-eyebrow">Smontato · ${isEdit ? 'Modifica' : 'Nuovo'} filo</div>
+          <div class="modal-eyebrow">Semilavorato · ${isEdit ? 'Modifica' : 'Nuovo'} filo</div>
           <div class="modal-title" id="rawItemModalTitle">${isEdit ? (item.raw_categories?.name || 'Filo') : 'Inserimento Filo'}</div>
         </div>
         <button style="background:none;border:none;cursor:pointer;color:var(--text-muted);padding:4px;"
@@ -231,7 +231,7 @@ export function openRawItemModal({ item = null, categories = [], defaultCategory
   })
 }
 
-// ─── Photo upload per smontato ─────
+// ─── Photo upload per semilavorato ─────
 
 function initRawPhotoUpload(containerEl) {
   const files = []

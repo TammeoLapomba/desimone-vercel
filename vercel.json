@@ -2,7 +2,7 @@
   "cleanUrls": false,
   "rewrites": [
     { "source": "/", "destination": "/catalog.html" },
-    { "source": "/smontato", "destination": "/smontato.html" }
+    { "source": "/semilavorato", "destination": "/semilavorato.html" }
   ],
   "headers": [
     {
