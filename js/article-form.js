@@ -191,7 +191,7 @@ function setupFormListeners() {
     })
     document.getElementById('stepLabel').textContent = `Step ${step} di 3 — ${stepLabels[step - 1]}`
     document.getElementById('btnBack').style.display = step > 1 ? '' : 'none'
-    document.getElementById('btnNext').textContent = step === 3 ? 'Salva & Avvia Pipeline ✦' : 'Avanti →'
+    document.getElementById('btnNext').textContent = step === 3 ? 'Salva articolo' : 'Avanti →'
     updateSkuPreview()
   }
 
@@ -325,7 +325,7 @@ function setupFormListeners() {
     } catch (e) {
       console.error(e)
       showToast('Errore durante il salvataggio: ' + e.message)
-      btn.textContent = 'Salva & Avvia Pipeline ✦'
+      btn.textContent = 'Salva articolo'
       btn.disabled = false
     }
   }

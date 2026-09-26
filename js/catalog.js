@@ -202,7 +202,6 @@ function setupRealtime() {
           badge.textContent = statusLabel(updated.status)
         }
       }
-      if (updated.status === 'ready') showToast(`${updated.sku} — elaborazione completata`)
     }
   })
 }
@@ -210,13 +209,9 @@ function setupRealtime() {
 function setupListeners() {
   const openModal = () => openArticleModal({
     onSuccess: (article) => {
-      const toast = document.getElementById('processingToast')
-      document.getElementById('processingSkuLabel').textContent = article.sku
-      toast.classList.add('visible')
-      setTimeout(() => toast.classList.remove('visible'), 5000)
       allArticles.unshift(article)
       renderGrid(allArticles)
-      showToast(`Articolo ${article.sku} creato — pipeline AI avviata`)
+      showToast(`Articolo ${article.sku} creato`)
     }
   })
 

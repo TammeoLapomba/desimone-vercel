@@ -119,7 +119,7 @@ export function openRawItemModal({ item = null, categories = [], defaultCategory
           </div>
         </div>
 
-        <!-- Step 3 — Foto (senza pipeline AI) -->
+        <!-- Step 3 — Foto -->
         <div id="rstep3Content" style="display:none;">
           <p style="font-family:var(--editorial);font-style:italic;font-size:13px;color:var(--text-muted);margin-bottom:16px;">
             Le foto vengono salvate così come sono — nessuna elaborazione automatica.
@@ -231,7 +231,7 @@ export function openRawItemModal({ item = null, categories = [], defaultCategory
   })
 }
 
-// ─── Photo upload semplificato per smontato (no pipeline) ─────
+// ─── Photo upload per smontato ─────
 
 function initRawPhotoUpload(containerEl) {
   const files = []
@@ -311,7 +311,7 @@ async function submitRawItem(isEdit, existingId) {
       showToast('Filo inserito')
     }
 
-    // Upload foto (no pipeline — solo storage + DB)
+    // Upload foto (storage + DB)
     const photos = photoUploader?.getFiles() || []
     for (let i = 0; i < photos.length; i++) {
       const isCover = i === 0  // La prima foto diventa automaticamente la cover

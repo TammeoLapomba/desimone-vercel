@@ -28,13 +28,3 @@ Gli utenti si creano solo dalla dashboard.
 ## 4. Chiavi per il frontend
 Dashboard → Project Settings → API Keys: copia **Project URL** e la chiave
 **anon / publishable** in `config.js`. Non usare mai la `service_role` / secret key nel frontend.
-
-## 5. Pipeline AI (opzionale, richiede n8n)
-1. Deploy della Edge Function: vedi `functions/trigger-ai-pipeline/deploy.sh`
-2. Dashboard → Database → Webhooks → Create webhook
-   - Name: `on_article_insert`
-   - Table: `articles`
-   - Events: ✅ INSERT
-   - Type: Supabase Edge Functions
-   - Function: `trigger-ai-pipeline`
-3. Nei workflow in `n8n/` sostituisci `YOUR_PROJECT` e `YOUR_VPS` con i valori reali.

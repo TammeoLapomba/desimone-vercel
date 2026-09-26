@@ -402,13 +402,6 @@
   #toast {
     bottom: calc(80px + env(safe-area-inset-bottom));
   }
-
-  .processing-toast {
-    bottom: calc(80px + env(safe-area-inset-bottom));
-    right: 12px;
-    left: 12px;
-    min-width: unset;
-  }
 }
 
 /* ─── Buttons touch-friendly ─────────────────────────────────── */

@@ -4,3 +4,7 @@ config.local.js
 .DS_Store
 node_modules/
 .vercel
+
+# Software legacy STEP: contiene credenziali del database e programmi proprietari.
+# Non va MAI su git (né nel repository privato né in quello pubblico).
+old_software/
