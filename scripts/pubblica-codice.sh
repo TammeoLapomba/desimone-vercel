@@ -60,17 +60,23 @@ if [ "${1:-}" != "--push" ]; then
   exit 0
 fi
 
-# Messaggio: elenco dei commit privati sincronizzati dall'ultima pubblicazione (trailer "Codice-da")
+# Messaggio: commit sincronizzati dall'ultima pubblicazione (trailer "Codice-da"), elencando solo quelli
+# che toccano file pubblicati, così i titoli dei commit sul materiale privato non finiscono nel pubblico.
 LAST=$(git log -1 --format='%(trailers:key=Codice-da,valueonly)' "$PARENT" | head -n1 | tr -d '[:space:]')
 if [ -n "$LAST" ] && git merge-base --is-ancestor "$LAST" HEAD 2>/dev/null; then
   RANGE="$LAST..HEAD"
+elif git merge-base --is-ancestor "$PARENT" HEAD 2>/dev/null; then
+  RANGE="$PARENT..HEAD"
 else
   RANGE="-1 HEAD"
 fi
+EXCLUDES=()
+for p in "${PRIVATE_PATHS[@]}"; do EXCLUDES+=(":(exclude)$p"); done
 # shellcheck disable=SC2086
-SUBJECTS=$(git log --format='- %s' $RANGE)
+SUBJECTS=$(git log --format='- %s' $RANGE -- . "${EXCLUDES[@]}")
 # shellcheck disable=SC2086
-COAUTHORS=$(git log --format='%(trailers:key=Co-Authored-By)' $RANGE | sed '/^$/d' | sort -u)
+COAUTHORS=$(git log --format='%(trailers:key=Co-Authored-By)' $RANGE -- . "${EXCLUDES[@]}" | sed '/^$/d' | sort -u)
+[ -n "$SUBJECTS" ] || SUBJECTS="- aggiornamento del codice"
 
 MSG=$(printf 'Sync codice dal repository privato\n\n%s\n\nCodice-da: %s\n%s' "$SUBJECTS" "$(git rev-parse HEAD)" "$COAUTHORS")
 COMMIT=$(git commit-tree "$TREE" -p "$PARENT" -m "$MSG")
