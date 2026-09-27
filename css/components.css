@@ -94,7 +94,7 @@
 
 .card-body { padding: 10px 12px 12px; }
 .card-collection { font-family: var(--editorial); font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--coral); margin-bottom: 3px; }
-.card-name { font-family: var(--serif); font-size: 16px; font-weight: 500; line-height: 1.2; margin-bottom: 4px; }
+.card-name { font-family: var(--editorial); font-size: 16px; font-weight: 500; line-height: 1.3; margin-bottom: 4px; }
 .card-sku { font-family: var(--mono); font-size: 10px; color: var(--text-muted); margin-bottom: 6px; }
 
 /* Form */
@@ -186,7 +186,7 @@
   flex-shrink: 0;
 }
 .modal-eyebrow { font-family: var(--editorial); font-size: 10px; letter-spacing: 3px; text-transform: uppercase; color: var(--coral); margin-bottom: 4px; }
-.modal-title { font-family: var(--serif); font-size: 24px; font-weight: 500; }
+.modal-title { font-family: var(--editorial); font-size: 20px; font-weight: 400; }
 
 .modal-steps { display: flex; padding: 0 28px; border-bottom: 1px solid var(--ivory-dark); flex-shrink: 0; }
 .step-tab { padding: 12px 0; margin-right: 24px; font-family: var(--editorial); font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-muted); border-bottom: 2px solid transparent; cursor: pointer; transition: all 0.15s; }
@@ -320,7 +320,7 @@
   color: var(--coral);
 }
 .raw-item-size {
-  font-family: var(--serif);
+  font-family: var(--editorial);
   font-size: 18px;
   color: var(--text-primary);
   line-height: 1.2;
@@ -350,7 +350,7 @@
   margin-top: 4px;
 }
 .raw-item-stock-num {
-  font-family: var(--serif);
+  font-family: var(--editorial);
   font-size: 28px;
   font-weight: 700;
   color: var(--text-primary);

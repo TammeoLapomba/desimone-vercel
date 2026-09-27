@@ -100,7 +100,7 @@ function getBadgeStyle(name, type) {
 function renderGrid(articles) {
   const grid = document.getElementById('articlesGrid')
   if (articles.length === 0) {
-    grid.innerHTML = `<div style="grid-column:1/-1;padding:48px;text-align:center;font-family:var(--serif);font-size:18px;color:var(--text-muted);">Nessun articolo trovato</div>`
+    grid.innerHTML = `<div style="grid-column:1/-1;padding:48px;text-align:center;font-family:var(--editorial);font-size:18px;color:var(--text-muted);">Nessun articolo trovato</div>`
     return
   }
 
@@ -172,7 +172,7 @@ function openDetail(articleId) {
     </div>
     <div style="padding:20px;">
       <div style="font-family:var(--editorial);font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--coral);margin-bottom:4px;">${a.collections?.name || ''}</div>
-      <div style="font-family:var(--serif);font-size:22px;font-weight:500;line-height:1.2;margin-bottom:4px;">${dispName}</div>
+      <div style="font-family:var(--editorial);font-size:20px;font-weight:400;line-height:1.3;margin-bottom:4px;">${dispName}</div>
       <div style="font-family:var(--mono);font-size:10px;color:var(--text-muted);margin-bottom:16px;">${a.sku}</div>
       ${detailRow('Materiali', articleMaterials(a).map(m => m.name).join(', ') || '—')}
       ${detailRow('Metallo', a.metal?.name || '—')}

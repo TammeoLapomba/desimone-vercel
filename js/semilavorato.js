@@ -96,11 +96,11 @@ function renderGrid(items) {
     if (allCategories.length === 0) {
       grid.innerHTML = `<div style="grid-column:1/-1;padding:64px 24px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:16px;">
         <svg style="width:48px;height:48px;color:rgba(201,168,76,0.5);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
-        <div style="font-family:var(--serif);font-size:22px;color:white;">Il tuo magazzino è vuoto</div>
+        <div style="font-family:var(--editorial);font-size:22px;color:white;">Il tuo magazzino è vuoto</div>
         <div style="font-family:var(--editorial);font-size:14px;color:var(--text-muted);max-width:300px;">Per iniziare a inserire i fili semilavorati, crea la tua prima Categoria dalla barra laterale (es. Pallini, Cannette, ecc).</div>
       </div>`
     } else {
-      grid.innerHTML = `<div style="grid-column:1/-1;padding:48px;text-align:center;font-family:var(--serif);font-size:18px;color:var(--text-muted);">Nessun filo trovato</div>`
+      grid.innerHTML = `<div style="grid-column:1/-1;padding:48px;text-align:center;font-family:var(--editorial);font-size:18px;color:var(--text-muted);">Nessun filo trovato</div>`
     }
     return
   }
@@ -239,7 +239,7 @@ function openStockModal(item) {
         <!-- Stock attuale -->
         <div style="padding:12px 16px;background:var(--ivory);border-radius:4px;margin-bottom:16px;display:flex;align-items:baseline;gap:8px;">
           <span style="font-family:var(--editorial);font-size:12px;color:var(--text-muted);">Stock attuale:</span>
-          <span style="font-family:var(--serif);font-size:22px;font-weight:700;color:var(--text-primary);" id="currentStockDisplay">${item.stock}</span>
+          <span style="font-family:var(--editorial);font-size:22px;font-weight:700;color:var(--text-primary);" id="currentStockDisplay">${item.stock}</span>
           <span style="font-family:var(--editorial);font-size:11px;color:var(--text-muted);">pezzi</span>
         </div>
 
@@ -253,7 +253,7 @@ function openStockModal(item) {
         <!-- Anteprima nuovo stock -->
         <div style="padding:10px 14px;background:rgba(201,64,48,0.05);border:1px solid rgba(201,64,48,0.15);border-radius:4px;margin-top:4px;display:flex;align-items:baseline;gap:8px;">
           <span style="font-family:var(--editorial);font-size:11px;color:var(--text-muted);">Nuovo stock:</span>
-          <span style="font-family:var(--serif);font-size:20px;font-weight:700;color:var(--coral);" id="newStockPreview">${item.stock + 1}</span>
+          <span style="font-family:var(--editorial);font-size:20px;font-weight:700;color:var(--coral);" id="newStockPreview">${item.stock + 1}</span>
           <span style="font-family:var(--editorial);font-size:11px;color:var(--text-muted);">pezzi</span>
         </div>
 

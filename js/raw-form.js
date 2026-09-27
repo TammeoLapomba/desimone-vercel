@@ -112,9 +112,9 @@ export function openRawItemModal({ item = null, categories = [], defaultCategory
             <div style="font-family:var(--editorial);font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--text-muted);margin-bottom:8px;">Anteprima card</div>
             <div id="rfPreview" style="background:white;border-radius:4px;padding:14px;max-width:200px;display:flex;flex-direction:column;gap:8px;">
               <div style="font-family:var(--editorial);font-size:9px;letter-spacing:2px;text-transform:uppercase;color:var(--coral);" id="rfp_cat">—</div>
-              <div style="font-family:var(--serif);font-size:18px;" id="rfp_size">—</div>
+              <div style="font-family:var(--editorial);font-size:18px;" id="rfp_size">—</div>
               <div style="display:flex;gap:4px;" id="rfp_badges"></div>
-              <div style="font-family:var(--serif);font-size:24px;font-weight:700;" id="rfp_stock">0</div>
+              <div style="font-family:var(--editorial);font-size:24px;font-weight:700;" id="rfp_stock">0</div>
             </div>
           </div>
         </div>
