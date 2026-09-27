@@ -36,6 +36,18 @@ export async function getCollections() {
   return data
 }
 
+// Il codice di 4 lettere va in description_it e il colore del pallino in description_en
+export async function insertCollection({ name, code, color }) {
+  const baseSlug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+  const { data, error } = await supabase
+    .from('collections')
+    .insert({ name, slug: `${code.toLowerCase()}-${baseSlug}`, description_it: code, description_en: color })
+    .select('id, name, slug, channel, sort_order, description_it, description_en')
+    .single()
+  if (error) throw error
+  return data
+}
+
 export async function getMaterials() {
   const { data, error } = await supabase
     .from('materials')
@@ -70,7 +82,7 @@ export async function getArticles(collectionId = null) {
   let query = supabase
     .from('articles')
     .select(`
-      id, name, sku, product_type_id, status, channel,
+      id, name, sku, product_type_id, channel,
       price_retail, price_wholesale, stock_retail, stock_wholesale,
       collection_id, metal_id, created_at,
       collections(name, slug),
@@ -168,17 +180,6 @@ export async function uploadPhoto(file, articleId) {
     .single()
   if (error) throw error
   return data
-}
-
-export function subscribeToArticleStatus(onUpdate) {
-  return supabase
-    .channel('articles-status')
-    .on('postgres_changes', {
-      event: 'UPDATE',
-      schema: 'public',
-      table: 'articles'
-    }, (payload) => onUpdate(payload.new))
-    .subscribe()
 }
 
 // ── Semilavorato helpers ──────────────────────────────────────────

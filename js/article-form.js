@@ -1,6 +1,6 @@
 // js/article-form.js
-import { supabase, getCollections, getMaterials, getMetals, getProductTypes, insertArticle, setArticleMaterials, uploadPhoto } from './supabase.js'
-import { buildSkuPreview, showToast } from './utils.js'
+import { supabase, getCollections, insertCollection, getMaterials, getMetals, getProductTypes, insertArticle, setArticleMaterials, uploadPhoto } from './supabase.js'
+import { buildSkuPreview, showToast, COLLECTION_COLORS, collectionColorOptions, validateCollection } from './utils.js'
 import { initPhotoUpload } from './photo-upload.js'
 import { initMaterialPicker } from './material-picker.js'
 
@@ -11,19 +11,17 @@ let metals = []
 let photoUploader = null
 let materialPicker = null
 let onSuccessCallback = null
+let onCollectionCreatedCallback = null
 
-export async function openArticleModal({ onSuccess }) {
+export async function openArticleModal({ onSuccess, onCollectionCreated }) {
   onSuccessCallback = onSuccess
+  onCollectionCreatedCallback = onCollectionCreated
 
-  // Load data if not already loaded
-  if (!collections.length) {
-    [collections, productTypes, materials, metals] = await Promise.all([
-      getCollections(),
-      getProductTypes(),
-      getMaterials(),
-      getMetals()
-    ])
-  }
+  // Le collezioni si ricaricano ogni volta (possono essere state create nel frattempo), il resto una volta sola
+  const lists = productTypes.length ? [] : [getProductTypes(), getMaterials(), getMetals()]
+  const [freshCollections, ...loaded] = await Promise.all([getCollections(), ...lists])
+  collections = freshCollections
+  if (loaded.length) [productTypes, materials, metals] = loaded
 
   renderModal()
   document.getElementById('articleModal').classList.add('open')
@@ -61,6 +59,30 @@ function renderModal() {
                 <option value="">Seleziona collezione…</option>
                 ${collections.map(c => `<option value="${c.id}" data-slug="${c.slug}">${c.name}</option>`).join('')}
               </select>
+              <button type="button" class="btn-ghost" id="btnNewCollectionInline" style="align-self:flex-start;">+ Nuova collezione</button>
+            </div>
+          </div>
+          <div class="inline-panel" id="newCollectionPanel" style="display:none;">
+            <div class="inline-panel-title">Nuova collezione</div>
+            <div class="form-row full">
+              <div class="form-field">
+                <label class="field-label" for="f_newcoll_name">Nome collezione <span class="field-required">*</span></label>
+                <input type="text" class="field-input" id="f_newcoll_name" placeholder="es. Estate">
+              </div>
+            </div>
+            <div class="form-row">
+              <div class="form-field">
+                <label class="field-label" for="f_newcoll_code">Codice SKU (4 lettere) <span class="field-required">*</span></label>
+                <input type="text" class="field-input" id="f_newcoll_code" maxlength="4" placeholder="es. ESTA" style="text-transform:uppercase;">
+              </div>
+              <div class="form-field">
+                <label class="field-label" for="f_newcoll_color">Colore badge <span class="field-required">*</span></label>
+                <select class="field-select" id="f_newcoll_color">${collectionColorOptions()}</select>
+              </div>
+            </div>
+            <div class="inline-panel-actions">
+              <button type="button" class="btn-ghost" id="btnNewCollectionCancel">Annulla</button>
+              <button type="button" class="btn-primary btn-success" id="btnNewCollectionSave">Crea collezione</button>
             </div>
           </div>
           <div class="form-row">
@@ -212,13 +234,14 @@ function setupFormListeners() {
 
   materialPicker = initMaterialPicker(document.getElementById('f_materials'), materials, [], updateSkuPreview)
   document.getElementById('f_collection').addEventListener('change', updateSkuPreview)
+  document.getElementById('f_collection').addEventListener('change', updateNamePreview)
   document.getElementById('f_metal')?.addEventListener('change', updateSkuPreview)
   document.getElementById('f_type')?.addEventListener('change', updateNamePreview)
   document.getElementById('f_name')?.addEventListener('input', updateNamePreview)
 
   function updateNamePreview() {
     const collSel = document.getElementById('f_collection')
-    const collName = collSel.options[collSel.selectedIndex]?.text || ''
+    const collName = collSel.value ? collSel.options[collSel.selectedIndex].text : ''
     const typeSel = document.getElementById('f_type')
     const pTypeName = typeSel.value ? typeSel.options[typeSel.selectedIndex].text : ''
     const customName = document.getElementById('f_name')?.value.trim() || ''
@@ -232,6 +255,52 @@ function setupFormListeners() {
       el.style.fontStyle = 'italic'
     }
   }
+
+  // ── Nuova collezione senza uscire dall'inserimento articolo ──
+  // Si salva subito con il suo pulsante e viene selezionata: al salvataggio l'articolo la trova già nel DB
+  const collPanel = document.getElementById('newCollectionPanel')
+  const btnNewColl = document.getElementById('btnNewCollectionInline')
+  const isCollPanelOpen = () => collPanel.style.display !== 'none'
+
+  function showCollectionPanel(open) {
+    collPanel.style.display = open ? '' : 'none'
+    btnNewColl.style.display = open ? 'none' : ''
+    if (open) {
+      document.getElementById('f_newcoll_name').focus()
+    } else {
+      document.getElementById('f_newcoll_name').value = ''
+      document.getElementById('f_newcoll_code').value = ''
+      document.getElementById('f_newcoll_color').value = COLLECTION_COLORS[0][0]
+    }
+  }
+
+  btnNewColl.addEventListener('click', () => showCollectionPanel(true))
+  document.getElementById('btnNewCollectionCancel').addEventListener('click', () => showCollectionPanel(false))
+  document.getElementById('btnNewCollectionSave').addEventListener('click', async e => {
+    const btn = e.currentTarget
+    const name = document.getElementById('f_newcoll_name').value.trim()
+    const code = document.getElementById('f_newcoll_code').value.trim().toUpperCase()
+    const color = document.getElementById('f_newcoll_color').value
+    const invalid = validateCollection({ name, code }, collections)
+    if (invalid) { showToast(invalid); return }
+
+    btn.disabled = true
+    try {
+      const created = await insertCollection({ name, code, color })
+      collections.push(created)
+      const sel = document.getElementById('f_collection')
+      sel.insertAdjacentHTML('beforeend', `<option value="${created.id}" data-slug="${created.slug}">${created.name}</option>`)
+      sel.value = created.id
+      sel.dispatchEvent(new Event('change'))
+      showCollectionPanel(false)
+      showToast(`Collezione ${created.name} creata`)
+      onCollectionCreatedCallback?.(created)
+    } catch (err) {
+      showToast('Errore durante la creazione della collezione: ' + err.message)
+    } finally {
+      btn.disabled = false
+    }
+  })
 
   document.getElementById('btnNext').addEventListener('click', async () => {
     if (step < 3) {
@@ -249,6 +318,7 @@ function setupFormListeners() {
 
   function validateStep(s) {
     if (s === 1) {
+      if (isCollPanelOpen()) { showToast('Crea la nuova collezione o annulla prima di proseguire'); return false }
       if (!document.getElementById('f_collection').value) { showToast('Seleziona una collezione'); return false }
       if (!document.getElementById('f_type').value) { showToast('Seleziona il tipo prodotto'); return false }
     }

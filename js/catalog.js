@@ -1,6 +1,6 @@
 // js/catalog.js
-import { supabase, requireAuth, getCollections, getArticles, subscribeToArticleStatus, signOut } from './supabase.js'
-import { formatPrice, statusLabel, statusClass, getCoverPhoto, showToast, debounce, isAppSku, articleMaterials } from './utils.js'
+import { supabase, requireAuth, getCollections, getArticles, insertCollection, signOut } from './supabase.js'
+import { formatPrice, getCoverPhoto, showToast, debounce, isAppSku, articleMaterials, COLLECTION_COLORS, collectionColorOptions, collectionCode, validateCollection } from './utils.js'
 import { openArticleModal } from './article-form.js'
 import { initMobileNav, initHamburger, addDetailPanelCloseBtn, closeDrawer } from './pwa.js'
 
@@ -15,7 +15,6 @@ async function init() {
   await requireAuth()
   await loadCollections()
   await loadArticles()
-  setupRealtime()
   setupListeners()
 
   // Mobile PWA
@@ -33,14 +32,15 @@ async function loadCollections() {
   const list = document.getElementById('collectionList')
 
   // "Tutti" item
-  list.innerHTML = renderCollectionItem({ id: null, name: 'Tutti gli articoli', slug: 'all', color: '#C94030' }, true)
+  list.innerHTML = renderCollectionItem({ id: null, name: 'Tutti gli articoli', slug: 'all', color: '#C94030' }, !currentCollectionId)
 
   collections.forEach(c => {
     const colorMap = { 'intreccio': '#C94030', 'abbraccio': '#E8A898', 'trame-di-corallo': '#D4C4B8', 'cielo-stellato': '#C8C8C8' }
-    list.innerHTML += renderCollectionItem({ ...c, color: c.description_en || colorMap[c.slug] || '#C94030' }, false)
+    list.innerHTML += renderCollectionItem({ ...c, color: c.description_en || colorMap[c.slug] || '#C94030' }, c.id === currentCollectionId)
   })
 
-  list.addEventListener('click', e => {
+  // onclick e non addEventListener: loadCollections viene richiamata più volte
+  list.onclick = e => {
     const item = e.target.closest('[data-collection-id]')
     if (!item) return
     currentCollectionId = item.dataset.collectionId === 'null' ? null : item.dataset.collectionId
@@ -56,7 +56,7 @@ async function loadCollections() {
 
     // Chiude il drawer su mobile dopo la selezione
     closeDrawer()
-  })
+  }
 }
 
 function renderCollectionItem(c, isActive) {
@@ -115,7 +115,6 @@ function renderGrid(articles) {
             : `<div style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;background:var(--ivory-dark);">
                  <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--coral-white)" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
                </div>`}
-          <span class="status-badge ${statusClass(a.status)}">${statusLabel(a.status)}</span>
         </div>
         <div class="card-body">
           <div class="card-collection">${collName}</div>
@@ -171,7 +170,6 @@ function openDetail(articleId) {
       ${detailRow('Prezzo retail', formatPrice(a.price_retail))}
       ${a.price_wholesale ? detailRow('Prezzo ingrosso', formatPrice(a.price_wholesale)) : ''}
       ${detailRow('Stock', (a.stock_retail + a.stock_wholesale) + ' pz')}
-      ${detailRow('Stato', statusLabel(a.status))}
     </div>
     <div style="padding:16px 20px;border-top:1px solid var(--ivory-dark);display:flex;flex-direction:column;gap:8px;">
       <a href="/article.html?id=${a.id}" class="btn-primary" style="text-align:center;justify-content:center;">Modifica articolo</a>
@@ -187,30 +185,19 @@ function detailRow(key, val) {
   </div>`
 }
 
-function setupRealtime() {
-  subscribeToArticleStatus((updated) => {
-    const idx = allArticles.findIndex(a => a.id === updated.id)
-    if (idx !== -1) {
-      allArticles[idx] = { ...allArticles[idx], ...updated }
-      const card = document.querySelector(`[data-article-id="${updated.id}"]`)
-      if (card) {
-        const badge = card.querySelector('.status-badge')
-        if (badge) {
-          badge.className = `status-badge ${statusClass(updated.status)}`
-          badge.textContent = statusLabel(updated.status)
-        }
-      }
-    }
-  })
-}
-
 function setupListeners() {
+  document.getElementById('f_coll_color').innerHTML = collectionColorOptions()
+
   const openModal = () => openArticleModal({
-    onSuccess: (article) => {
-      allArticles.unshift(article)
-      renderGrid(allArticles)
+    // Ricarica per avere collezione, tipo e materiali del nuovo articolo
+    onSuccess: async (article) => {
+      await loadArticles()
+      await loadCollections()
+      renderGrid(allArticles.filter(a => !currentCollectionId || a.collection_id === currentCollectionId))
       showToast(`Articolo ${article.sku} creato`)
-    }
+    },
+    // Collezione creata dalla finestra dell'articolo: compare subito nella barra laterale
+    onCollectionCreated: () => loadCollections()
   })
 
   document.getElementById('btnNewArticleTop').addEventListener('click', openModal)
@@ -220,7 +207,7 @@ function setupListeners() {
     document.getElementById('collectionModalTitle').textContent = 'Nuova Collezione'
     document.getElementById('f_coll_name').value = ''
     document.getElementById('f_coll_code').value = ''
-    document.getElementById('f_coll_color').value = '#C94030'
+    document.getElementById('f_coll_color').value = COLLECTION_COLORS[0][0]
     document.getElementById('collectionModal').classList.add('open')
   })
 
@@ -232,8 +219,8 @@ function setupListeners() {
       isEditingCollection = true
       document.getElementById('collectionModalTitle').textContent = 'Modifica Collezione'
       document.getElementById('f_coll_name').value = coll.name || ''
-      document.getElementById('f_coll_code').value = coll.description_it || (coll.slug ? coll.slug.substring(0, 4).toUpperCase() : '')
-      document.getElementById('f_coll_color').value = Object.keys(document.getElementById('f_coll_color').options).map(k=>document.getElementById('f_coll_color').options[k].value).includes(coll.description_en) ? coll.description_en : '#C94030'
+      document.getElementById('f_coll_code').value = collectionCode(coll)
+      document.getElementById('f_coll_color').value = COLLECTION_COLORS.some(([v]) => v === coll.description_en) ? coll.description_en : COLLECTION_COLORS[0][0]
       document.getElementById('collectionModal').classList.add('open')
     })
   }
@@ -270,19 +257,19 @@ function setupListeners() {
     const code = document.getElementById('f_coll_code').value.trim().toUpperCase()
     const color = document.getElementById('f_coll_color').value
 
-    if (!name || code.length !== 4) {
-      showToast('Nome richiesto e codice di 4 lettere esatte')
+    const invalid = validateCollection({ name, code }, currentCollections, isEditingCollection ? currentCollectionId : null)
+    if (invalid) {
+      showToast(invalid)
       return
     }
 
-    const baseSlug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
-    const slug = `${code.toLowerCase()}-${baseSlug}`
-
     try {
       if (isEditingCollection) {
+        const baseSlug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+        const slug = `${code.toLowerCase()}-${baseSlug}`
         if (!confirm('Avviso: Modificando la collezione, SKU e Nome degli articoli creati dall\'app verranno ricalcolati e sovrascritti (gli articoli con codice originale restano invariati). Continuare?')) return
         const coll = currentCollections.find(c => c.id === currentCollectionId)
-        const oldCode = coll.description_it || coll.slug.substring(0, 4).toUpperCase()
+        const oldCode = collectionCode(coll)
 
         const { error } = await supabase.from('collections').update({
           name, slug, description_en: color, description_it: code
@@ -306,10 +293,7 @@ function setupListeners() {
         }
         showToast('Collezione aggiornata con successo')
       } else {
-        const { error } = await supabase.from('collections').insert({
-          name, slug, description_en: color, description_it: code
-        })
-        if (error) throw error
+        await insertCollection({ name, code, color })
         showToast('Collezione creata con successo')
       }
       

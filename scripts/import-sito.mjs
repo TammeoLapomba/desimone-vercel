@@ -394,7 +394,6 @@ async function importToSupabase(articles) {
     price_retail: a.price_retail,
     stock_retail: a.stock_retail,
     channel: 'both',
-    status: 'published',
     description_it: a.description_it,
     description_en: a.description_en,
     measurements: a.measurements,

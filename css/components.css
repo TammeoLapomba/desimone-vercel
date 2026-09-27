@@ -97,19 +97,6 @@
 .card-name { font-family: var(--serif); font-size: 13px; margin-bottom: 4px; }
 .card-sku { font-family: var(--mono); font-size: 10px; color: var(--text-muted); margin-bottom: 6px; }
 
-/* Status badge */
-.status-badge {
-  position: absolute; top: 8px; right: 8px;
-  padding: 3px 7px;
-  border-radius: 2px;
-  font-family: var(--mono); font-size: 10px;
-  text-transform: uppercase; letter-spacing: 0.5px;
-}
-.status-ready      { background: rgba(100,180,100,0.9); color: white; }
-.status-processing { background: rgba(201,168,50,0.9);  color: white; }
-.status-draft      { background: rgba(100,100,100,0.6); color: white; }
-.status-published  { background: rgba(100,150,220,0.9); color: white; }
-
 /* Form */
 .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 16px; }
 .form-row.full { grid-template-columns: 1fr; }
@@ -384,3 +371,20 @@
 .material-remove:hover { border-color: var(--coral); color: var(--coral); }
 .material-remove:focus-visible { outline: 2px solid var(--coral); outline-offset: 2px; }
 .material-add { align-self: flex-start; }
+
+/* ── Riquadro di campi aggiuntivi dentro un form (es. nuova collezione nell'inserimento articolo) ── */
+.inline-panel {
+  border: 1px solid var(--ivory-dark);
+  border-radius: 4px;
+  padding: 16px 16px 14px;
+  margin-bottom: 16px;
+}
+.inline-panel-title {
+  font-family: var(--editorial);
+  font-size: 10px;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--coral);
+  margin-bottom: 12px;
+}
+.inline-panel-actions { display: flex; justify-content: flex-end; gap: 8px; }

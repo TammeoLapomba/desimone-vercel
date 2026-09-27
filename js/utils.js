@@ -11,15 +11,6 @@ export function isAppSku(sku) {
   return /^[A-Z0-9]{4}-[A-Z]{2,3}-[A-Z]{2,3}-\d{3}$/.test(sku || '')
 }
 
-export function statusLabel(status) {
-  const map = { draft: 'Bozza', processing: 'Processing', ready: 'Pronto', published: 'Pubblicato' }
-  return map[status] || status
-}
-
-export function statusClass(status) {
-  return `status-${status}`
-}
-
 export function getCoverPhoto(photos) {
   if (!photos || photos.length === 0) return null
   const processed = photos.filter(p => p.photo_type === 'processed')
@@ -56,7 +47,8 @@ export function buildSkuPreview(collectionSlug, materialCode, metalCode) {
     'trame-di-corallo': 'TRAM',
     'cielo-stellato': 'CIEL'
   }
-  const coll = collMap[collectionSlug] || '—'
+  // Come generate_sku: i vecchi slug hanno un codice fisso, gli altri iniziano con il codice della collezione
+  const coll = collMap[collectionSlug] || collectionSlug?.slice(0, 4).toUpperCase() || '—'
   const material = materialCode || '—'
   const metal = metalCode || '—'
   return `${coll}-${material}-${metal}-###`
@@ -68,4 +60,34 @@ export function articleMaterials(article) {
     .slice()
     .sort((a, b) => a.sort_order - b.sort_order)
     .map(am => ({ id: am.material_id, ...am.material }))
+}
+
+// ── Collezioni: regole uguali nella finestra "Nuova collezione" e nell'inserimento articolo ──
+
+// Colori del pallino collezione [valore, etichetta]
+export const COLLECTION_COLORS = [
+  ['#C94030', 'Rosso Corallo'],
+  ['#A8331F', 'Rosso Scuro'],
+  ['#E8A898', 'Rosa Pastel'],
+  ['#D4C4B8', 'Beige / Chiaro'],
+  ['#C9A84C', 'Oro'],
+  ['#B8B4AE', 'Argento / Grigio'],
+  ['#2A2620', 'Ebano / Scuro'],
+]
+
+export function collectionColorOptions() {
+  return COLLECTION_COLORS.map(([value, label]) => `<option value="${value}">${label}</option>`).join('')
+}
+
+// Codice di 4 lettere della collezione, quello che entra negli SKU dell'app
+export function collectionCode(collection) {
+  return collection.description_it || (collection.slug ? collection.slug.substring(0, 4).toUpperCase() : '')
+}
+
+// null se la collezione va bene, altrimenti il messaggio da mostrare
+export function validateCollection({ name, code }, collections, editingId = null) {
+  if (!name || !/^[A-Z]{4}$/.test(code)) return 'Nome richiesto e codice di 4 lettere esatte'
+  const clash = collections.find(c => c.id !== editingId && collectionCode(c) === code)
+  if (clash) return `Il codice ${code} è già usato dalla collezione ${clash.name}`
+  return null
 }
