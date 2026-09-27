@@ -302,13 +302,15 @@
 
 /* ─── Form: colonne → singola colonna su mobile ──────────────── */
 @media (max-width: 768px) {
+  /* minmax(0, 1fr): le colonne si stringono sotto la larghezza naturale
+     di input e select, altrimenti la pagina sborda a destra */
   .form-row {
-    grid-template-columns: 1fr !important;
+    grid-template-columns: minmax(0, 1fr) !important;
     gap: 12px;
   }
 
   .form-row.triple {
-    grid-template-columns: 1fr 1fr !important;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important;
   }
 
   /* Input più grandi — touch-friendly */
