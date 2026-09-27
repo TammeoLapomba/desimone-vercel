@@ -43,22 +43,6 @@ const COLLECTIONS = [
   ['say-my-name', 'Say My Name', 'SAYN', '#C9A84C'],
 ]
 
-// Materiali: quelli mancanti vengono creati (i codici esistenti vengono dal seed 005)
-const MATERIALS = [
-  ['CR', 'Corallo Rosso del Mediterraneo', 'coral'],
-  ['CS', 'Corallo Rosso Sciacca', 'coral'],
-  ['RP', 'Corallo Rosa', 'coral'],
-  ['RB', 'Corallo Bianco', 'coral'],
-  ['AU', 'Oro Giallo 18k', 'metal'],
-  ['AUB', 'Oro Bianco 18k', 'metal'],
-  ['AUR', 'Oro Rosa 18k', 'metal'],
-  ['AUN', 'Oro Brunito 18k', 'metal'],
-  ['AG', 'Argento 925', 'metal'],
-  ['AGB', 'Argento Bianco 925', 'metal'],
-  ['AGD', 'Argento Dorato 925', 'metal'],
-  ['AGR', 'Argento Rosa 925', 'metal'],
-]
-
 // ── Parsing ──────────────────────────────────────────────────
 
 const ENTITIES = { amp: '&', quot: '"', apos: "'", nbsp: ' ', lt: '<', gt: '>', euro: '€', hellip: '…', rsquo: '’', lsquo: '‘', ldquo: '“', rdquo: '”', ndash: '–', mdash: '—', egrave: 'è', eacute: 'é', agrave: 'à', ograve: 'ò', ugrave: 'ù', igrave: 'ì', deg: '°', times: '×' }
@@ -114,13 +98,59 @@ const OTHER_TYPE_RULES = [
   [/\b(cuor[ei]|hearts?)\b/, 'cuore'],
 ]
 
-const CORAL_RULES = [
+// Materiali: codici della tabella materials (migrazione 015). Un articolo può averne più di uno.
+const MATERIAL_RULES = [
   [/sciacca/, 'CS'],
-  [/corallo bianco|bianco del pacifico|white (pacific )?coral/, 'RB'],
-  [/corallo rosa|rosa del pacifico|pink (pacific )?coral|pacific coral/, 'RP'],
-  [/corallo rosso|rosso del mediterraneo|red (mediterranean )?coral|mediterranean coral/, 'CR'],
+  [/corall[oi] bianc[oi]|bianco del pacifico|white (pacific )?coral/, 'RB'],
+  [/corall[oi] ros[ae]\b|rosa del pacifico|pink (pacific )?coral/, 'RP'],
+  [/corall[oi] ross[oi]|rosso del mediterraneo|red (mediterranean )?coral|mediterranean coral/, 'CR'],
+  [/turches[ei]|tuchese|turquoise/, 'TU'],
+  [/brillant[ei]|diamant[ei]|diamonds?/, 'DI'],
+  [/\bperl[ae]\b|(?<!mother[- ]of[- ])\bpearls?\b/, 'PE'],
+  [/madreperla|mother[- ]of[- ]pearl/, 'MP'],
+  [/agat[ae]|agate/, 'AT'],
+  [/acquamarin|aquamarine/, 'AQ'],
+  [/lapislazzul|lapis/, 'LZ'],
+  [/\bonic[ei]\b|onyx/, 'ON'],
+  [/cianite|kyanite/, 'CI'],
+  [/crisopra[sz]i|crisopazi|chrysopras/, 'CP'],
+  [/conchigli|\bshells?\b/, 'CO'],
+  [/\bgranat[oi]\b|garnets?/, 'GR'],
+  [/malachite/, 'MA'],
+  [/\bpelle\b|leather/, 'PL'],
+  [/lavic|lava stone/, 'LV'],
+  [/plexiglass?/, 'PX'],
 ]
+const CORALS = ['CR', 'CS', 'RP', 'RB']
+// "corallo rosso, rosa e bianco", "corallo rosso/rosa": ogni colore dell'elenco
+const CORAL_LIST_RE = /corall[oi]\s+((?:ross[oi]|ros[ae]|bianc[oi])(?:\s*(?:,|\/|\be\b|\bo\b)\s*(?:ross[oi]|ros[ae]|bianc[oi]))+)/g
+const coralColor = w => w.startsWith('ross') ? 'CR' : w.startsWith('bianc') ? 'RB' : 'RP'
 const CORAL_BY_COLOR = { rosso: 'CR', 'rosso medio prima qualità': 'CR', rosa: 'RP', bianco: 'RB', sciacca: 'CS' }
+
+// Codici dei materiali citati nel testo, nell'ordine in cui compaiono
+function materialsIn(text) {
+  const found = []
+  for (const m of text.matchAll(CORAL_LIST_RE)) {
+    for (const c of m[1].matchAll(/ross[oi]|ros[ae]|bianc[oi]/g)) found.push([m.index + c.index, coralColor(c[0])])
+  }
+  for (const [re, code] of MATERIAL_RULES) {
+    const hit = re.exec(text)
+    if (hit) found.push([hit.index, code])
+  }
+  return [...new Set(found.sort((a, b) => a[0] - b[0]).map(([, c]) => c))]
+}
+
+// Dal nome tutti i materiali; dalla descrizione solo quelli che non sono coralli, perché le descrizioni
+// citano spesso altre varianti di colore. Se il nome non cita materiali (es. Amuletum) vale tutta la
+// descrizione. "Corallo" senza colore → fallbackCoral.
+function pickMaterials(lname, ldesc, fallbackCoral) {
+  const fromName = materialsIn(lname)
+  const fromDesc = materialsIn(ldesc).filter(c => !fromName.includes(c) && (!fromName.length || !CORALS.includes(c)))
+  const materials = [...fromName, ...fromDesc]
+  const mentionsCoral = /\bcorall[oi]\b|\bcoral\b/.test(fromName.length ? lname : `${lname} ${ldesc}`)
+  if (mentionsCoral && !materials.some(c => CORALS.includes(c))) materials.unshift(fallbackCoral)
+  return materials
+}
 
 const METAL_RE = /(argento(?: 925)?(?: e)? dorat[oa]|gilded silver|gold[- ]plated silver)|(argento(?: 925)? bianc[oa])|(argento(?: 925)? ros[ae](?:t[oa])?)|(oro bianco|white gold)|(oro rosa|pink gold|rose gold)|(oro brunito)|(oro giallo|yellow gold)|(argento|silver)|(\boro\b|\bgold\b)/
 const METAL_CODES = ['AGD', 'AGB', 'AGR', 'AUB', 'AUR', 'AUN', 'AU', 'AG', 'AU']
@@ -192,8 +222,8 @@ function transform(p, { collectionSlug, enBySku, enOnly }) {
     || firstMatch(lname, OTHER_TYPE_RULES)
 
   const color = attr('Colore')[0]?.toLowerCase()
-  const coral = firstMatch(lname, CORAL_RULES) || firstMatch(ldesc, CORAL_RULES)
-    || (/\bcorall[oi]\b|\bcoral\b/.test(lname + ' ' + ldesc) ? (CORAL_BY_COLOR[color] || 'CR') : null)
+  const lenDesc = en ? htmlToText(en.description).toLowerCase() : ''
+  const materials = pickMaterials(lname, `${ldesc}\n${lenDesc}`, CORAL_BY_COLOR[color] || 'CR')
 
   const metal = pickMetal([metalIn(lname), metalIn(ldesc), METAL_BY_ATTR[attr('Metallo')[0]?.toLowerCase()]])
 
@@ -214,7 +244,7 @@ function transform(p, { collectionSlug, enBySku, enOnly }) {
     sku: p.sku.trim(),
     name,
     product_type,
-    coral,
+    materials,
     metal,
     price_retail: price > 0 ? price : null,
     stock_retail: stock,
@@ -339,12 +369,11 @@ async function importToSupabase(articles) {
   const types = await rest('GET', 'product_types?select=id,slug')
   const typeId = Object.fromEntries(types.map(t => [t.slug, t.id]))
 
-  // Materiali
-  const mats = await rest('GET', 'materials?select=id,code')
-  const missing = MATERIALS.filter(([code]) => !mats.some(m => m.code === code))
-  if (missing.length) mats.push(...await rest('POST', 'materials', missing.map(([code, name, type]) => ({ code, name, type }))))
-  const matId = Object.fromEntries(mats.map(m => [m.code, m.id]))
-  console.log(`Materiali: ${missing.length} creati`)
+  // Materiali e metalli: anagrafiche create dalla migrazione 015
+  const matId = Object.fromEntries((await rest('GET', 'materials?select=id,code')).map(m => [m.code, m.id]))
+  const metalId = Object.fromEntries((await rest('GET', 'metals?select=id,code')).map(m => [m.code, m.id]))
+  const unknown = [...new Set(articles.flatMap(a => [...a.materials.filter(c => !matId[c]), ...(a.metal && !metalId[a.metal] ? [a.metal] : [])]))]
+  if (unknown.length) throw new Error(`Codici mancanti in materials/metals: ${unknown.join(', ')}. Esegui prima la migrazione 015`)
 
   // Collezioni
   const collId = Object.fromEntries(existingColl.map(c => [c.slug, c.id]))
@@ -360,8 +389,7 @@ async function importToSupabase(articles) {
     collection_id: collId[ourSlugs.get(a.collectionSlug).slug],
     name: a.name,
     product_type_id: typeId[a.product_type],
-    coral_material_id: a.coral ? matId[a.coral] : null,
-    metal_material_id: a.metal ? matId[a.metal] : null,
+    metal_id: a.metal ? metalId[a.metal] : null,
     sku: a.sku,
     price_retail: a.price_retail,
     stock_retail: a.stock_retail,
@@ -376,6 +404,13 @@ async function importToSupabase(articles) {
     for (const r of await rest('POST', 'articles', toInsert.slice(i, i + 50))) artId[r.sku] = r.id
   }
   console.log(`Articoli: ${toInsert.length} creati`)
+
+  // Materiali degli articoli appena creati, nell'ordine trovato
+  const created = new Set(toInsert.map(a => a.sku))
+  const links = articles.filter(a => created.has(a.sku)).flatMap(a =>
+    a.materials.map((code, i) => ({ article_id: artId[a.sku], material_id: matId[code], sort_order: i + 1 })))
+  for (let i = 0; i < links.length; i += 200) await rest('POST', 'article_materials', links.slice(i, i + 200))
+  console.log(`Materiali collegati: ${links.length}`)
 
   // Foto di copertina
   const withPhoto = new Set((await rest('GET', 'photos?select=article_id')).map(p => p.article_id))

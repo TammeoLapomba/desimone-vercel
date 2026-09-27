@@ -1,13 +1,15 @@
 // js/article-form.js
-import { supabase, getCollections, getMaterials, getProductTypes, insertArticle, uploadPhoto } from './supabase.js'
+import { supabase, getCollections, getMaterials, getMetals, getProductTypes, insertArticle, setArticleMaterials, uploadPhoto } from './supabase.js'
 import { buildSkuPreview, showToast } from './utils.js'
 import { initPhotoUpload } from './photo-upload.js'
+import { initMaterialPicker } from './material-picker.js'
 
 let collections = []
 let productTypes = []
-let corals = []
+let materials = []
 let metals = []
 let photoUploader = null
+let materialPicker = null
 let onSuccessCallback = null
 
 export async function openArticleModal({ onSuccess }) {
@@ -15,11 +17,11 @@ export async function openArticleModal({ onSuccess }) {
 
   // Load data if not already loaded
   if (!collections.length) {
-    [collections, productTypes, corals, metals] = await Promise.all([
+    [collections, productTypes, materials, metals] = await Promise.all([
       getCollections(),
       getProductTypes(),
-      getMaterials('coral'),
-      getMaterials('metal')
+      getMaterials(),
+      getMetals()
     ])
   }
 
@@ -92,16 +94,15 @@ function renderModal() {
         </div>
 
         <div id="step2Content" style="display:none;">
+          <div class="form-row full">
+            <div class="form-field">
+              <label class="field-label">Materiali <span class="field-required">*</span></label>
+              <div id="f_materials"></div>
+            </div>
+          </div>
           <div class="form-row">
             <div class="form-field">
-              <label class="field-label">Corallo <span class="field-required">*</span></label>
-              <select class="field-select" id="f_coral">
-                <option value="">Seleziona…</option>
-                ${corals.map(m => `<option value="${m.id}" data-code="${m.code}">${m.name}</option>`).join('')}
-              </select>
-            </div>
-            <div class="form-field">
-              <label class="field-label">Materiale montatura <span class="field-required">*</span></label>
+              <label class="field-label">Metallo <span class="field-required">*</span></label>
               <select class="field-select" id="f_metal">
                 <option value="">Seleziona…</option>
                 ${metals.map(m => `<option value="${m.id}" data-code="${m.code}">${m.name}</option>`).join('')}
@@ -199,20 +200,18 @@ function setupFormListeners() {
 
   function updateSkuPreview() {
     const collSel = document.getElementById('f_collection')
-    const coralSel = document.getElementById('f_coral')
     const metalSel = document.getElementById('f_metal')
     const collSlug = collSel.selectedOptions[0]?.dataset.slug || ''
-    const coralCode = coralSel.selectedOptions[0]?.dataset.code || ''
     const metalCode = metalSel.selectedOptions[0]?.dataset.code || ''
-    const preview = buildSkuPreview(collSlug, coralCode, metalCode)
+    const preview = buildSkuPreview(collSlug, materialPicker?.firstCode(), metalCode)
     const el1 = document.getElementById('skuPreview')
     const el2 = document.getElementById('skuPreviewStep2')
     if (el1) { el1.textContent = preview; el1.classList.toggle('empty', !collSlug) }
     if (el2) el2.textContent = preview
   }
 
+  materialPicker = initMaterialPicker(document.getElementById('f_materials'), materials, [], updateSkuPreview)
   document.getElementById('f_collection').addEventListener('change', updateSkuPreview)
-  document.getElementById('f_coral')?.addEventListener('change', updateSkuPreview)
   document.getElementById('f_metal')?.addEventListener('change', updateSkuPreview)
   document.getElementById('f_type')?.addEventListener('change', updateNamePreview)
   document.getElementById('f_name')?.addEventListener('input', updateNamePreview)
@@ -254,7 +253,7 @@ function setupFormListeners() {
       if (!document.getElementById('f_type').value) { showToast('Seleziona il tipo prodotto'); return false }
     }
     if (s === 2) {
-      if (!document.getElementById('f_coral').value) { showToast('Seleziona il tipo di corallo'); return false }
+      if (!materialPicker.getIds().length) { showToast('Aggiungi almeno un materiale'); return false }
       if (!document.getElementById('f_metal').value) { showToast('Seleziona il tipo di metallo'); return false }
       if (!document.getElementById('f_price_retail').value) { showToast('Inserisci il prezzo retail'); return false }
     }
@@ -269,12 +268,12 @@ function setupFormListeners() {
     try {
       // 1. Genera SKU server-side via Supabase RPC
       const collId = document.getElementById('f_collection').value
-      const coralId = document.getElementById('f_coral').value
+      const materialIds = materialPicker.getIds()
       const metalId = document.getElementById('f_metal').value
 
       const { data: skuData, error: skuError } = await supabase.rpc('generate_sku', {
         p_collection_id: collId,
-        p_coral_id: coralId,
+        p_material_id: materialIds[0],
         p_metal_id: metalId
       })
       if (skuError) throw skuError
@@ -302,8 +301,7 @@ function setupFormListeners() {
         collection_id: collId,
         name: dynamicName,
         product_type_id: typeSel.value,
-        coral_material_id: coralId,
-        metal_material_id: metalId,
+        metal_id: metalId,
         sku: skuData,
         price_retail: Number(document.getElementById('f_price_retail').value) || null,
         price_wholesale: Number(document.getElementById('f_price_wholesale').value) || null,
@@ -313,6 +311,7 @@ function setupFormListeners() {
         notes: document.getElementById('f_notes').value.trim() || null,
         measurements: Object.keys(measurements).length ? measurements : null
       })
+      await setArticleMaterials(article.id, materialIds)
 
       // 3. Upload photos
       const files = photoUploader.getFiles()

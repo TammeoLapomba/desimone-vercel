@@ -1,10 +1,13 @@
 // js/article.js
-import { supabase, requireAuth, getCollections, getMaterials, getProductTypes, getArticleById, updateArticle } from './supabase.js'
+import { supabase, requireAuth, getCollections, getMaterials, getMetals, getProductTypes, getArticleById, updateArticle, setArticleMaterials } from './supabase.js'
 import { showToast, isAppSku } from './utils.js'
+import { initMaterialPicker } from './material-picker.js'
 
 let articleId = null
 let currentArticle = null
 let collections = []
+let materialPicker = null
+let originalMaterialIds = []
 
 async function init() {
   await requireAuth()
@@ -18,16 +21,15 @@ async function init() {
 
   try {
     // Carica dipendenze
-    const [productTypes, corals, metals] = await Promise.all([
+    const [productTypes, materials, metals] = await Promise.all([
       getProductTypes(),
-      getMaterials('coral'),
-      getMaterials('metal')
+      getMaterials(),
+      getMetals()
     ])
     collections = await getCollections()
 
     populateSelect('f_collection', collections, 'id', 'name', 'Seleziona collezione…')
     populateSelect('f_type', productTypes, 'id', 'name', 'Seleziona…')
-    populateSelect('f_coral', corals, 'id', 'name', 'Seleziona…', 'code')
     populateSelect('f_metal', metals, 'id', 'name', 'Seleziona…', 'code')
 
     // Carica articolo
@@ -43,8 +45,10 @@ async function init() {
     document.getElementById('f_sku').value = currentArticle.sku
     document.getElementById('f_notes').value = currentArticle.notes || ''
     
-    document.getElementById('f_coral').value = currentArticle.coral_material_id
-    document.getElementById('f_metal').value = currentArticle.metal_material_id
+    originalMaterialIds = (currentArticle.article_materials || [])
+      .slice().sort((a, b) => a.sort_order - b.sort_order).map(am => am.material_id)
+    materialPicker = initMaterialPicker(document.getElementById('f_materials'), materials, originalMaterialIds)
+    document.getElementById('f_metal').value = currentArticle.metal_id || ''
     document.getElementById('f_price_retail').value = currentArticle.price_retail || ''
     document.getElementById('f_price_wholesale').value = currentArticle.price_wholesale || ''
 
@@ -79,11 +83,12 @@ function setupListeners() {
   })
 
   document.getElementById('btnSave').addEventListener('click', async () => {
-    // Validazione base — corallo, metallo e prezzo servono a generate_sku solo per gli SKU dell'app
+    // Validazione base — materiale, metallo e prezzo servono a generate_sku solo per gli SKU dell'app
     const appSku = isAppSku(currentArticle.sku)
+    const materialIds = materialPicker.getIds()
     if (!document.getElementById('f_collection').value) return showToast('Seleziona una collezione')
     if (!document.getElementById('f_type').value) return showToast('Seleziona il tipo prodotto')
-    if (appSku && !document.getElementById('f_coral').value) return showToast('Seleziona il tipo di corallo')
+    if (appSku && !materialIds.length) return showToast('Aggiungi almeno un materiale')
     if (appSku && !document.getElementById('f_metal').value) return showToast('Seleziona il tipo di metallo')
     if (appSku && !document.getElementById('f_price_retail').value) return showToast('Inserisci il prezzo retail')
 
@@ -116,20 +121,15 @@ function setupListeners() {
       if (h) measurements.height_cm = Number(h)
       if (wt) measurements.weight_g = Number(wt)
 
-      // Attenzione: lo SKU non si modifica qui da form manuale. Lo SKU si modifica a cascata dalla modifica collezione o resta uguale. 
-      // Se si cambia collezione o materiale, lo SKU andrebbe rigenerato. Ma in edit-articolo non cambiamo l'SKU se cambiano i materiali per evitare impatti, a meno che non chiamiamo generate_sku al volo.
-      // Dalle richieste utente: "modificare tutti i campi ... popup conferma prima". Non menziona che cambiando colore cambia SKU, ma sarebbe l'atteso.
-      
+      // SKU dell'app (COLL-MATERIALE-METALLO-NNN): si rigenera se cambiano collezione, primo materiale o metallo
       let sku = currentArticle.sku
-      // Se collezione, metallo o corallo sono stati cambiati, richiamiamo generate_sku? No, the user explicitly asked for modifying collection code changes all SKUs. When editing an individual article, its SKU is fixed unless the user changes it. Wait... if the user changes the collection of the article, its SKU prefix would be completely wrong! Let's prevent changing collection, or let's re-generate SKU. Let's re-generate SKU if any identity field changed.
       const newColl = document.getElementById('f_collection').value
-      const newCoral = document.getElementById('f_coral').value
       const newMetal = document.getElementById('f_metal').value
 
-      if (appSku && (newColl !== currentArticle.collection_id || newCoral !== currentArticle.coral_material_id || newMetal !== currentArticle.metal_material_id)) {
+      if (appSku && (newColl !== currentArticle.collection_id || materialIds[0] !== originalMaterialIds[0] || newMetal !== currentArticle.metal_id)) {
          const { data: newSku, error: skuError } = await supabase.rpc('generate_sku', {
             p_collection_id: newColl,
-            p_coral_id: newCoral,
+            p_material_id: materialIds[0],
             p_metal_id: newMetal
          })
          if (skuError) throw skuError
@@ -140,8 +140,7 @@ function setupListeners() {
         name: appSku ? dynamicName : currentArticle.name,
         product_type_id: typeSel.value,
         collection_id: newColl,
-        coral_material_id: newCoral || null,
-        metal_material_id: newMetal || null,
+        metal_id: newMetal || null,
         sku: sku,
         notes: document.getElementById('f_notes').value.trim() || null,
         price_retail: Number(document.getElementById('f_price_retail').value) || null,
@@ -152,6 +151,7 @@ function setupListeners() {
       }
 
       await updateArticle(articleId, updates)
+      await setArticleMaterials(articleId, materialIds)
       showToast('Articolo aggiornato con successo!')
       
       setTimeout(() => {

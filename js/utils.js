@@ -5,7 +5,7 @@ export function formatPrice(amount, currency = '€') {
   return `${currency} ${Number(amount).toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
 }
 
-// SKU generato dall'app (generate_sku): CODICE-CORALLO-METALLO-NNN.
+// SKU generato dall'app (generate_sku): CODICE-MATERIALE-METALLO-NNN.
 // Gli articoli importati dal sito hanno il codice originale: SKU e nome non vanno ricalcolati.
 export function isAppSku(sku) {
   return /^[A-Z0-9]{4}-[A-Z]{2,3}-[A-Z]{2,3}-\d{3}$/.test(sku || '')
@@ -49,7 +49,7 @@ export function debounce(fn, delay = 300) {
   }
 }
 
-export function buildSkuPreview(collectionSlug, coralCode, metalCode) {
+export function buildSkuPreview(collectionSlug, materialCode, metalCode) {
   const collMap = {
     'intreccio': 'INTR',
     'abbraccio': 'ABBR',
@@ -57,7 +57,15 @@ export function buildSkuPreview(collectionSlug, coralCode, metalCode) {
     'cielo-stellato': 'CIEL'
   }
   const coll = collMap[collectionSlug] || '—'
-  const coral = coralCode || '—'
+  const material = materialCode || '—'
   const metal = metalCode || '—'
-  return `${coll}-${coral}-${metal}-###`
+  return `${coll}-${material}-${metal}-###`
+}
+
+// Materiali di un articolo (da getArticles) nell'ordine scelto: [{ id, name, code }]
+export function articleMaterials(article) {
+  return (article.article_materials || [])
+    .slice()
+    .sort((a, b) => a.sort_order - b.sort_order)
+    .map(am => ({ id: am.material_id, ...am.material }))
 }

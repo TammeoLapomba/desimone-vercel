@@ -36,10 +36,22 @@ export async function getCollections() {
   return data
 }
 
-export async function getMaterials(type = null) {
-  let query = supabase.from('materials').select('id, name, code, type').eq('active', true)
-  if (type) query = query.eq('type', type)
-  const { data, error } = await query.order('name')
+export async function getMaterials() {
+  const { data, error } = await supabase
+    .from('materials')
+    .select('id, name, code')
+    .eq('active', true)
+    .order('name')
+  if (error) throw error
+  return data
+}
+
+export async function getMetals() {
+  const { data, error } = await supabase
+    .from('metals')
+    .select('id, name, code')
+    .eq('active', true)
+    .order('name')
   if (error) throw error
   return data
 }
@@ -60,11 +72,11 @@ export async function getArticles(collectionId = null) {
     .select(`
       id, name, sku, product_type_id, status, channel,
       price_retail, price_wholesale, stock_retail, stock_wholesale,
-      collection_id, coral_material_id, metal_material_id, created_at,
+      collection_id, metal_id, created_at,
       collections(name, slug),
       product_type:product_types(name),
-      coral:materials!coral_material_id(name, code),
-      metal:materials!metal_material_id(name, code),
+      metal:metals(name, code),
+      article_materials(material_id, sort_order, material:materials(name, code)),
       photos(id, public_url, is_cover, photo_type, sort_order),
       measurements
     `)
@@ -104,12 +116,22 @@ export async function getArticleById(id) {
     .from('articles')
     .select(`
       *,
-      collections(name, slug)
+      collections(name, slug),
+      article_materials(material_id, sort_order)
     `)
     .eq('id', id)
     .single()
   if (error) throw error
   return data
+}
+
+// Elenco completo dei materiali dell'articolo, nell'ordine dato (il primo entra nello SKU dell'app)
+export async function setArticleMaterials(articleId, materialIds) {
+  const { error } = await supabase.rpc('set_article_materials', {
+    p_article_id: articleId,
+    p_material_ids: materialIds
+  })
+  if (error) throw error
 }
 
 export async function uploadPhoto(file, articleId) {

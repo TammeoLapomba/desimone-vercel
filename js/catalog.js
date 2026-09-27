@@ -1,6 +1,6 @@
 // js/catalog.js
 import { supabase, requireAuth, getCollections, getArticles, subscribeToArticleStatus, signOut } from './supabase.js'
-import { formatPrice, statusLabel, statusClass, getCoverPhoto, showToast, debounce, isAppSku } from './utils.js'
+import { formatPrice, statusLabel, statusClass, getCoverPhoto, showToast, debounce, isAppSku, articleMaterials } from './utils.js'
 import { openArticleModal } from './article-form.js'
 import { initMobileNav, initHamburger, addDetailPanelCloseBtn, closeDrawer } from './pwa.js'
 
@@ -79,7 +79,7 @@ async function loadArticles(collectionId = null) {
 function getBadgeStyle(name, type) {
   if (!name) return ''
   const n = name.toLowerCase()
-  if (type === 'coral') {
+  if (type === 'material') {
     if (n.includes('rosa')) return 'background:var(--coral-pink);color:white;'
     if (n.includes('bianco')) return 'background:#FCFCFC;color:var(--text-secondary);box-shadow:inset 0 0 0 1px #EAEAEA;'
     if (n.includes('rosso') || n.includes('sciacca')) return 'background:rgba(201,64,48,0.1);color:var(--coral-dark);'
@@ -122,7 +122,7 @@ function renderGrid(articles) {
           <div class="card-name">${dispName}</div>
           <div class="card-sku">${a.sku}</div>
           <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px;">
-            ${a.coral ? `<span style="padding:2px 6px;border-radius:2px;font-family:var(--editorial);font-size:10px;${getBadgeStyle(a.coral.name, 'coral')}">${a.coral.name}</span>` : ''}
+            ${articleMaterials(a).map(m => `<span style="padding:2px 6px;border-radius:2px;font-family:var(--editorial);font-size:10px;${getBadgeStyle(m.name, 'material')}">${m.name}</span>`).join('')}
             ${a.metal ? `<span style="padding:2px 6px;border-radius:2px;font-family:var(--editorial);font-size:10px;${getBadgeStyle(a.metal.name, 'metal')}">${a.metal.name}</span>` : ''}
           </div>
           <div style="display:flex;justify-content:space-between;align-items:flex-end;">
@@ -166,7 +166,7 @@ function openDetail(articleId) {
       <div style="font-family:var(--editorial);font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--coral);margin-bottom:4px;">${a.collections?.name || ''}</div>
       <div style="font-family:var(--serif);font-size:18px;margin-bottom:4px;">${dispName}</div>
       <div style="font-family:var(--mono);font-size:10px;color:var(--text-muted);margin-bottom:16px;">${a.sku}</div>
-      ${detailRow('Corallo', a.coral?.name || '—')}
+      ${detailRow('Materiali', articleMaterials(a).map(m => m.name).join(', ') || '—')}
       ${detailRow('Metallo', a.metal?.name || '—')}
       ${detailRow('Prezzo retail', formatPrice(a.price_retail))}
       ${a.price_wholesale ? detailRow('Prezzo ingrosso', formatPrice(a.price_wholesale)) : ''}
@@ -326,7 +326,7 @@ function setupListeners() {
     const q = document.getElementById('searchInput').value.toLowerCase().trim()
     const fColl = document.getElementById('filterCollection')?.value
     const fType = document.getElementById('filterType')?.value
-    const fCol  = document.getElementById('filterColor')?.value
+    const fMat  = document.getElementById('filterMaterial')?.value
 
     const filtered = allArticles.filter(a => {
       // 1. Keyword search
@@ -336,8 +336,8 @@ function setupListeners() {
           a.name.toLowerCase().includes(q) ||
           a.sku.toLowerCase().includes(q) ||
           (a.collections?.name || '').toLowerCase().includes(q) ||
-          (a.type || '').toLowerCase().includes(q) ||
-          (a.color || '').toLowerCase().includes(q)
+          (a.product_type?.name || '').toLowerCase().includes(q) ||
+          articleMaterials(a).some(m => m.name.toLowerCase().includes(q))
         )
       }
       
@@ -348,10 +348,10 @@ function setupListeners() {
       let matchType = true
       if (fType) matchType = (a.type === fType)
 
-      let matchCol = true
-      if (fCol) matchCol = (a.color === fCol)
+      let matchMat = true
+      if (fMat) matchMat = articleMaterials(a).some(m => m.id === fMat)
 
-      return matchQ && matchColl && matchType && matchCol
+      return matchQ && matchColl && matchType && matchMat
     })
     
     renderGrid(filtered)
@@ -382,6 +382,19 @@ function setupListeners() {
       })
     }
     
+    // Popola Materiali (solo quelli usati da almeno un articolo)
+    const matSel = document.getElementById('filterMaterial')
+    if (matSel && matSel.options.length <= 1) {
+      const used = [...new Map(allArticles.flatMap(articleMaterials).map(m => [m.id, m.name]))]
+        .sort((x, y) => x[1].localeCompare(y[1], 'it'))
+      used.forEach(([id, name]) => {
+        const o = document.createElement('option')
+        o.value = id
+        o.textContent = name
+        matSel.appendChild(o)
+      })
+    }
+
     document.getElementById('filtersModal')?.classList.add('open')
   })
 
@@ -393,7 +406,7 @@ function setupListeners() {
   // Applica in tempo reale
   document.getElementById('filterCollection')?.addEventListener('change', applyFilters)
   document.getElementById('filterType')?.addEventListener('change', applyFilters)
-  document.getElementById('filterColor')?.addEventListener('change', applyFilters)
+  document.getElementById('filterMaterial')?.addEventListener('change', applyFilters)
 }
 
 init().catch(console.error)

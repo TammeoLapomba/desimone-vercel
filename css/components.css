@@ -336,3 +336,23 @@
   background: rgba(201,64,48,0.05);
 }
 .raw-stock-btn:active { transform: scale(0.92); }
+
+/* ── Materiali articolo (material-picker.js) ─────────────────── */
+.material-picker { display: flex; flex-direction: column; }
+.material-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
+.material-row { display: flex; gap: 8px; align-items: center; }
+.material-row .field-select { flex: 1; min-width: 0; }
+.material-remove {
+  flex-shrink: 0;
+  width: 36px; height: 36px;
+  display: flex; align-items: center; justify-content: center;
+  background: transparent;
+  border: 1px solid var(--ivory-dark);
+  border-radius: 4px;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.material-remove:hover { border-color: var(--coral); color: var(--coral); }
+.material-remove:focus-visible { outline: 2px solid var(--coral); outline-offset: 2px; }
+.material-add { align-self: flex-start; }
