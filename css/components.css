@@ -20,6 +20,34 @@
   outline-offset: 3px;
 }
 
+/* Conferma di un salvataggio: verde, per distinguerlo dal rosso di "Elimina" */
+.btn-success { background: var(--green); }
+.btn-success:hover { background: var(--green-dark); }
+.btn-success:focus-visible { outline-color: var(--green); }
+
+/* Azione distruttiva: rosso, pieno solo al passaggio del mouse */
+.btn-danger {
+  padding: 7px 12px;
+  background: transparent;
+  color: var(--coral);
+  border: 1px solid var(--coral);
+  border-radius: 4px;
+  font-family: var(--editorial);
+  font-size: 12px;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  display: inline-flex; align-items: center; gap: 6px;
+  transition: all 0.15s;
+  cursor: pointer;
+}
+.btn-danger svg { width: 14px; height: 14px; flex-shrink: 0; }
+.btn-danger:hover { background: var(--coral); color: white; }
+.btn-danger:focus-visible {
+  outline: 2px solid var(--coral);
+  outline-offset: 3px;
+}
+.btn-danger:disabled { opacity: 0.6; cursor: default; }
+
 .btn-ghost {
   padding: 7px 12px;
   background: transparent;

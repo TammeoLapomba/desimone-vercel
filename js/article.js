@@ -1,5 +1,5 @@
 // js/article.js
-import { supabase, requireAuth, getCollections, getMaterials, getMetals, getProductTypes, getArticleById, updateArticle, setArticleMaterials } from './supabase.js'
+import { supabase, requireAuth, getCollections, getMaterials, getMetals, getProductTypes, getArticleById, updateArticle, setArticleMaterials, deleteArticle } from './supabase.js'
 import { showToast, isAppSku } from './utils.js'
 import { initMaterialPicker } from './material-picker.js'
 
@@ -8,9 +8,12 @@ let currentArticle = null
 let collections = []
 let materialPicker = null
 let originalMaterialIds = []
+let isAdmin = false
 
 async function init() {
-  await requireAuth()
+  const session = await requireAuth()
+  // Solo l'admin può eliminare (lo impone anche il database)
+  isAdmin = session.user.app_metadata?.role === 'admin'
 
   const params = new URLSearchParams(window.location.search)
   articleId = params.get('id')
@@ -80,6 +83,28 @@ function populateSelect(id, items, valueKey, labelKey, emptyLabel = '', dataAttr
 function setupListeners() {
   document.getElementById('btnCancel').addEventListener('click', () => {
     window.location.href = '/catalog.html'
+  })
+
+  const btnDelete = document.getElementById('btnDelete')
+  if (isAdmin) btnDelete.style.display = ''
+  btnDelete.addEventListener('click', async () => {
+    const msg = `ATTENZIONE: stai per eliminare definitivamente l'articolo "${currentArticle.name}" (${currentArticle.sku}).\n\n` +
+      'Si perderà anche tutto ciò che lo riguarda: foto, materiali e movimenti di magazzino. ' +
+      "L'operazione non si può annullare.\n\nVuoi procedere?"
+    if (!confirm(msg)) return
+
+    btnDelete.disabled = true
+    try {
+      await deleteArticle(articleId)
+      showToast('Articolo eliminato')
+      setTimeout(() => {
+        window.location.href = '/catalog.html'
+      }, 1000)
+    } catch (err) {
+      console.error(err)
+      showToast("Errore durante l'eliminazione: " + err.message)
+      btnDelete.disabled = false
+    }
   })
 
   document.getElementById('btnSave').addEventListener('click', async () => {

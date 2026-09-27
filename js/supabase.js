@@ -134,6 +134,17 @@ export async function setArticleMaterials(articleId, materialIds) {
   if (error) throw error
 }
 
+// Eliminazione definitiva (solo admin): articolo, foto, materiali e movimenti
+export async function deleteArticle(id) {
+  const { data: paths, error } = await supabase.rpc('delete_article', { p_article_id: id })
+  if (error) throw error
+  // I file si tolgono dopo: se non ci si riesce l'articolo resta comunque eliminato
+  if (paths?.length) {
+    const { error: storageError } = await supabase.storage.from('photos').remove(paths)
+    if (storageError) console.warn('File delle foto non rimossi dallo Storage:', storageError.message, paths)
+  }
+}
+
 export async function uploadPhoto(file, articleId) {
   const ext = file.name.split('.').pop()
   const path = `raw/${articleId}/${crypto.randomUUID()}.${ext}`

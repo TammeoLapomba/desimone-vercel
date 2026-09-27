@@ -26,6 +26,8 @@
       padding: 24px;
       margin-bottom: 24px;
     }
+    .topbar-actions { margin-left: auto; display: flex; gap: 12px; }
+    @media (max-width: 768px) { .topbar-actions { gap: 6px; } }
     .editor-title {
       font-family: var(--editorial);
       font-size: 16px;
@@ -58,9 +60,13 @@
       <a href="/catalog.html" style="color:var(--text-muted); text-decoration:none; display:flex; align-items:center; gap:8px; font-family:var(--editorial); font-size:14px;">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg> Torna al catalogo
       </a>
-      <div style="margin-left:auto; display:flex; gap:12px;">
+      <div class="topbar-actions">
+        <button class="btn-danger" id="btnDelete" style="display:none;" aria-label="Elimina articolo">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+          <span class="topbar-hide-mobile">Elimina articolo</span>
+        </button>
         <button class="btn-ghost" id="btnCancel">Annulla</button>
-        <button class="btn-primary" id="btnSave">Salva Modifiche</button>
+        <button class="btn-primary btn-success" id="btnSave">Salva Modifiche</button>
       </div>
     </div>
 
