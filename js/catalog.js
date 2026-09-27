@@ -12,6 +12,17 @@ let currentCollectionId = null
 let editingCollectionId = null // collezione aperta in "Modifica collezione"; null = nuova
 let isAdmin = false
 
+// Vista del catalogo: 'grid' (schede) o 'table'. Su telefono sempre schede.
+const VIEW_KEY = 'desimone-os:vista-catalogo'
+const mobileQuery = window.matchMedia('(max-width: 768px)')
+let viewMode = 'grid'
+try { if (localStorage.getItem(VIEW_KEY) === 'table') viewMode = 'table' } catch { /* storage non disponibile */ }
+let shownArticles = []            // ultimo elenco mostrato (filtrato), per ridisegnarlo cambiando vista
+let renderedView = null           // vista effettivamente disegnata
+const effectiveView = () => (mobileQuery.matches ? 'grid' : viewMode)
+let tableSort = { key: null, dir: 1 }
+let selectedIds = new Set()       // selezione della tabella (solo admin: serve all'eliminazione multipla)
+
 async function init() {
   const session = await requireAuth()
   // Modifica/eliminazione di collezioni e articoli: solo admin (lo impone anche il database)
@@ -56,7 +67,7 @@ async function loadCollections() {
     list.querySelectorAll('[data-collection-id]').forEach(el => el.classList.remove('active'))
     item.classList.add('active')
     document.getElementById('breadcrumb').textContent = `Catalogo · ${item.dataset.collectionName}`
-    renderGrid(allArticles.filter(a => !currentCollectionId || a.collection_id === currentCollectionId))
+    renderArticles(allArticles.filter(a => !currentCollectionId || a.collection_id === currentCollectionId))
 
     // Chiude il drawer su mobile dopo la selezione
     closeDrawer()
@@ -79,7 +90,7 @@ function renderCollectionItem(c, isActive) {
 async function loadArticles(collectionId = null) {
   allArticles = await getArticles(collectionId)
   document.getElementById('articleCount').textContent = `${allArticles.length} articoli`
-  renderGrid(allArticles)
+  renderArticles(allArticles)
 }
 
 function getBadgeStyle(name, type) {
@@ -95,6 +106,16 @@ function getBadgeStyle(name, type) {
     if (n.includes('rosa')) return 'background:var(--coral-pink);color:white;'
   }
   return 'background:var(--ivory);color:var(--text-secondary);'
+}
+
+// Mostra l'elenco nella vista scelta (griglia o tabella)
+function renderArticles(articles) {
+  shownArticles = articles
+  const view = renderedView = effectiveView()
+  document.getElementById('articlesGrid').style.display = view === 'grid' ? 'grid' : 'none'
+  document.getElementById('articlesTable').hidden = view !== 'table'
+  if (view === 'table') renderTable(articles)
+  else renderGrid(articles)
 }
 
 function renderGrid(articles) {
@@ -149,6 +170,222 @@ function renderGrid(articles) {
       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); openDetail(card.dataset.articleId) }
     })
   })
+}
+
+// ── Vista tabella (sul modello della tabella inventario di maat) ──
+const TABLE_COLUMNS = [
+  { key: 'name', label: 'Articolo', value: a => a.name },
+  { key: 'sku', label: 'Codice', value: a => a.sku },
+  { key: 'collection', label: 'Collezione', value: a => a.collections?.name || '' },
+  { key: 'materials', label: 'Materiali', value: a => articleMaterials(a).map(m => m.name).join(', ') },
+  { key: 'metal', label: 'Metallo', value: a => a.metal?.name || '' },
+  { key: 'price', label: 'Prezzo', num: true, value: a => a.price_retail ?? -1 },
+  { key: 'wholesale', label: 'Ingrosso', num: true, value: a => a.price_wholesale ?? -1 },
+  { key: 'stock', label: 'Stock', num: true, value: a => (a.stock_retail || 0) + (a.stock_wholesale || 0) },
+]
+
+const ICON_SORT = { 1: '<path d="M12 19V5M5 12l7-7 7 7"/>', '-1': '<path d="M12 5v14M5 12l7 7 7-7"/>' }
+const ICON_EDIT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>'
+const ICON_DELETE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>'
+
+// Testo sicuro dentro l'HTML della tabella (nomi con virgolette, ecc.)
+const esc = v => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;')
+
+function sortedForTable(articles) {
+  const col = TABLE_COLUMNS.find(c => c.key === tableSort.key)
+  if (!col) return articles
+  return [...articles].sort((a, b) => {
+    const va = col.value(a), vb = col.value(b)
+    const cmp = col.num ? va - vb : String(va).localeCompare(String(vb), 'it', { numeric: true })
+    return cmp * tableSort.dir
+  })
+}
+
+function renderTable(articles) {
+  const box = document.getElementById('articlesTable')
+  // La selezione resta solo sugli articoli ancora in elenco
+  selectedIds = new Set([...selectedIds].filter(id => articles.some(a => a.id === id)))
+  const rows = sortedForTable(articles)
+  const selectable = isAdmin
+  const allSelected = rows.length > 0 && rows.every(a => selectedIds.has(a.id))
+
+  const selectionBar = selectable && selectedIds.size ? `
+    <div class="table-selection-bar">
+      <span><strong>${selectedIds.size}</strong> ${selectedIds.size === 1 ? 'selezionato' : 'selezionati'}</span>
+      <button type="button" class="btn-danger" data-bulk="delete">${ICON_DELETE} Elimina</button>
+      <button type="button" class="selection-clear" data-bulk="clear" aria-label="Deseleziona tutto" title="Deseleziona tutto">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>` : ''
+
+  const header = `
+    <tr>
+      ${selectable ? `<th class="col-check"><input type="checkbox" data-select="all" aria-label="Seleziona tutti" ${allSelected ? 'checked' : ''}></th>` : ''}
+      ${TABLE_COLUMNS.map(c => {
+        const active = tableSort.key === c.key
+        const ariaSort = active ? (tableSort.dir === 1 ? 'ascending' : 'descending') : 'none'
+        return `<th class="col-${c.key}${c.num ? ' num' : ''}" aria-sort="${ariaSort}">
+          <button type="button" class="th-sort" data-sort="${c.key}">${c.label}${active ? `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">${ICON_SORT[tableSort.dir]}</svg>` : ''}</button>
+        </th>`
+      }).join('')}
+    </tr>`
+
+  const body = rows.length ? rows.map(a => {
+    const cover = getCoverPhoto(a.photos)
+    const stock = (a.stock_retail || 0) + (a.stock_wholesale || 0)
+    const materials = articleMaterials(a).map(m => m.name).join(', ')
+    return `
+      <tr data-article-id="${a.id}" tabindex="0" class="${selectedIds.has(a.id) ? 'is-selected' : ''}">
+        ${selectable ? `<td class="col-check"><input type="checkbox" data-select="${a.id}" aria-label="Seleziona ${esc(a.name)}" ${selectedIds.has(a.id) ? 'checked' : ''}></td>` : ''}
+        <td>
+          <div class="cell-article">
+            <div class="cell-thumb">${cover ? `<img src="${esc(cover)}" alt="" loading="lazy">` : ''}</div>
+            <div class="cell-article-text">
+              <div class="cell-title" title="${esc(a.name)}">${esc(a.name)}</div>
+              <div class="cell-sub">${esc(a.product_type?.name)}</div>
+            </div>
+          </div>
+        </td>
+        <td class="cell-code" title="${esc(a.sku)}">${esc(a.sku)}</td>
+        <td title="${esc(a.collections?.name)}">${esc(a.collections?.name || '—')}</td>
+        <td title="${esc(materials)}">${esc(materials || '—')}</td>
+        <td title="${esc(a.metal?.name)}">${esc(a.metal?.name || '—')}</td>
+        <td class="num">${formatPrice(a.price_retail)}</td>
+        <td class="num">${formatPrice(a.price_wholesale)}</td>
+        <td class="num col-last${stock ? '' : ' is-zero'}">
+          ${stock}
+          <div class="row-actions">
+            <a class="row-action" href="/article.html?id=${a.id}" aria-label="Modifica ${esc(a.name)}" title="Modifica">${ICON_EDIT}</a>
+            ${isAdmin ? `<button type="button" class="row-action danger" data-delete="${a.id}" aria-label="Elimina ${esc(a.name)}" title="Elimina">${ICON_DELETE}</button>` : ''}
+          </div>
+        </td>
+      </tr>`
+  }).join('') : `<tr><td class="table-empty" colspan="${TABLE_COLUMNS.length + (selectable ? 1 : 0)}">Nessun articolo trovato</td></tr>`
+
+  box.innerHTML = `
+    <div class="table-card">
+      ${selectionBar}
+      <div class="table-scroll">
+        <table class="articles-table">
+          <thead>${header}</thead>
+          <tbody>${body}</tbody>
+        </table>
+      </div>
+    </div>`
+
+  const selectAll = box.querySelector('[data-select="all"]')
+  if (selectAll) selectAll.indeterminate = selectedIds.size > 0 && !allSelected
+}
+
+// Clic e tasti nella tabella: un solo gestore per tutto il contenitore
+function setupTableEvents() {
+  const box = document.getElementById('articlesTable')
+
+  box.addEventListener('click', async e => {
+    const sortBtn = e.target.closest('[data-sort]')
+    if (sortBtn) {
+      const key = sortBtn.dataset.sort
+      tableSort = tableSort.key === key ? { key, dir: -tableSort.dir } : { key, dir: 1 }
+      renderTable(shownArticles)
+      return box.querySelector(`[data-sort="${key}"]`)?.focus()
+    }
+
+    const check = e.target.closest('[data-select]')
+    if (check) {
+      const id = check.dataset.select
+      if (id === 'all') {
+        selectedIds = check.checked ? new Set(shownArticles.map(a => a.id)) : new Set()
+      } else if (check.checked) {
+        selectedIds.add(id)
+      } else {
+        selectedIds.delete(id)
+      }
+      renderTable(shownArticles)
+      return box.querySelector(`[data-select="${id}"]`)?.focus()
+    }
+    if (e.target.closest('.col-check')) return
+
+    const bulk = e.target.closest('[data-bulk]')
+    if (bulk?.dataset.bulk === 'clear') {
+      selectedIds = new Set()
+      return renderTable(shownArticles)
+    }
+    if (bulk?.dataset.bulk === 'delete') return removeSelectedArticles()
+
+    const del = e.target.closest('[data-delete]')
+    if (del) {
+      const a = allArticles.find(x => x.id === del.dataset.delete)
+      if (!a || !confirmDeleteArticle(a)) return
+      try {
+        await deleteArticle(a.id)
+        closeDetail()
+        await refreshCatalog()
+        showToast(`Articolo ${a.sku} eliminato`)
+      } catch (err) {
+        console.error(err)
+        showToast("Errore durante l'eliminazione: " + err.message)
+      }
+      return
+    }
+    if (e.target.closest('.row-action')) return // "Modifica" è un link: la pagina si apre da sola
+
+    const row = e.target.closest('tr[data-article-id]')
+    if (row) openDetail(row.dataset.articleId)
+  })
+
+  box.addEventListener('keydown', e => {
+    const row = e.target.closest('tr[data-article-id]')
+    if (row && e.target === row && (e.key === 'Enter' || e.key === ' ')) {
+      e.preventDefault()
+      openDetail(row.dataset.articleId)
+    }
+  })
+}
+
+// Eliminazione definitiva degli articoli selezionati nella tabella
+async function removeSelectedArticles() {
+  const ids = [...selectedIds]
+  if (!ids.length) return
+  const msg = `ATTENZIONE: stai per eliminare definitivamente ${ids.length === 1 ? "l'articolo selezionato" : `${ids.length} articoli`}.\n\n` +
+    'Si perderà anche tutto ciò che li riguarda: foto, materiali e movimenti di magazzino. ' +
+    "L'operazione non si può annullare.\n\nVuoi procedere?"
+  if (!confirm(msg)) return
+
+  const failed = []
+  for (const id of ids) {
+    try {
+      await deleteArticle(id)
+      selectedIds.delete(id)
+    } catch (err) {
+      console.error(err)
+      failed.push(allArticles.find(a => a.id === id)?.sku || id)
+    }
+  }
+  closeDetail()
+  await refreshCatalog()
+  const done = ids.length - failed.length
+  showToast(failed.length
+    ? `${done} eliminati, ${failed.length} non eliminati: ${failed.join(', ')}`
+    : `${done} ${done === 1 ? 'articolo eliminato' : 'articoli eliminati'}`)
+}
+
+// Selettore Griglia / Tabella nella barra in alto
+function setupViewToggle() {
+  const toggle = document.getElementById('viewToggle')
+  const sync = () => toggle.querySelectorAll('[data-view]').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.view === viewMode)))
+  sync()
+  toggle.addEventListener('click', e => {
+    const btn = e.target.closest('[data-view]')
+    if (!btn || btn.dataset.view === viewMode) return
+    viewMode = btn.dataset.view
+    try { localStorage.setItem(VIEW_KEY, viewMode) } catch { /* storage non disponibile */ }
+    sync()
+    renderArticles(shownArticles)
+  })
+  // Passando da telefono a schermo largo (o viceversa) si ridisegna nella vista giusta
+  const onBreakpoint = () => { if (effectiveView() !== renderedView) renderArticles(shownArticles) }
+  mobileQuery.addEventListener('change', onBreakpoint)
+  window.addEventListener('resize', onBreakpoint)
 }
 
 function openDetail(articleId) {
@@ -215,7 +452,7 @@ async function refreshCatalog() {
   await loadCollections()
   const coll = currentCollections.find(c => c.id === currentCollectionId)
   document.getElementById('breadcrumb').textContent = `Catalogo · ${coll ? coll.name : 'Tutti gli articoli'}`
-  renderGrid(allArticles.filter(a => !currentCollectionId || a.collection_id === currentCollectionId))
+  renderArticles(allArticles.filter(a => !currentCollectionId || a.collection_id === currentCollectionId))
 }
 
 // ── Menu dei tre puntini di una collezione ──────────────────────
@@ -319,6 +556,8 @@ function setupListeners() {
 
   document.getElementById('btnNewCollection').addEventListener('click', () => openCollectionEditor())
   setupCollectionMenu()
+  setupViewToggle()
+  setupTableEvents()
 
   // Esc chiude il menu della collezione se è aperto, altrimenti l'anteprima dell'articolo
   document.addEventListener('keydown', e => {
@@ -412,7 +651,7 @@ function setupListeners() {
       return matchQ && matchColl && matchType && matchMat
     })
     
-    renderGrid(filtered)
+    renderArticles(filtered)
   }
 
   document.getElementById('searchInput').addEventListener('input', debounce(applyFilters))
