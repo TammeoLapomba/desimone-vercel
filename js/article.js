@@ -1,6 +1,6 @@
 // js/article.js
 import { supabase, requireAuth, getCollections, getMaterials, getMetals, getProductTypes, getArticleById, updateArticle, setArticleMaterials, deleteArticle } from './supabase.js'
-import { showToast, isAppSku } from './utils.js'
+import { showToast, isAppSku, confirmDeleteArticle } from './utils.js'
 import { initMaterialPicker } from './material-picker.js'
 
 let articleId = null
@@ -88,10 +88,7 @@ function setupListeners() {
   const btnDelete = document.getElementById('btnDelete')
   if (isAdmin) btnDelete.style.display = ''
   btnDelete.addEventListener('click', async () => {
-    const msg = `ATTENZIONE: stai per eliminare definitivamente l'articolo "${currentArticle.name}" (${currentArticle.sku}).\n\n` +
-      'Si perderà anche tutto ciò che lo riguarda: foto, materiali e movimenti di magazzino. ' +
-      "L'operazione non si può annullare.\n\nVuoi procedere?"
-    if (!confirm(msg)) return
+    if (!confirmDeleteArticle(currentArticle)) return
 
     btnDelete.disabled = true
     try {

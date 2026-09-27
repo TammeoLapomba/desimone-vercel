@@ -81,12 +81,8 @@
       <!-- Hamburger mobile (iniettato da pwa.js) -->
       <div style="display:flex;align-items:center;gap:8px;flex:1;min-width:0;">
         <div style="font-family:var(--editorial);font-size:13px;color:var(--text-muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" id="breadcrumb">Catalogo · Tutti gli articoli</div>
-        <div id="collectionActions" style="display:none; gap:6px; margin-left:4px;">
-          <button class="btn-ghost topbar-hide-mobile" id="btnEditCollection" style="padding:2px 8px; font-size:11px;">Modifica</button>
-          <button class="btn-ghost topbar-hide-mobile" id="btnDeleteCollection" style="padding:2px 8px; font-size:11px; color:var(--coral);">Elimina</button>
-        </div>
       </div>
-      <div style="font-family:var(--mono);font-size:11px;color:var(--text-muted);" id="articleCount" aria-live="polite"></div>
+      <div style="font-family:var(--mono);font-size:11px;color:var(--text-muted);white-space:nowrap;" id="articleCount" aria-live="polite"></div>
       <div style="display:flex;gap:8px;flex-shrink:0;">
         <button class="btn-ghost topbar-hide-mobile" id="btnExport">Esporta</button>
         <button class="btn-primary topbar-hide-mobile" id="btnNewArticleTop">
@@ -105,6 +101,12 @@
     <div class="detail-inner" id="detailInner"></div>
   </div>
 
+</div>
+
+<!-- Menu dei tre puntini di una collezione (aperto da catalog.js) -->
+<div class="context-menu" id="collectionMenu" role="menu" aria-label="Azioni collezione" hidden>
+  <button type="button" role="menuitem" data-action="edit">Modifica collezione</button>
+  <button type="button" role="menuitem" data-action="delete" class="danger">Elimina collezione</button>
 </div>
 
 <!-- MODAL placeholder — populated by article-form.js -->

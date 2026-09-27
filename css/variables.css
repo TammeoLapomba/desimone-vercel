@@ -20,9 +20,11 @@
   --text-muted:     #9B948D;
 
   /* Typography */
-  --serif:     'Libre Baskerville', serif;
-  --editorial: 'Cormorant Garamond', serif;
-  --mono:      'DM Mono', monospace;
+  /* Solo i font del sito antoninodesimone.it (vedi base.css): Cormorant per i titoli,
+     Work Sans per tutto il resto, codici compresi (il sito non ha un font monospazio) */
+  --serif:     'Cormorant', serif;
+  --editorial: 'Work Sans', sans-serif;
+  --mono:      'Work Sans', sans-serif;
 
   /* Layout */
   --sidebar-w:     64px;

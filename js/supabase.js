@@ -31,9 +31,9 @@ export async function getCollections() {
     .from('collections')
     .select('id, name, slug, channel, sort_order, description_it, description_en')
     .is('deleted_at', null)
-    .order('sort_order')
   if (error) throw error
-  return data
+  // Sempre in ordine alfabetico: barra laterale e menu di scelta della collezione
+  return data.sort((a, b) => a.name.localeCompare(b.name, 'it'))
 }
 
 // Il codice di 4 lettere va in description_it e il colore del pallino in description_en
@@ -150,11 +150,21 @@ export async function setArticleMaterials(articleId, materialIds) {
 export async function deleteArticle(id) {
   const { data: paths, error } = await supabase.rpc('delete_article', { p_article_id: id })
   if (error) throw error
-  // I file si tolgono dopo: se non ci si riesce l'articolo resta comunque eliminato
-  if (paths?.length) {
-    const { error: storageError } = await supabase.storage.from('photos').remove(paths)
-    if (storageError) console.warn('File delle foto non rimossi dallo Storage:', storageError.message, paths)
-  }
+  await removePhotoFiles(paths)
+}
+
+// Eliminazione definitiva (solo admin): prima tutti gli articoli della collezione, poi la collezione
+export async function deleteCollection(id) {
+  const { data: paths, error } = await supabase.rpc('delete_collection', { p_collection_id: id })
+  if (error) throw error
+  await removePhotoFiles(paths)
+}
+
+// I file si tolgono dopo il DB: se non ci si riesce, i dati restano comunque eliminati
+async function removePhotoFiles(paths) {
+  if (!paths?.length) return
+  const { error } = await supabase.storage.from('photos').remove(paths)
+  if (error) console.warn('File delle foto non rimossi dallo Storage:', error.message, paths)
 }
 
 export async function uploadPhoto(file, articleId) {

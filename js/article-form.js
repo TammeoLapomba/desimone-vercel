@@ -29,6 +29,12 @@ export async function openArticleModal({ onSuccess, onCollectionCreated }) {
   setupFormListeners()
 }
 
+// Opzioni del menu collezioni: getCollections le dà già in ordine alfabetico
+function collectionOptions() {
+  return '<option value="">Seleziona collezione…</option>' +
+    collections.map(c => `<option value="${c.id}" data-slug="${c.slug}">${c.name}</option>`).join('')
+}
+
 function renderModal() {
   const root = document.getElementById('articleModalRoot')
   root.innerHTML = `
@@ -56,8 +62,7 @@ function renderModal() {
             <div class="form-field">
               <label class="field-label">Collezione <span class="field-required">*</span></label>
               <select class="field-select" id="f_collection">
-                <option value="">Seleziona collezione…</option>
-                ${collections.map(c => `<option value="${c.id}" data-slug="${c.slug}">${c.name}</option>`).join('')}
+                ${collectionOptions()}
               </select>
               <button type="button" class="btn-ghost" id="btnNewCollectionInline" style="align-self:flex-start;">+ Nuova collezione</button>
             </div>
@@ -288,8 +293,9 @@ function setupFormListeners() {
     try {
       const created = await insertCollection({ name, code, color })
       collections.push(created)
+      collections.sort((a, b) => a.name.localeCompare(b.name, 'it'))
       const sel = document.getElementById('f_collection')
-      sel.insertAdjacentHTML('beforeend', `<option value="${created.id}" data-slug="${created.slug}">${created.name}</option>`)
+      sel.innerHTML = collectionOptions()
       sel.value = created.id
       sel.dispatchEvent(new Event('change'))
       showCollectionPanel(false)

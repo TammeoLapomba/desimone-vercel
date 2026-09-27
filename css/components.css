@@ -94,7 +94,7 @@
 
 .card-body { padding: 10px 12px 12px; }
 .card-collection { font-family: var(--editorial); font-size: 10px; letter-spacing: 2px; text-transform: uppercase; color: var(--coral); margin-bottom: 3px; }
-.card-name { font-family: var(--serif); font-size: 13px; margin-bottom: 4px; }
+.card-name { font-family: var(--serif); font-size: 16px; font-weight: 500; line-height: 1.2; margin-bottom: 4px; }
 .card-sku { font-family: var(--mono); font-size: 10px; color: var(--text-muted); margin-bottom: 6px; }
 
 /* Form */
@@ -186,7 +186,7 @@
   flex-shrink: 0;
 }
 .modal-eyebrow { font-family: var(--editorial); font-size: 10px; letter-spacing: 3px; text-transform: uppercase; color: var(--coral); margin-bottom: 4px; }
-.modal-title { font-family: var(--serif); font-size: 20px; }
+.modal-title { font-family: var(--serif); font-size: 24px; font-weight: 500; }
 
 .modal-steps { display: flex; padding: 0 28px; border-bottom: 1px solid var(--ivory-dark); flex-shrink: 0; }
 .step-tab { padding: 12px 0; margin-right: 24px; font-family: var(--editorial); font-size: 12px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-muted); border-bottom: 2px solid transparent; cursor: pointer; transition: all 0.15s; }
@@ -223,11 +223,51 @@
   flex: 1;
 }
 .collection-item.active .collection-name { color: white; }
-.collection-count {
-  font-family: var(--mono);
-  font-size: 10px;
-  color: rgba(255,255,255,0.3);
+/* Tre puntini: apre il menu Modifica / Elimina collezione */
+.collection-menu-btn {
+  flex-shrink: 0;
+  width: 24px; height: 24px;
+  margin: -4px -4px -4px 0;
+  display: flex; align-items: center; justify-content: center;
+  background: none;
+  border: none;
+  border-radius: 4px;
+  color: rgba(255,255,255,0.45);
+  cursor: pointer;
+  transition: background 0.12s, color 0.12s;
 }
+.collection-menu-btn svg { width: 16px; height: 16px; }
+.collection-menu-btn:hover,
+.collection-menu-btn[aria-expanded="true"] { background: rgba(255,255,255,0.1); color: white; }
+.collection-menu-btn:focus-visible { outline: 2px solid var(--coral); outline-offset: 1px; }
+
+/* Menu a comparsa (es. azioni di una collezione) */
+.context-menu {
+  position: fixed;
+  z-index: var(--z-top);
+  min-width: 190px;
+  padding: 4px;
+  background: white;
+  border: 1px solid var(--ivory-dark);
+  border-radius: 6px;
+  box-shadow: 0 8px 24px rgba(26,24,20,0.18);
+  display: flex; flex-direction: column;
+}
+.context-menu[hidden] { display: none; }
+.context-menu button {
+  padding: 9px 12px;
+  background: none;
+  border: none;
+  border-radius: 4px;
+  text-align: left;
+  font-family: var(--editorial);
+  font-size: 13px;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+.context-menu button:hover,
+.context-menu button:focus-visible { background: var(--ivory); outline: none; }
+.context-menu button.danger { color: var(--coral); }
 
 /* ── Catalog type tabs (Montato / Semilavorato) ─────────────────── */
 .catalog-type-tabs {

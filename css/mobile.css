@@ -255,6 +255,9 @@
 @media (min-width: 769px) {
   .detail-close-btn { display: none !important; }
 }
+@media (max-width: 768px) {
+  .detail-x { display: none; }
+}
 
 /* ─── Modal → Full Screen su mobile ─────────────────────────── */
 @media (max-width: 768px) {

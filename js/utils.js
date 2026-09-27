@@ -91,3 +91,10 @@ export function validateCollection({ name, code }, collections, editingId = null
   if (clash) return `Il codice ${code} è già usato dalla collezione ${clash.name}`
   return null
 }
+
+// Conferma dell'eliminazione definitiva di un articolo: stesso messaggio in anteprima e in modifica
+export function confirmDeleteArticle(article) {
+  return confirm(`ATTENZIONE: stai per eliminare definitivamente l'articolo "${article.name}" (${article.sku}).\n\n` +
+    'Si perderà anche tutto ciò che lo riguarda: foto, materiali e movimenti di magazzino. ' +
+    "L'operazione non si può annullare.\n\nVuoi procedere?")
+}
