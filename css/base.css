@@ -56,9 +56,12 @@ input, select, textarea { font-family: inherit; }
   border-radius: 4px;
   font-family: var(--editorial);
   font-size: 14px;
-  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  /* Nascosto quando non attivo: su mobile (bottom più alto) il translateY non basta
+     a portarlo fuori schermo. La visibility scatta a fine uscita, dopo lo slide. */
+  visibility: hidden;
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1), visibility 0s linear 0.3s;
   z-index: var(--z-top);
   pointer-events: none;
 }
 
-#toast.visible { transform: translateX(-50%) translateY(0); }
+#toast.visible { transform: translateX(-50%) translateY(0); visibility: visible; transition-delay: 0s; }
