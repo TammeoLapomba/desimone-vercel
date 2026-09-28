@@ -1,8 +1,11 @@
 // js/semilavorato.js
-import { requireAuth, getRawCategories, getRawItems, insertRawCategory, updateRawItem, deleteRawCategory } from './supabase.js'
-import { showToast, debounce } from './utils.js'
+import { requireAuth, getRawCategories, getRawItems, insertRawCategory, updateRawItem, deleteRawCategory, signOut } from './supabase.js'
+import { showToast } from './utils.js'
+import { initFilters } from './filters.js'
 import { openRawItemModal } from './raw-form.js'
-import { initMobileNav, initHamburger, closeDrawer } from './pwa.js'
+import { initMobileNav, initHamburger, initPanelToggle, closeDrawer } from './pwa.js'
+
+window.signOutUser = signOut
 
 let allItems      = []
 let allCategories = []
@@ -15,10 +18,27 @@ const CATEGORY_TYPES = [
   { id: 'sassolini', label: 'Sassolini', prefix: 'SAS' }
 ]
 
+// Filtri per campo (barra sopra i fili, vedi filters.js)
+const valuesOf = (items, key) => items.filter(i => i[key]).map(i => [i[key], i[key]])
+const FILTER_FIELDS = [
+  { key: 'size', label: 'Misura', all: 'Tutte', options: items => valuesOf(items, 'size'), test: (i, v) => i.size === v },
+  { key: 'color', label: 'Colore', options: items => valuesOf(items, 'color'), test: (i, v) => i.color === v },
+  { key: 'quality', label: 'Qualità', all: 'Tutte', options: items => valuesOf(items, 'quality'), test: (i, v) => i.quality === v },
+  { key: 'stock', label: 'Disponibilità',
+    options: () => [['si', 'Disponibili'], ['no', 'Esauriti']],
+    test: (i, v) => (i.stock > 0) === (v === 'si') },
+]
+let filters = null
+
 async function init() {
+  initPanelToggle()
   await requireAuth()
-  await loadCategories()
-  await loadItems()
+  filters = initFilters({
+    fields: FILTER_FIELDS,
+    text: i => [i.size, i.color, i.quality, i.raw_categories?.name, i.notes, i.sku].join('\n'),
+    onChange: () => renderCurrent(),
+  })
+  await refresh()
   setupListeners()
 
   // Mobile PWA
@@ -34,10 +54,11 @@ async function loadCategories() {
   allCategories = await getRawCategories()
   const list = document.getElementById('categoryList')
 
-  list.innerHTML = renderCategoryItem({ id: null, name: 'Tutti i fili' }, true)
-  allCategories.forEach(c => { list.innerHTML += renderCategoryItem(c, false) })
+  list.innerHTML = renderCategoryItem({ id: null, name: 'Tutti i fili' }, !currentCategoryId)
+  allCategories.forEach(c => { list.innerHTML += renderCategoryItem(c, c.id === currentCategoryId) })
 
-  list.addEventListener('click', e => {
+  // onclick e non addEventListener: loadCategories viene richiamata a ogni aggiornamento
+  list.onclick = e => {
     const item = e.target.closest('[data-category-id]')
     if (!item) return
     currentCategoryId = item.dataset.categoryId === 'null' ? null : item.dataset.categoryId
@@ -48,9 +69,9 @@ async function loadCategories() {
     list.querySelectorAll('[data-category-id]').forEach(el => el.classList.remove('active'))
     item.classList.add('active')
     document.getElementById('breadcrumb').textContent = `Semilavorato · ${item.dataset.categoryName}`
-    renderGrid(allItems.filter(i => !currentCategoryId || i.category_id === currentCategoryId))
+    renderCurrent()
     closeDrawer()
-  })
+  }
 }
 
 function renderCategoryItem(c, isActive) {
@@ -68,10 +89,13 @@ function renderCategoryItem(c, isActive) {
 
 // ─── Grid ─────────────────────────────────────────────────────
 
-async function loadItems() {
-  allItems = await getRawItems()
-  document.getElementById('itemCount').textContent = `${allItems.length} fili`
-  renderGrid(allItems)
+// Fili da mostrare: categoria selezionata, poi ricerca e filtri
+function renderCurrent() {
+  const inCategory = currentCategoryId ? allItems.filter(i => i.category_id === currentCategoryId) : allItems
+  filters.refresh(inCategory)
+  const shown = filters.apply(inCategory)
+  document.getElementById('itemCount').textContent = `${shown.length} ${shown.length === 1 ? 'filo' : 'fili'}`
+  renderGrid(shown)
 }
 
 function getColorClass(color) {
@@ -96,7 +120,7 @@ function renderGrid(items) {
     if (allCategories.length === 0) {
       grid.innerHTML = `<div style="grid-column:1/-1;padding:64px 24px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:16px;">
         <svg style="width:48px;height:48px;color:rgba(201,168,76,0.5);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
-        <div style="font-family:var(--editorial);font-size:22px;color:white;">Il tuo magazzino è vuoto</div>
+        <div style="font-family:var(--editorial);font-size:22px;color:var(--text-primary);">Il tuo magazzino è vuoto</div>
         <div style="font-family:var(--editorial);font-size:14px;color:var(--text-muted);max-width:300px;">Per iniziare a inserire i fili semilavorati, crea la tua prima Categoria dalla barra laterale (es. Pallini, Cannette, ecc).</div>
       </div>`
     } else {
@@ -344,12 +368,11 @@ function openStockModal(item) {
 
 // ─── Refresh ──────────────────────────────────────────────────
 
+// Prima i fili, poi le categorie (che ne mostrano il conteggio)
 async function refresh() {
+  allItems = await getRawItems()
   await loadCategories()
-  await loadItems()
-  renderGrid(currentCategoryId
-    ? allItems.filter(i => i.category_id === currentCategoryId)
-    : allItems)
+  renderCurrent()
 }
 
 // ─── Listeners ────────────────────────────────────────────────
@@ -440,69 +463,6 @@ function setupListeners() {
       await refresh()
     } catch (err) { showToast('Errore: ' + err.message) }
   })
-
-  // Filtri Avanzati
-  const applyFilters = () => {
-    const q = document.getElementById('searchInput').value.toLowerCase().trim()
-    const fCat = document.getElementById('filterCategory')?.value
-    const fCol = document.getElementById('filterColor')?.value
-    const fQual = document.getElementById('filterQuality')?.value
-
-    const filtered = allItems.filter(i => {
-      // 1. Keyword search (OR tra vari campi)
-      let matchQ = true
-      if (q) {
-        matchQ = (
-          (i.size     || '').toLowerCase().includes(q) ||
-          (i.color    || '').toLowerCase().includes(q) ||
-          (i.quality  || '').toLowerCase().includes(q) ||
-          (i.raw_categories?.name || '').toLowerCase().includes(q) ||
-          (i.notes    || '').toLowerCase().includes(q) ||
-          (i.sku      || '').toLowerCase().includes(q)
-        )
-      }
-      
-      // 2. Dropdown filters (And)
-      let matchCat = true
-      if (fCat) matchCat = (i.category_id === fCat)
-
-      let matchCol = true
-      if (fCol) matchCol = (i.color === fCol)
-
-      let matchQual = true
-      if (fQual) matchQual = (i.quality === fQual)
-
-      return matchQ && matchCat && matchCol && matchQual
-    })
-    
-    renderGrid(filtered)
-  }
-
-  document.getElementById('searchInput').addEventListener('input', debounce(applyFilters))
-
-  document.getElementById('btnOpenFilters')?.addEventListener('click', () => {
-    // Aggiorna le categorie nel filtro
-    const catSel = document.getElementById('filterCategory')
-    if (catSel && catSel.options.length <= 1) {
-      allCategories.forEach(c => {
-        const o = document.createElement('option')
-        o.value = c.id
-        o.textContent = c.name
-        catSel.appendChild(o)
-      })
-    }
-    document.getElementById('filtersModal')?.classList.add('open')
-  })
-
-  document.getElementById('btnClearFilters')?.addEventListener('click', () => {
-    applyFilters()
-    document.getElementById('filtersModal')?.classList.remove('open')
-  })
-  
-  // Applica in tempo reale anche cambiando i dropdown
-  document.getElementById('filterCategory')?.addEventListener('change', applyFilters)
-  document.getElementById('filterColor')?.addEventListener('change', applyFilters)
-  document.getElementById('filterQuality')?.addEventListener('change', applyFilters)
 }
 
 init().catch(console.error)

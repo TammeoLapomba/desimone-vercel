@@ -1,9 +1,10 @@
 // js/catalog.js
 import { supabase, requireAuth, getCollections, getArticles, insertCollection, deleteArticle, deleteCollection, signOut } from './supabase.js'
-import { formatPrice, getCoverPhoto, showToast, debounce, isAppSku, articleMaterials, collectionCode, validateCollection, confirmDeleteArticle } from './utils.js'
+import { formatPrice, getCoverPhoto, showToast, isAppSku, articleMaterials, collectionCode, validateCollection, confirmDeleteArticle } from './utils.js'
 import { initColorSelect } from './color-select.js'
+import { initFilters } from './filters.js'
 import { openArticleModal } from './article-form.js'
-import { initMobileNav, initHamburger, addDetailPanelCloseBtn, closeDrawer } from './pwa.js'
+import { initMobileNav, initHamburger, initPanelToggle, addDetailPanelCloseBtn, closeDrawer } from './pwa.js'
 
 window.signOutUser = signOut
 
@@ -25,10 +26,36 @@ const effectiveView = () => (mobileQuery.matches ? 'grid' : viewMode)
 let tableSort = { key: null, dir: 1 }
 let selectedIds = new Set()       // selezione della tabella (solo admin: serve all'eliminazione multipla)
 
+// Filtri per campo (barra sopra gli articoli, vedi filters.js)
+const stockOf = a => (a.stock_retail || 0) + (a.stock_wholesale || 0)
+const FILTER_FIELDS = [
+  { key: 'type', label: 'Tipo',
+    options: items => items.filter(a => a.product_type_id).map(a => [a.product_type_id, a.product_type?.name || '—']),
+    test: (a, v) => a.product_type_id === v },
+  { key: 'material', label: 'Materiale',
+    options: items => items.flatMap(a => articleMaterials(a).map(m => [m.id, m.name])),
+    test: (a, v) => articleMaterials(a).some(m => m.id === v) },
+  { key: 'metal', label: 'Metallo',
+    options: items => items.filter(a => a.metal_id).map(a => [a.metal_id, a.metal?.name || '—']),
+    test: (a, v) => a.metal_id === v },
+  { key: 'stock', label: 'Disponibilità',
+    options: () => [['si', 'Disponibili'], ['no', 'Esauriti']],
+    test: (a, v) => (stockOf(a) > 0) === (v === 'si') },
+  { key: 'price', label: 'Prezzo', unit: '€', range: true, value: a => a.price_retail },
+]
+let filters = null
+
 async function init() {
+  initPanelToggle()
   const session = await requireAuth()
   // Modifica/eliminazione di collezioni e articoli: solo admin (lo impone anche il database)
   isAdmin = session.user.app_metadata?.role === 'admin'
+  filters = initFilters({
+    fields: FILTER_FIELDS,
+    // Ricerca libera: titolo, codice, collezione, tipo e materiali
+    text: a => [a.name, a.sku, a.collections?.name, a.product_type?.name, ...articleMaterials(a).map(m => m.name)].join('\n'),
+    onChange: () => renderCurrent(),
+  })
   await loadCollections()
   await loadArticles()
   setupListeners()
@@ -110,20 +137,16 @@ function getBadgeStyle(name, type) {
   return 'background:var(--ivory);color:var(--text-secondary);'
 }
 
-// Articoli da mostrare: collezione selezionata, ricerca e filtro materiale insieme
+// Articoli da mostrare: collezione selezionata, poi ricerca e filtri
 function renderCurrent() {
-  const q = document.getElementById('searchInput').value.toLowerCase().trim()
-  const fMat = document.getElementById('filterMaterial')?.value
-  renderArticles(allArticles.filter(a => {
-    if (currentCollectionId && a.collection_id !== currentCollectionId) return false
-    if (fMat && !articleMaterials(a).some(m => m.id === fMat)) return false
-    if (!q) return true
-    return a.name.toLowerCase().includes(q) ||
-      a.sku.toLowerCase().includes(q) ||
-      (a.collections?.name || '').toLowerCase().includes(q) ||
-      (a.product_type?.name || '').toLowerCase().includes(q) ||
-      articleMaterials(a).some(m => m.name.toLowerCase().includes(q))
-  }))
+  const inCollection = currentCollectionId ? allArticles.filter(a => a.collection_id === currentCollectionId) : allArticles
+  filters.refresh(inCollection)
+  renderArticles(filters.apply(inCollection))
+}
+
+// Elenco vuoto: se dipende da ricerca o filtri, si possono azzerare da qui
+function emptyMessage() {
+  return `Nessun articolo trovato${filters.isActive() ? '<br><button type="button" class="link-button empty-reset" data-reset-filters>Azzera ricerca e filtri</button>' : ''}`
 }
 
 // Mostra l'elenco nella vista scelta (griglia o tabella)
@@ -140,7 +163,7 @@ function renderArticles(articles) {
 function renderGrid(articles) {
   const grid = document.getElementById('articlesGrid')
   if (articles.length === 0) {
-    grid.innerHTML = `<div style="grid-column:1/-1;padding:48px;text-align:center;font-family:var(--editorial);font-size:18px;color:var(--text-muted);">Nessun articolo trovato</div>`
+    grid.innerHTML = `<div style="grid-column:1/-1;padding:48px;text-align:center;font-family:var(--editorial);font-size:18px;color:var(--text-muted);">${emptyMessage()}</div>`
     return
   }
 
@@ -281,7 +304,7 @@ function renderTable(articles) {
           </div>
         </td>
       </tr>`
-  }).join('') : `<tr><td class="table-empty" colspan="${tableColumns().length + (selectable ? 1 : 0)}">Nessun articolo trovato</td></tr>`
+  }).join('') : `<tr><td class="table-empty" colspan="${tableColumns().length + (selectable ? 1 : 0)}">${emptyMessage()}</td></tr>`
 
   box.innerHTML = `
     <div class="table-card">
@@ -638,59 +661,12 @@ function setupListeners() {
     }
   })
 
-  // Ricerca e filtri: vedi renderCurrent
-  const applyFilters = renderCurrent
-
-  document.getElementById('searchInput').addEventListener('input', debounce(applyFilters))
-
-  document.getElementById('btnOpenFilters')?.addEventListener('click', () => {
-    // Popola Collezioni
-    const colSel = document.getElementById('filterCollection')
-    if (colSel && colSel.options.length <= 1) {
-      allCollections.forEach(c => {
-        const o = document.createElement('option')
-        o.value = c.id
-        o.textContent = c.name
-        colSel.appendChild(o)
-      })
-    }
-    // Popola Tipi
-    const typeSel = document.getElementById('filterType')
-    if (typeSel && typeSel.options.length <= 1) {
-      const types = [...new Set(allArticles.map(a => a.type).filter(Boolean))]
-      types.forEach(t => {
-        const o = document.createElement('option')
-        o.value = t
-        o.textContent = t
-        typeSel.appendChild(o)
-      })
-    }
-    
-    // Popola Materiali (solo quelli usati da almeno un articolo)
-    const matSel = document.getElementById('filterMaterial')
-    if (matSel && matSel.options.length <= 1) {
-      const used = [...new Map(allArticles.flatMap(articleMaterials).map(m => [m.id, m.name]))]
-        .sort((x, y) => x[1].localeCompare(y[1], 'it'))
-      used.forEach(([id, name]) => {
-        const o = document.createElement('option')
-        o.value = id
-        o.textContent = name
-        matSel.appendChild(o)
-      })
-    }
-
-    document.getElementById('filtersModal')?.classList.add('open')
+  // "Azzera ricerca e filtri" nell'elenco vuoto
+  document.querySelector('.catalog-area').addEventListener('click', e => {
+    if (!e.target.closest('[data-reset-filters]')) return
+    filters.reset()
+    document.getElementById('searchInput').focus()
   })
-
-  document.getElementById('btnClearFilters')?.addEventListener('click', () => {
-    applyFilters()
-    document.getElementById('filtersModal')?.classList.remove('open')
-  })
-  
-  // Applica in tempo reale
-  document.getElementById('filterCollection')?.addEventListener('change', applyFilters)
-  document.getElementById('filterType')?.addEventListener('change', applyFilters)
-  document.getElementById('filterMaterial')?.addEventListener('change', applyFilters)
 }
 
 init().catch(console.error)

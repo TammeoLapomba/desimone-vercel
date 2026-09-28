@@ -117,11 +117,12 @@
     z-index: var(--z-modal);
     transform: translateX(-100%);
     transition: transform 0.28s cubic-bezier(0.4, 0, 0.2, 1);
-    box-shadow: 4px 0 32px rgba(0,0,0,0.4);
   }
 
+  /* Ombra solo da aperto: da chiuso sbordava sul lato sinistro dello schermo */
   .left-panel.open {
     transform: translateX(0);
+    box-shadow: 4px 0 32px rgba(0,0,0,0.4);
   }
 
   /* Overlay scuro dietro il drawer */
@@ -170,6 +171,30 @@
     flex-shrink: 0;
   }
   .topbar-hamburger svg { width: 20px; height: 20px; }
+}
+
+/* ─── Barra ricerca e filtri ─────────────────────────────────── */
+@media (max-width: 768px) {
+  /* La colonna su telefono è il cassetto dell'hamburger: niente tasto per richiuderla */
+  .panel-toggle { display: none; }
+
+  .filter-bar { padding: 10px 16px; }
+  .search-field { flex: 1 1 200px; }
+  .search-field input { font-size: 16px; } /* previene zoom automatico su iOS */
+
+  /* Campi dei filtri su due colonne, etichetta sopra */
+  .filter-fields {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 10px 12px;
+  }
+  .filter-field { flex-direction: column; align-items: stretch; gap: 4px; }
+  .filter-field .field-select { max-width: none; }
+  .filter-field .field-select,
+  .filter-field .field-input[type="number"] { font-size: 16px; min-height: 44px; }
+  .filter-range { grid-column: 1 / -1; flex-direction: row; flex-wrap: wrap; align-items: center; }
+  .filter-range .filter-label { flex-basis: 100%; }
+  .filter-range .field-input[type="number"] { flex: 1; width: auto; min-width: 0; }
 }
 
 @media (min-width: 769px) {

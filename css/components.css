@@ -124,7 +124,7 @@
 .field-select:focus,
 .field-textarea:focus {
   border-color: var(--coral);
-  background: white;
+  background-color: white; /* solo il colore: la freccia delle tendine è un'immagine di sfondo */
   box-shadow: 0 0 0 3px rgba(201, 64, 48, 0.12);
 }
 .field-select { appearance: none; background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' stroke='%239B948D' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E"); background-repeat: no-repeat; background-position: right 12px center; padding-right: 32px; }
@@ -287,31 +287,119 @@
 .context-menu button:focus-visible { background: var(--ivory); outline: none; }
 .context-menu button.danger { color: var(--coral); }
 
-/* ── Catalog type tabs (Montato / Semilavorato) ─────────────────── */
-.catalog-type-tabs {
-  display: flex;
-  border-bottom: 1px solid rgba(255,255,255,0.06);
+/* ── Ricerca e filtri sopra l'elenco (filters.js, sul modello di maat) ── */
+.filter-bar {
   flex-shrink: 0;
+  display: flex; flex-direction: column; gap: 10px;
+  padding: 10px 24px;
+  background: white;
+  border-bottom: 1px solid var(--ivory-dark);
 }
-.catalog-type-tab {
-  flex: 1;
-  text-align: center;
-  padding: 11px 8px;
+.filter-bar-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
+
+.search-field { position: relative; flex: 0 1 340px; min-width: 0; }
+.search-field svg {
+  position: absolute; left: 12px; top: 50%;
+  transform: translateY(-50%);
+  width: 15px; height: 15px;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+.search-field input {
+  width: 100%;
+  padding: 7px 14px 7px 34px;
+  background: var(--ivory);
+  border: 1.5px solid var(--ivory-dark);
+  border-radius: 999px;
+  font-family: var(--editorial);
+  font-size: 13px;
+  color: var(--text-primary);
+  outline: none;
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+}
+.search-field input::placeholder { color: var(--text-muted); }
+.search-field input:focus {
+  border-color: var(--coral);
+  background: white;
+  box-shadow: 0 0 0 3px rgba(201, 64, 48, 0.12);
+}
+
+.filter-toggle {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 6px 14px;
+  background: white;
+  border: 1.5px solid var(--ivory-dark);
+  border-radius: 999px;
+  font-family: var(--editorial);
+  font-size: 13px;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: border-color 0.15s, color 0.15s;
+}
+.filter-toggle svg { width: 14px; height: 14px; }
+.filter-toggle:hover { border-color: var(--text-secondary); color: var(--text-primary); }
+.filter-toggle[aria-expanded="true"] { border-color: var(--ebony); color: var(--text-primary); }
+.filter-toggle:focus-visible { outline: 2px solid var(--coral); outline-offset: 2px; }
+.filter-count {
+  min-width: 18px; height: 18px;
+  padding: 0 5px;
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: 999px;
+  background: var(--coral);
+  color: white;
+  font-size: 11px;
+  font-weight: 600;
+}
+.filter-count[hidden] { display: none; }
+
+.filter-fields { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 22px; }
+.filter-fields[hidden] { display: none; }
+.filter-field { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.filter-label {
   font-family: var(--editorial);
   font-size: 10px;
-  letter-spacing: 2.5px;
+  letter-spacing: 1.5px;
   text-transform: uppercase;
-  color: rgba(255,255,255,0.35);
-  text-decoration: none;
-  border-bottom: 2px solid transparent;
-  transition: color 0.15s, border-color 0.15s;
+  color: var(--text-muted);
+  white-space: nowrap;
+}
+.filter-field .field-select { padding: 6px 30px 6px 10px; font-size: 13px; max-width: 220px; }
+.filter-field .field-input[type="number"] { width: 84px; padding: 6px 10px; font-size: 13px; }
+.filter-range-sep { color: var(--text-muted); }
+
+.filter-chips { display: contents; }
+.filter-chips[hidden] { display: none; }
+.filter-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 4px 8px 4px 12px;
+  background: white;
+  border: 1px solid var(--ivory-dark);
+  border-radius: 999px;
+  font-family: var(--editorial);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-primary);
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+.filter-chip svg { width: 12px; height: 12px; color: var(--text-muted); }
+.filter-chip:hover { border-color: var(--coral); background: rgba(201, 64, 48, 0.05); }
+.filter-chip:focus-visible { outline: 2px solid var(--coral); outline-offset: 2px; }
+.filter-reset {
+  padding: 4px 2px;
+  background: none;
+  border: none;
+  font-family: var(--editorial);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
   cursor: pointer;
 }
-.catalog-type-tab:hover:not(.active) { color: rgba(255,255,255,0.65); }
-.catalog-type-tab.active {
-  color: var(--coral);
-  border-bottom-color: var(--coral);
-}
+.filter-reset:hover { color: var(--text-primary); }
+.filter-reset:focus-visible { outline: 2px solid var(--coral); outline-offset: 2px; }
+.empty-reset { align-self: center; margin-top: 10px; font-size: 14px; }
 
 /* ── Raw Item card (catalogo semilavorato) ──────────────────────── */
 .raw-item-card {

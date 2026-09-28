@@ -56,11 +56,11 @@ export function initMobileNav({ onNewArticle, onOpenDrawer } = {}) {
       </svg>
     </button>
 
-    <button class="mobile-nav-item" id="mobileCollectionsBtn" aria-label="Categorie">
+    <button class="mobile-nav-item" id="mobileCollectionsBtn">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
         <path d="M3 7l9-4 9 4v10l-9 4-9-4V7z"/><path d="M12 3v18"/>
       </svg>
-      Filtri
+      ${isSemilavorato ? 'Categorie' : 'Collezioni'}
     </button>
   `
   document.body.appendChild(nav)
@@ -115,6 +115,31 @@ export function initHamburger() {
   topbar.insertBefore(btn, topbar.firstChild)
 
   btn.addEventListener('click', openDrawer)
+}
+
+// ─── Colonna collezioni/categorie richiudibile (schermo largo) ─────
+// Lo stato resta tra una pagina e l'altra; lo applica già lo script nell'<head>
+
+const PANEL_KEY = 'desimone-os:pannello-chiuso'
+
+export function initPanelToggle() {
+  const btn = document.getElementById('btnPanelToggle')
+  if (!btn) return
+  const root = document.documentElement
+  const name = btn.getAttribute('aria-label').replace(/^Elenco /, '')
+
+  const sync = () => {
+    const collapsed = root.classList.contains('panel-collapsed')
+    btn.setAttribute('aria-expanded', String(!collapsed))
+    btn.title = `${collapsed ? 'Mostra' : 'Nascondi'} ${name}`
+  }
+  sync()
+
+  btn.addEventListener('click', () => {
+    const collapsed = root.classList.toggle('panel-collapsed')
+    try { localStorage.setItem(PANEL_KEY, collapsed ? '1' : '0') } catch { /* storage non disponibile */ }
+    sync()
+  })
 }
 
 // ─── Chiudi detail panel su mobile ───────────────────────────

@@ -1,7 +1,9 @@
 // js/article.js
-import { supabase, requireAuth, getCollections, getMaterials, getMetals, getProductTypes, getArticleById, updateArticle, setArticleMaterials, deleteArticle } from './supabase.js'
+import { supabase, requireAuth, getCollections, getMaterials, getMetals, getProductTypes, getArticleById, updateArticle, setArticleMaterials, deleteArticle, signOut } from './supabase.js'
 import { showToast, isAppSku, confirmDeleteArticle } from './utils.js'
 import { initMaterialPicker } from './material-picker.js'
+
+window.signOutUser = signOut
 
 let articleId = null
 let currentArticle = null

@@ -1,4 +1,4 @@
-const CACHE_NAME = 'desimone-os-v17'
+const CACHE_NAME = 'desimone-os-v18'
 
 const SHELL_ASSETS = [
   '/catalog.html',
@@ -18,6 +18,7 @@ const SHELL_ASSETS = [
   '/js/article-form.js',
   '/js/material-picker.js',
   '/js/color-select.js',
+  '/js/filters.js',
   '/js/article.js',
   '/js/photo-upload.js',
   '/js/utils.js',
