@@ -125,7 +125,7 @@
 
 <!-- COLLECTION MODAL -->
 <div class="modal-overlay" id="collectionModal" role="dialog" aria-modal="true" aria-labelledby="collectionModalTitle">
-  <div class="modal" style="max-width:400px;">
+  <div class="modal modal-compact">
     <div class="modal-header">
       <div>
         <div class="modal-eyebrow">Catalogo · Impostazioni</div>
@@ -138,18 +138,18 @@
     <div class="modal-body">
       <div class="form-row full">
         <div class="form-field">
-          <label class="field-label">Nome collezione <span class="field-required">*</span></label>
+          <label class="field-label" for="f_coll_name">Nome collezione <span class="field-required">*</span></label>
           <input type="text" class="field-input" id="f_coll_name" placeholder="es. Estate">
         </div>
       </div>
       <div class="form-row">
         <div class="form-field">
-          <label class="field-label">Codice SKU (4 lettere) <span class="field-required">*</span></label>
+          <label class="field-label" for="f_coll_code">Codice SKU (4 lettere) <span class="field-required">*</span></label>
           <input type="text" class="field-input" id="f_coll_code" maxlength="4" placeholder="es. ESTA" style="text-transform:uppercase;">
         </div>
         <div class="form-field">
-          <label class="field-label">Colore badge <span class="field-required">*</span></label>
-          <select class="field-select" id="f_coll_color"></select>
+          <label class="field-label" id="f_coll_color_label">Colore badge <span class="field-required">*</span></label>
+          <div id="f_coll_color"></div>
         </div>
       </div>
     </div>

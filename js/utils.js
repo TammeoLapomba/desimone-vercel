@@ -75,10 +75,6 @@ export const COLLECTION_COLORS = [
   ['#2A2620', 'Ebano / Scuro'],
 ]
 
-export function collectionColorOptions() {
-  return COLLECTION_COLORS.map(([value, label]) => `<option value="${value}">${label}</option>`).join('')
-}
-
 // Codice di 4 lettere della collezione, quello che entra negli SKU dell'app
 export function collectionCode(collection) {
   return collection.description_it || (collection.slug ? collection.slug.substring(0, 4).toUpperCase() : '')

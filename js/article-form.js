@@ -1,6 +1,7 @@
 // js/article-form.js
 import { supabase, getCollections, insertCollection, getMaterials, getMetals, getProductTypes, insertArticle, setArticleMaterials, uploadPhoto } from './supabase.js'
-import { buildSkuPreview, showToast, COLLECTION_COLORS, collectionColorOptions, validateCollection } from './utils.js'
+import { buildSkuPreview, showToast, validateCollection } from './utils.js'
+import { initColorSelect } from './color-select.js'
 import { initPhotoUpload } from './photo-upload.js'
 import { initMaterialPicker } from './material-picker.js'
 
@@ -81,8 +82,8 @@ function renderModal() {
                 <input type="text" class="field-input" id="f_newcoll_code" maxlength="4" placeholder="es. ESTA" style="text-transform:uppercase;">
               </div>
               <div class="form-field">
-                <label class="field-label" for="f_newcoll_color">Colore badge <span class="field-required">*</span></label>
-                <select class="field-select" id="f_newcoll_color">${collectionColorOptions()}</select>
+                <label class="field-label" id="f_newcoll_color_label">Colore badge <span class="field-required">*</span></label>
+                <div id="f_newcoll_color"></div>
               </div>
             </div>
             <div class="inline-panel-actions">
@@ -101,9 +102,10 @@ function renderModal() {
           </div>
           <div class="form-row full">
             <div class="form-field">
-              <label class="field-label">Nome <span style="color:var(--text-muted);font-style:italic;">— opzionale</span></label>
-              <input type="text" class="field-input" id="f_name" placeholder="es. Fantasia, Mare, Etnico…">
-              <span class="field-error" style="display:none;" id="namePreview"></span>
+              <label class="field-label" for="f_title">Titolo <span class="field-required">*</span></label>
+              <input type="text" class="field-input" id="f_title" placeholder="Si compone da tipo, collezione e lunghezza">
+              <span class="field-hint" id="titleHint">Si compone da tipo, collezione e lunghezza: puoi modificarlo come vuoi.</span>
+              <button type="button" class="link-button" id="btnTitleAuto" hidden>Torna al titolo automatico</button>
             </div>
           </div>
           <div class="form-row full">
@@ -239,31 +241,42 @@ function setupFormListeners() {
 
   materialPicker = initMaterialPicker(document.getElementById('f_materials'), materials, [], updateSkuPreview)
   document.getElementById('f_collection').addEventListener('change', updateSkuPreview)
-  document.getElementById('f_collection').addEventListener('change', updateNamePreview)
   document.getElementById('f_metal')?.addEventListener('change', updateSkuPreview)
-  document.getElementById('f_type')?.addEventListener('change', updateNamePreview)
-  document.getElementById('f_name')?.addEventListener('input', updateNamePreview)
 
-  function updateNamePreview() {
-    const collSel = document.getElementById('f_collection')
-    const collName = collSel.value ? collSel.options[collSel.selectedIndex].text : ''
-    const typeSel = document.getElementById('f_type')
-    const pTypeName = typeSel.value ? typeSel.options[typeSel.selectedIndex].text : ''
-    const customName = document.getElementById('f_name')?.value.trim() || ''
-    if (!pTypeName && !collName) return
-    const preview = [pTypeName, collName, customName].filter(Boolean).join(' ')
-    const el = document.getElementById('namePreview')
-    if (el) {
-      el.textContent = preview ? `Anteprima: “${preview}”` : ''
-      el.style.display = preview ? 'block' : 'none'
-      el.style.color = 'var(--text-muted)'
-      el.style.fontStyle = 'italic'
+  // ── Titolo: si compone da solo finché non lo si modifica a mano ──
+  const titleInput = document.getElementById('f_title')
+  const btnTitleAuto = document.getElementById('btnTitleAuto')
+  let titleEdited = false
+
+  function autoTitle() {
+    const selText = id => {
+      const sel = document.getElementById(id)
+      return sel.value ? sel.options[sel.selectedIndex].text : ''
     }
+    const l = document.getElementById('f_length').value
+    return [selText('f_type'), selText('f_collection')].filter(Boolean).join(' ') + (l ? ` ${l}cm` : '')
   }
+  function updateTitle() {
+    if (!titleEdited) titleInput.value = autoTitle()
+  }
+  titleInput.addEventListener('input', () => {
+    titleEdited = titleInput.value.trim() !== autoTitle()
+    btnTitleAuto.hidden = !titleEdited
+  })
+  btnTitleAuto.addEventListener('click', () => {
+    titleEdited = false
+    btnTitleAuto.hidden = true
+    updateTitle()
+    titleInput.focus()
+  })
+  document.getElementById('f_collection').addEventListener('change', updateTitle)
+  document.getElementById('f_type').addEventListener('change', updateTitle)
+  document.getElementById('f_length').addEventListener('input', updateTitle)
 
   // ── Nuova collezione senza uscire dall'inserimento articolo ──
   // Si salva subito con il suo pulsante e viene selezionata: al salvataggio l'articolo la trova già nel DB
   const collPanel = document.getElementById('newCollectionPanel')
+  const newCollColor = initColorSelect(document.getElementById('f_newcoll_color'), { labelId: 'f_newcoll_color_label' })
   const btnNewColl = document.getElementById('btnNewCollectionInline')
   const isCollPanelOpen = () => collPanel.style.display !== 'none'
 
@@ -275,7 +288,7 @@ function setupFormListeners() {
     } else {
       document.getElementById('f_newcoll_name').value = ''
       document.getElementById('f_newcoll_code').value = ''
-      document.getElementById('f_newcoll_color').value = COLLECTION_COLORS[0][0]
+      newCollColor.setValue()
     }
   }
 
@@ -285,7 +298,7 @@ function setupFormListeners() {
     const btn = e.currentTarget
     const name = document.getElementById('f_newcoll_name').value.trim()
     const code = document.getElementById('f_newcoll_code').value.trim().toUpperCase()
-    const color = document.getElementById('f_newcoll_color').value
+    const color = newCollColor.value
     const invalid = validateCollection({ name, code }, collections)
     if (invalid) { showToast(invalid); return }
 
@@ -327,6 +340,7 @@ function setupFormListeners() {
       if (isCollPanelOpen()) { showToast('Crea la nuova collezione o annulla prima di proseguire'); return false }
       if (!document.getElementById('f_collection').value) { showToast('Seleziona una collezione'); return false }
       if (!document.getElementById('f_type').value) { showToast('Seleziona il tipo prodotto'); return false }
+      if (!titleInput.value.trim()) { showToast("Inserisci il titolo dell'articolo"); titleInput.focus(); return false }
     }
     if (s === 2) {
       if (!materialPicker.getIds().length) { showToast('Aggiungi almeno un materiale'); return false }
@@ -365,17 +379,11 @@ function setupFormListeners() {
       if (h) measurements.height_cm = Number(h)
       if (wt) measurements.weight_g = Number(wt)
 
-      const collSel = document.getElementById('f_collection')
-      const collName = collSel.options[collSel.selectedIndex].text
       const typeSel = document.getElementById('f_type')
-      const pTypeName = typeSel.options[typeSel.selectedIndex].text
-      const customName = document.getElementById('f_name')?.value.trim() || ''
-      const dynamicName = [pTypeName, collName, customName].filter(Boolean).join(' ') +
-        (l ? ` ${l}cm` : '')
 
       const article = await insertArticle({
         collection_id: collId,
-        name: dynamicName,
+        name: titleInput.value.trim(),
         product_type_id: typeSel.value,
         metal_id: metalId,
         sku: skuData,

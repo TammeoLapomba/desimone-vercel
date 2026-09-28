@@ -1,6 +1,7 @@
 // js/catalog.js
 import { supabase, requireAuth, getCollections, getArticles, insertCollection, deleteArticle, deleteCollection, signOut } from './supabase.js'
-import { formatPrice, getCoverPhoto, showToast, debounce, isAppSku, articleMaterials, COLLECTION_COLORS, collectionColorOptions, collectionCode, validateCollection, confirmDeleteArticle } from './utils.js'
+import { formatPrice, getCoverPhoto, showToast, debounce, isAppSku, articleMaterials, collectionCode, validateCollection, confirmDeleteArticle } from './utils.js'
+import { initColorSelect } from './color-select.js'
 import { openArticleModal } from './article-form.js'
 import { initMobileNav, initHamburger, addDetailPanelCloseBtn, closeDrawer } from './pwa.js'
 
@@ -10,6 +11,7 @@ let allArticles = []
 let currentCollections = []
 let currentCollectionId = null
 let editingCollectionId = null // collezione aperta in "Modifica collezione"; null = nuova
+let collColor = null           // menu colori della finestra collezione
 let isAdmin = false
 
 // Vista del catalogo: 'grid' (schede) o 'table'. Su telefono sempre schede.
@@ -67,7 +69,7 @@ async function loadCollections() {
     list.querySelectorAll('[data-collection-id]').forEach(el => el.classList.remove('active'))
     item.classList.add('active')
     document.getElementById('breadcrumb').textContent = `Catalogo · ${item.dataset.collectionName}`
-    renderArticles(allArticles.filter(a => !currentCollectionId || a.collection_id === currentCollectionId))
+    renderCurrent()
 
     // Chiude il drawer su mobile dopo la selezione
     closeDrawer()
@@ -90,7 +92,7 @@ function renderCollectionItem(c, isActive) {
 async function loadArticles(collectionId = null) {
   allArticles = await getArticles(collectionId)
   document.getElementById('articleCount').textContent = `${allArticles.length} articoli`
-  renderArticles(allArticles)
+  renderCurrent()
 }
 
 function getBadgeStyle(name, type) {
@@ -108,9 +110,26 @@ function getBadgeStyle(name, type) {
   return 'background:var(--ivory);color:var(--text-secondary);'
 }
 
+// Articoli da mostrare: collezione selezionata, ricerca e filtro materiale insieme
+function renderCurrent() {
+  const q = document.getElementById('searchInput').value.toLowerCase().trim()
+  const fMat = document.getElementById('filterMaterial')?.value
+  renderArticles(allArticles.filter(a => {
+    if (currentCollectionId && a.collection_id !== currentCollectionId) return false
+    if (fMat && !articleMaterials(a).some(m => m.id === fMat)) return false
+    if (!q) return true
+    return a.name.toLowerCase().includes(q) ||
+      a.sku.toLowerCase().includes(q) ||
+      (a.collections?.name || '').toLowerCase().includes(q) ||
+      (a.product_type?.name || '').toLowerCase().includes(q) ||
+      articleMaterials(a).some(m => m.name.toLowerCase().includes(q))
+  }))
+}
+
 // Mostra l'elenco nella vista scelta (griglia o tabella)
 function renderArticles(articles) {
   shownArticles = articles
+  document.getElementById('articleCount').textContent = `${articles.length} ${articles.length === 1 ? 'articolo' : 'articoli'}`
   const view = renderedView = effectiveView()
   document.getElementById('articlesGrid').style.display = view === 'grid' ? 'grid' : 'none'
   document.getElementById('articlesTable').hidden = view !== 'table'
@@ -128,11 +147,8 @@ function renderGrid(articles) {
   grid.innerHTML = articles.map((a, i) => {
     const cover = getCoverPhoto(a.photos)
     const collName = a.collections?.name || ''
-    
-    const pTypeName = a.product_type?.name || ''
-    const l = a.measurements?.length_cm ? ` ${a.measurements.length_cm}cm` : ''
-    const computedName = `${pTypeName} ${collName}${l}`.trim()
-    const dispName = computedName || a.name
+    // Il titolo dell'articolo, modificabile in inserimento e in modifica
+    const dispName = esc(a.name)
 
     return `
       <div class="article-card" data-article-id="${a.id}" role="listitem" tabindex="0" aria-label="${dispName} — ${collName}" style="animation-delay:${i * 0.05}s">
@@ -145,7 +161,7 @@ function renderGrid(articles) {
         </div>
         <div class="card-body">
           <div class="card-collection">${collName}</div>
-          <div class="card-name">${dispName}</div>
+          <div class="card-name" title="${dispName}">${dispName}</div>
           <div class="card-sku">${a.sku}</div>
           <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:8px;">
             ${articleMaterials(a).map(m => `<span style="padding:2px 6px;border-radius:2px;font-family:var(--editorial);font-size:10px;${getBadgeStyle(m.name, 'material')}">${m.name}</span>`).join('')}
@@ -191,8 +207,13 @@ const ICON_DELETE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" 
 // Testo sicuro dentro l'HTML della tabella (nomi con virgolette, ecc.)
 const esc = v => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;')
 
+// Dentro una collezione la colonna Collezione non serve: solo in "Tutti gli articoli"
+function tableColumns() {
+  return TABLE_COLUMNS.filter(c => c.key !== 'collection' || !currentCollectionId)
+}
+
 function sortedForTable(articles) {
-  const col = TABLE_COLUMNS.find(c => c.key === tableSort.key)
+  const col = tableColumns().find(c => c.key === tableSort.key)
   if (!col) return articles
   return [...articles].sort((a, b) => {
     const va = col.value(a), vb = col.value(b)
@@ -221,7 +242,7 @@ function renderTable(articles) {
   const header = `
     <tr>
       ${selectable ? `<th class="col-check"><input type="checkbox" data-select="all" aria-label="Seleziona tutti" ${allSelected ? 'checked' : ''}></th>` : ''}
-      ${TABLE_COLUMNS.map(c => {
+      ${tableColumns().map(c => {
         const active = tableSort.key === c.key
         const ariaSort = active ? (tableSort.dir === 1 ? 'ascending' : 'descending') : 'none'
         return `<th class="col-${c.key}${c.num ? ' num' : ''}" aria-sort="${ariaSort}">
@@ -247,7 +268,7 @@ function renderTable(articles) {
           </div>
         </td>
         <td class="cell-code" title="${esc(a.sku)}">${esc(a.sku)}</td>
-        <td title="${esc(a.collections?.name)}">${esc(a.collections?.name || '—')}</td>
+        ${currentCollectionId ? '' : `<td title="${esc(a.collections?.name)}">${esc(a.collections?.name || '—')}</td>`}
         <td title="${esc(materials)}">${esc(materials || '—')}</td>
         <td title="${esc(a.metal?.name)}">${esc(a.metal?.name || '—')}</td>
         <td class="num">${formatPrice(a.price_retail)}</td>
@@ -260,7 +281,7 @@ function renderTable(articles) {
           </div>
         </td>
       </tr>`
-  }).join('') : `<tr><td class="table-empty" colspan="${TABLE_COLUMNS.length + (selectable ? 1 : 0)}">Nessun articolo trovato</td></tr>`
+  }).join('') : `<tr><td class="table-empty" colspan="${tableColumns().length + (selectable ? 1 : 0)}">Nessun articolo trovato</td></tr>`
 
   box.innerHTML = `
     <div class="table-card">
@@ -395,10 +416,7 @@ function openDetail(articleId) {
   const inner = document.getElementById('detailInner')
   const cover = getCoverPhoto(a.photos)
 
-  const pTypeName = a.product_type?.name || ''
-  const l = a.measurements?.length_cm ? ` ${a.measurements.length_cm}cm` : ''
-  const computedName = `${pTypeName} ${a.collections?.name || ''}${l}`.trim()
-  const dispName = computedName || a.name
+  const dispName = esc(a.name)
 
   inner.innerHTML = `
     <button type="button" class="detail-x" id="btnDetailClose" aria-label="Chiudi anteprima" title="Chiudi">
@@ -452,7 +470,7 @@ async function refreshCatalog() {
   await loadCollections()
   const coll = currentCollections.find(c => c.id === currentCollectionId)
   document.getElementById('breadcrumb').textContent = `Catalogo · ${coll ? coll.name : 'Tutti gli articoli'}`
-  renderArticles(allArticles.filter(a => !currentCollectionId || a.collection_id === currentCollectionId))
+  renderCurrent()
 }
 
 // ── Menu dei tre puntini di una collezione ──────────────────────
@@ -508,7 +526,7 @@ function openCollectionEditor(coll = null) {
   document.getElementById('collectionModalTitle').textContent = coll ? 'Modifica Collezione' : 'Nuova Collezione'
   document.getElementById('f_coll_name').value = coll?.name || ''
   document.getElementById('f_coll_code').value = coll ? collectionCode(coll) : ''
-  document.getElementById('f_coll_color').value = COLLECTION_COLORS.some(([v]) => v === coll?.description_en) ? coll.description_en : COLLECTION_COLORS[0][0]
+  collColor.setValue(coll?.description_en)
   document.getElementById('collectionModal').classList.add('open')
 }
 
@@ -540,7 +558,7 @@ function detailRow(key, val) {
 }
 
 function setupListeners() {
-  document.getElementById('f_coll_color').innerHTML = collectionColorOptions()
+  collColor = initColorSelect(document.getElementById('f_coll_color'), { labelId: 'f_coll_color_label' })
 
   const openModal = () => openArticleModal({
     // Ricarica per avere collezione, tipo e materiali del nuovo articolo
@@ -569,7 +587,7 @@ function setupListeners() {
   document.getElementById('btnSaveCollection').addEventListener('click', async () => {
     const name = document.getElementById('f_coll_name').value.trim()
     const code = document.getElementById('f_coll_code').value.trim().toUpperCase()
-    const color = document.getElementById('f_coll_color').value
+    const color = collColor.value
 
     const invalid = validateCollection({ name, code }, currentCollections, editingCollectionId)
     if (invalid) {
@@ -581,7 +599,7 @@ function setupListeners() {
       if (editingCollectionId) {
         const baseSlug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
         const slug = `${code.toLowerCase()}-${baseSlug}`
-        if (!confirm('Avviso: Modificando la collezione, SKU e Nome degli articoli creati dall\'app verranno ricalcolati e sovrascritti (gli articoli con codice originale restano invariati). Continuare?')) return
+        if (!confirm("Avviso: negli articoli creati dall'app il codice SKU verrà aggiornato e il nome della collezione verrà sostituito nel titolo (gli articoli con codice originale restano invariati). Continuare?")) return
         const coll = currentCollections.find(c => c.id === editingCollectionId)
         const oldCode = collectionCode(coll)
 
@@ -597,9 +615,8 @@ function setupListeners() {
           if (code !== oldCode) {
             updatedSku = code + a.sku.substring(4)
           }
-          const pTypeName = a.product_type?.name || ''
-          const l = a.measurements?.length_cm ? ` ${a.measurements.length_cm}cm` : ''
-          const updatedName = `${pTypeName} ${name}${l}`.trim()
+          // Nel titolo si sostituisce solo il nome della collezione: il resto, anche se scritto a mano, resta
+          const updatedName = a.name.includes(coll.name) ? a.name.replace(coll.name, name) : a.name
 
           if (updatedName !== a.name || updatedSku !== a.sku) {
             await supabase.from('articles').update({ name: updatedName, sku: updatedSku }).eq('id', a.id)
@@ -607,8 +624,11 @@ function setupListeners() {
         }
         showToast('Collezione aggiornata con successo')
       } else {
-        await insertCollection({ name, code, color })
-        showToast('Collezione creata con successo')
+        const created = await insertCollection({ name, code, color })
+        // Si apre subito la pagina della nuova collezione
+        currentCollectionId = created.id
+        closeDrawer()
+        showToast(`Collezione ${created.name} creata`)
       }
       
       document.getElementById('collectionModal').classList.remove('open')
@@ -618,41 +638,8 @@ function setupListeners() {
     }
   })
 
-  // Filtri Avanzati
-  const applyFilters = () => {
-    const q = document.getElementById('searchInput').value.toLowerCase().trim()
-    const fColl = document.getElementById('filterCollection')?.value
-    const fType = document.getElementById('filterType')?.value
-    const fMat  = document.getElementById('filterMaterial')?.value
-
-    const filtered = allArticles.filter(a => {
-      // 1. Keyword search
-      let matchQ = true
-      if (q) {
-        matchQ = (
-          a.name.toLowerCase().includes(q) ||
-          a.sku.toLowerCase().includes(q) ||
-          (a.collections?.name || '').toLowerCase().includes(q) ||
-          (a.product_type?.name || '').toLowerCase().includes(q) ||
-          articleMaterials(a).some(m => m.name.toLowerCase().includes(q))
-        )
-      }
-      
-      // 2. Dropdown filters (And)
-      let matchColl = true
-      if (fColl) matchColl = (a.collection_id === fColl)
-
-      let matchType = true
-      if (fType) matchType = (a.type === fType)
-
-      let matchMat = true
-      if (fMat) matchMat = articleMaterials(a).some(m => m.id === fMat)
-
-      return matchQ && matchColl && matchType && matchMat
-    })
-    
-    renderArticles(filtered)
-  }
+  // Ricerca e filtri: vedi renderCurrent
+  const applyFilters = renderCurrent
 
   document.getElementById('searchInput').addEventListener('input', debounce(applyFilters))
 

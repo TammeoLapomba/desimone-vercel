@@ -40,6 +40,7 @@ async function init() {
     if (!currentArticle) throw new Error('Articolo non trovato')
 
     document.getElementById('headerName').textContent = currentArticle.name
+    document.getElementById('f_title').value = currentArticle.name
     document.getElementById('headerSku').textContent = currentArticle.sku
 
     // Popola campi form
@@ -108,6 +109,8 @@ function setupListeners() {
     // Validazione base — materiale, metallo e prezzo servono a generate_sku solo per gli SKU dell'app
     const appSku = isAppSku(currentArticle.sku)
     const materialIds = materialPicker.getIds()
+    const title = document.getElementById('f_title').value.trim()
+    if (!title) return showToast("Inserisci il titolo dell'articolo")
     if (!document.getElementById('f_collection').value) return showToast('Seleziona una collezione')
     if (!document.getElementById('f_type').value) return showToast('Seleziona il tipo prodotto')
     if (appSku && !materialIds.length) return showToast('Aggiungi almeno un materiale')
@@ -115,8 +118,8 @@ function setupListeners() {
     if (appSku && !document.getElementById('f_price_retail').value) return showToast('Inserisci il prezzo retail')
 
     const confirmMsg = appSku
-      ? 'ATTENZIONE: Stai per sovrascrivere in modo permanente i dati di questo articolo. Il nome a display verrà ricalcolato. Vuoi procedere?'
-      : 'ATTENZIONE: Stai per sovrascrivere in modo permanente i dati di questo articolo. Codice e nome originali restano invariati. Vuoi procedere?'
+      ? 'ATTENZIONE: Stai per sovrascrivere in modo permanente i dati di questo articolo. Vuoi procedere?'
+      : 'ATTENZIONE: Stai per sovrascrivere in modo permanente i dati di questo articolo. Il codice originale resta invariato. Vuoi procedere?'
     if (!confirm(confirmMsg)) {
       return
     }
@@ -126,13 +129,8 @@ function setupListeners() {
     btnSave.disabled = true
 
     try {
-      const collSel = document.getElementById('f_collection')
-      const collName = collSel.options[collSel.selectedIndex].text
       const typeSel = document.getElementById('f_type')
-      const pTypeName = typeSel.options[typeSel.selectedIndex].text
       const l = document.getElementById('f_length').value
-
-      const dynamicName = `${pTypeName} ${collName}${l ? ' ' + l + 'cm' : ''}`
 
       const measurements = {}
       const w = document.getElementById('f_width').value
@@ -159,7 +157,7 @@ function setupListeners() {
       }
 
       const updates = {
-        name: appSku ? dynamicName : currentArticle.name,
+        name: title,
         product_type_id: typeSel.value,
         collection_id: newColl,
         metal_id: newMetal || null,
