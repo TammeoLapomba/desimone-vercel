@@ -33,7 +33,7 @@ export function openRawItemModal({ item = null, categories = [], rules, defaultC
   const isEdit = !!item
   const shapeOf = id => rules.shapes.find(s => s.id === id)
   const baseId = shape => shape.base_shape_id || shape.id
-  const groupsOf = shape => rules.groups.filter(g => g.shape_id === baseId(shape))
+  const groupsOf = (shape, tall) => rules.groups.filter(g => g.shape_id === baseId(shape) && g.is_tall === !!tall)
   const creatableShapes = categoryId => rules.shapes.filter(s => s.category_id === categoryId && s.creatable)
   const types = categories.filter(c => creatableShapes(c.id).length)
 
@@ -73,9 +73,14 @@ export function openRawItemModal({ item = null, categories = [], rules, defaultC
               </select>
             </div>
             <div class="form-field">
-              <label class="field-label" for="rf_shape">Forma <span class="field-required">*</span></label>
+              <label class="field-label" for="rf_shape" id="rf_shape_label">Forma <span class="field-required">*</span></label>
               <select class="field-select" id="rf_shape"></select>
             </div>
+          </div>
+          <div class="form-row full" id="rf_tall_row" style="display:none;">
+            <label style="display:flex;align-items:center;gap:8px;font-family:var(--editorial);font-size:14px;cursor:pointer;">
+              <input type="checkbox" id="rf_tall"> Alta
+            </label>
           </div>
           <div class="form-row">
             <div class="form-field">
@@ -206,25 +211,41 @@ export function openRawItemModal({ item = null, categories = [], rules, defaultC
   const selected = () => ({
     shape: shapeOf($('rf_shape')?.value),
     category: categories.find(c => c.id === $('rf_type')?.value),
+    tall: !!$('rf_tall')?.checked,
   })
 
   function fillShapes() {
     const shapes = creatableShapes($('rf_type').value)
     $('rf_shape').innerHTML = shapes.map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join('')
+    const cat = categories.find(c => c.id === $('rf_type').value)
+    $('rf_shape_label').innerHTML = (cat?.slug === 'spole' ? 'Tipo di spola' : 'Forma') + ' <span class="field-required">*</span>'
+  }
+
+  // «Alta» solo per le forme che la prevedono (spola ovale e tonda)
+  function showTall() {
+    const { shape } = selected()
+    $('rf_tall_row').style.display = shape?.allows_tall ? '' : 'none'
+    if (!shape?.allows_tall) $('rf_tall').checked = false
   }
 
   function fillQuality() {
-    const { shape } = selected()
+    const { shape, tall } = selected()
     const prev = $('rf_quality').value
-    const qualities = [...new Set(groupsOf(shape).map(g => g.quality))]
+    const qualities = [...new Set(groupsOf(shape, tall).map(g => g.quality))]
     $('rf_quality').innerHTML = qualities.map(q => `<option value="${esc(q)}" ${q === prev ? 'selected' : ''}>${esc(q)}</option>`).join('')
   }
 
+  // Nessuna / EX / EX EX sono sempre visibili; quelle senza un gruppo nello standard del cliente sono disattivate
+  const FINISHES = [['', 'Nessuna'], ['EX', 'EX'], ['EX EX', 'EX EX']]
   function fillFinish() {
-    const { shape } = selected()
+    const { shape, tall } = selected()
     const prev = $('rf_finish').value
-    const finishes = groupsOf(shape).filter(g => g.quality === $('rf_quality').value).map(g => g.finish)
-    $('rf_finish').innerHTML = finishes.map(f => `<option value="${esc(f)}" ${f === prev ? 'selected' : ''}>${f || 'Nessuna'}</option>`).join('')
+    const available = groupsOf(shape, tall).filter(g => g.quality === $('rf_quality').value).map(g => g.finish)
+    const pick = available.includes(prev) ? prev : available[0]
+    $('rf_finish').innerHTML = FINISHES.map(([v, label]) => {
+      const ok = available.includes(v)
+      return `<option value="${v}" ${v === pick ? 'selected' : ''} ${ok ? '' : 'disabled'}>${label}${ok ? '' : ' — non previsto'}</option>`
+    }).join('')
   }
 
   let sizeKind = null
@@ -237,9 +258,9 @@ export function openRawItemModal({ item = null, categories = [], rules, defaultC
     }
     sizeKind = shape.size_kind
     const row = $('rf_size_row')
-    if (sizeKind === 'width_length') {
-      row.innerHTML = numField('rf_width', 'Larghezza', SUFFIX_MM, { required: true }) +
-                      numField('rf_length', 'Lunghezza', SUFFIX_MM, { required: true })
+    if (sizeKind === 'base_height') {
+      row.innerHTML = numField('rf_base', 'Base', SUFFIX_MM, { required: true }) +
+                      numField('rf_height', 'Altezza', SUFFIX_MM, { required: true, hint: 'Base e altezza viste dall\'alto' })
     } else {
       row.innerHTML = numField('rf_size', 'Misura', SUFFIX_MM, { required: true }) +
                       numField('rf_size_to', 'Fino a', SUFFIX_MM, { hint: 'Solo se è un intervallo (es. 7 – 8 mm)' }) +
@@ -274,12 +295,13 @@ export function openRawItemModal({ item = null, categories = [], rules, defaultC
     return {
       category_id: category?.id,
       shape_id: shape?.id,
+      is_tall: !!shape?.allows_tall && $('rf_tall').checked,
       quality: $('rf_quality').value || null,
       finish: $('rf_finish').value || '',
       size_from_mm: shape?.size_kind === 'diameter' ? val('rf_size') : null,
       size_to_mm: shape?.size_kind === 'diameter' ? val('rf_size_to') : null,
-      width_mm: shape?.size_kind === 'width_length' ? val('rf_width') : null,
-      length_mm: shape?.size_kind === 'width_length' ? val('rf_length') : null,
+      base_mm: shape?.size_kind === 'base_height' ? val('rf_base') : null,
+      height_mm: shape?.size_kind === 'base_height' ? val('rf_height') : null,
       length_cm: shape?.has_length_cm ? val('rf_length_cm') : null,
       variants: [...document.querySelectorAll('.rf_variant:checked')].map(el => el.value),
     }
@@ -288,7 +310,7 @@ export function openRawItemModal({ item = null, categories = [], rules, defaultC
   function readyForCode(f) {
     const { shape } = selected()
     if (!f.shape_id || !f.quality) return false
-    if (shape.size_kind === 'width_length') return f.width_mm > 0 && f.length_mm > 0
+    if (shape.size_kind === 'base_height') return f.base_mm > 0 && f.height_mm > 0
     return f.size_from_mm > 0
   }
 
@@ -335,12 +357,13 @@ export function openRawItemModal({ item = null, categories = [], rules, defaultC
   }
 
   function onShapeChange() {
-    fillQuality(); fillFinish(); renderSizeInputs(); refreshPreview()
+    showTall(); fillQuality(); fillFinish(); renderSizeInputs(); refreshPreview()
   }
 
   if (!isEdit) {
     $('rf_type').addEventListener('change', () => { fillShapes(); onShapeChange() })
     $('rf_shape').addEventListener('change', onShapeChange)
+    $('rf_tall').addEventListener('change', () => { fillQuality(); fillFinish(); refreshPreview() })
     $('rf_quality').addEventListener('change', () => { fillFinish(); refreshPreview() })
     $('rf_finish').addEventListener('change', refreshPreview)
     fillShapes()
@@ -383,14 +406,14 @@ export function openRawItemModal({ item = null, categories = [], rules, defaultC
       catName = item.raw_categories?.name || '—'
       sku = item.sku || '—'
       sizeText = item.size || '—'
-      badges = [item.raw_shapes?.name, item.quality, item.finish, ...(item.variants || [])]
+      badges = [item.raw_shapes?.name, item.is_tall ? 'Alta' : '', item.quality, item.finish, ...(item.variants || [])]
     } else {
       const { shape, category } = selected()
       const f = readFields()
       catName = category?.name || '—'
       sku = preview?.sku || '—'
       sizeText = preview?.size_label || '—'
-      badges = [shape?.name, f.quality, f.finish, ...f.variants]
+      badges = [shape?.name, f.is_tall ? 'Alta' : '', f.quality, f.finish, ...f.variants]
     }
     if (wgt) sizeText += ` (${wgt}g)`
     badges = [...badges.filter(Boolean), color].filter(Boolean)
@@ -433,7 +456,8 @@ export function openRawItemModal({ item = null, categories = [], rules, defaultC
 function renderReadOnlyIdentity(item, shape) {
   const rows = [
     ['Tipo', item.raw_categories?.name],
-    ['Forma', shape?.name],
+    [item.raw_categories?.slug === 'spole' ? 'Tipo di spola' : 'Forma', shape?.name],
+    ['Alta', item.is_tall ? 'Sì' : null],
     ['Qualità', item.quality],
     ['Finitura', item.finish || (shape ? 'Nessuna' : null)],
     ['Misura', item.size],

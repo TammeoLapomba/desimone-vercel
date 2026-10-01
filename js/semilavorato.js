@@ -16,9 +16,10 @@ let currentCategoryId  = null
 const distinct = (items, get) => [...new Set(items.map(get).filter(Boolean))]
 const FILTER_FIELDS = [
   { key: 'shape', label: 'Forma', all: 'Tutte', options: items => distinct(items, i => i.raw_shapes?.name).map(v => [v, v]), test: (i, v) => i.raw_shapes?.name === v },
+  { key: 'tall', label: 'Alta', all: 'Tutte', options: () => [['si', 'Alte'], ['no', 'Non alte']], test: (i, v) => !!i.is_tall === (v === 'si') },
   { key: 'quality', label: 'Qualità', all: 'Tutte', options: items => distinct(items, i => i.quality).map(v => [v, v]), test: (i, v) => i.quality === v },
   { key: 'finish', label: 'Finitura', all: 'Tutte', options: items => distinct(items, i => i.finish).map(v => [v, v]), test: (i, v) => i.finish === v },
-  { key: 'size', label: 'Misura', range: true, unit: 'mm', value: i => { const n = i.size_from_mm ?? i.width_mm; return n === null || n === undefined ? null : Number(n) } },
+  { key: 'size', label: 'Misura', range: true, unit: 'mm', value: i => { const n = i.size_from_mm ?? i.base_mm; return n === null || n === undefined ? null : Number(n) } },
   { key: 'color', label: 'Colore', options: items => distinct(items, i => i.color).map(v => [v, v]), test: (i, v) => i.color === v },
   { key: 'stock', label: 'Disponibilità',
     options: () => [['si', 'Disponibili'], ['no', 'Esauriti']],
@@ -87,12 +88,12 @@ function renderCategoryItem(c, isActive) {
 function sortItems(items) {
   const catOrder = new Map(allCategories.map(c => [c.id, c.sort_order]))
   const groupOrder = new Map(rules.groups.map(g => [g.code, g.sort_order]))
-  const size = i => Number(i.size_from_mm ?? i.width_mm ?? 0)
+  const size = i => Number(i.size_from_mm ?? i.base_mm ?? 0)
   return [...items].sort((a, b) =>
     (catOrder.get(a.category_id) ?? 99) - (catOrder.get(b.category_id) ?? 99)
     || (groupOrder.get(a.group_code) ?? 999) - (groupOrder.get(b.group_code) ?? 999)
     || size(a) - size(b)
-    || Number(a.length_mm ?? 0) - Number(b.length_mm ?? 0)
+    || Number(a.height_mm ?? 0) - Number(b.height_mm ?? 0)
     || String(a.sku).localeCompare(String(b.sku), 'it', { numeric: true }))
 }
 
@@ -151,6 +152,7 @@ function renderGrid(items) {
 
         <div class="raw-item-badges">
           ${item.raw_shapes?.name ? `<span class="raw-badge">${item.raw_shapes.name}</span>` : ''}
+          ${item.is_tall ? `<span class="raw-badge">Alta</span>` : ''}
           ${item.quality ? `<span class="raw-badge ${getQualityClass(item.quality)}">${item.quality}</span>` : ''}
           ${item.finish  ? `<span class="raw-badge quality-top">${item.finish}</span>` : ''}
           ${(item.variants || []).map(v => `<span class="raw-badge">${v}</span>`).join('')}

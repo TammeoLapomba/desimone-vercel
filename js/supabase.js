@@ -240,12 +240,13 @@ export async function getRawCodeRules() {
 export async function previewRawItem(f) {
   const { data, error } = await supabase.rpc('raw_item_preview', {
     p_shape_id:  f.shape_id,
+    p_is_tall:   !!f.is_tall,
     p_quality:   f.quality,
     p_finish:    f.finish || '',
     p_size_from: f.size_from_mm ?? null,
     p_size_to:   f.size_to_mm ?? null,
-    p_width:     f.width_mm ?? null,
-    p_length:    f.length_mm ?? null,
+    p_base:      f.base_mm ?? null,
+    p_height:    f.height_mm ?? null,
     p_length_cm: f.length_cm ?? null,
     p_variants:  f.variants || [],
   })
