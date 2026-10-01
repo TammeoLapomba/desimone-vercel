@@ -205,13 +205,50 @@ export async function getRawCategories() {
 }
 
 export async function getRawItems(categoryId = null) {
-  let query = supabase
-    .from('raw_items')
-    .select('*, raw_categories(name, slug)')
-    .is('deleted_at', null)
-    .order('created_at', { ascending: false })
-  if (categoryId) query = query.eq('category_id', categoryId)
-  const { data, error } = await query
+  // A pagine da 1000 (il limite di una singola risposta): il catalogo ha già centinaia di articoli
+  const PAGE = 1000
+  const all = []
+  for (let from = 0; ; from += PAGE) {
+    let query = supabase
+      .from('raw_items')
+      .select('*, raw_categories(name, slug), raw_shapes(name, slug)')
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false })
+      .order('id')
+      .range(from, from + PAGE - 1)
+    if (categoryId) query = query.eq('category_id', categoryId)
+    const { data, error } = await query
+    if (error) throw error
+    all.push(...data)
+    if (data.length < PAGE) return all
+  }
+}
+
+// Regole dei codici: forme, gruppi e varianti (tabelle di 019_semilavorato_codici.sql)
+export async function getRawCodeRules() {
+  const [shapes, groups, variants] = await Promise.all([
+    supabase.from('raw_shapes').select('*').order('sort_order'),
+    supabase.from('raw_code_groups').select('*').order('sort_order'),
+    supabase.from('raw_variants').select('*').order('sort_order'),
+  ])
+  for (const r of [shapes, groups, variants]) if (r.error) throw r.error
+  return { shapes: shapes.data, groups: groups.data, variants: variants.data }
+}
+
+// Anteprima del codice dai campi scelti: la stessa funzione del database che lo assegna al salvataggio.
+// Risponde { sku, description, size_label, group_code, existing } oppure lancia l'errore (es. combinazione non prevista).
+export async function previewRawItem(f) {
+  const { data, error } = await supabase.rpc('raw_item_preview', {
+    p_shape_id:  f.shape_id,
+    p_quality:   f.quality,
+    p_finish:    f.finish || '',
+    p_size_from: f.size_from_mm ?? null,
+    p_size_to:   f.size_to_mm ?? null,
+    p_width:     f.width_mm ?? null,
+    p_length:    f.length_mm ?? null,
+    p_length_cm: f.length_cm ?? null,
+    p_variants:  f.variants || [],
+  })
   if (error) throw error
   return data
 }

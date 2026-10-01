@@ -15,7 +15,7 @@
 
 set -euo pipefail
 
-PRIVATE_PATHS=(docs bilancia old_software)
+PRIVATE_PATHS=(docs bilancia old_software inventory_data)
 REMOTE=vercel
 BRANCH=main
 

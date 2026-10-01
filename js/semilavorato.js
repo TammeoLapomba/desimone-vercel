@@ -1,5 +1,5 @@
 // js/semilavorato.js
-import { requireAuth, getRawCategories, getRawItems, insertRawCategory, updateRawItem, deleteRawCategory, signOut } from './supabase.js'
+import { requireAuth, getRawCategories, getRawItems, getRawCodeRules, updateRawItem, signOut } from './supabase.js'
 import { showToast } from './utils.js'
 import { initFilters } from './filters.js'
 import { openRawItemModal } from './raw-form.js'
@@ -9,21 +9,17 @@ window.signOutUser = signOut
 
 let allItems      = []
 let allCategories = []
+let rules = { shapes: [], groups: [], variants: [] }   // regole dei codici (raw_shapes, raw_code_groups, raw_variants)
 let currentCategoryId  = null
-let isEditingCategory  = false
 
-const CATEGORY_TYPES = [
-  { id: 'pallini', label: 'Pallini', prefix: 'PAL' },
-  { id: 'cannette', label: 'Cannette', prefix: 'CAN' },
-  { id: 'sassolini', label: 'Sassolini', prefix: 'SAS' }
-]
-
-// Filtri per campo (barra sopra i fili, vedi filters.js)
-const valuesOf = (items, key) => items.filter(i => i[key]).map(i => [i[key], i[key]])
+// Filtri per campo (barra sopra gli articoli, vedi filters.js)
+const distinct = (items, get) => [...new Set(items.map(get).filter(Boolean))]
 const FILTER_FIELDS = [
-  { key: 'size', label: 'Misura', all: 'Tutte', options: items => valuesOf(items, 'size'), test: (i, v) => i.size === v },
-  { key: 'color', label: 'Colore', options: items => valuesOf(items, 'color'), test: (i, v) => i.color === v },
-  { key: 'quality', label: 'Qualità', all: 'Tutte', options: items => valuesOf(items, 'quality'), test: (i, v) => i.quality === v },
+  { key: 'shape', label: 'Forma', all: 'Tutte', options: items => distinct(items, i => i.raw_shapes?.name).map(v => [v, v]), test: (i, v) => i.raw_shapes?.name === v },
+  { key: 'quality', label: 'Qualità', all: 'Tutte', options: items => distinct(items, i => i.quality).map(v => [v, v]), test: (i, v) => i.quality === v },
+  { key: 'finish', label: 'Finitura', all: 'Tutte', options: items => distinct(items, i => i.finish).map(v => [v, v]), test: (i, v) => i.finish === v },
+  { key: 'size', label: 'Misura', range: true, unit: 'mm', value: i => { const n = i.size_from_mm ?? i.width_mm; return n === null || n === undefined ? null : Number(n) } },
+  { key: 'color', label: 'Colore', options: items => distinct(items, i => i.color).map(v => [v, v]), test: (i, v) => i.color === v },
   { key: 'stock', label: 'Disponibilità',
     options: () => [['si', 'Disponibili'], ['no', 'Esauriti']],
     test: (i, v) => (i.stock > 0) === (v === 'si') },
@@ -35,9 +31,10 @@ async function init() {
   await requireAuth()
   filters = initFilters({
     fields: FILTER_FIELDS,
-    text: i => [i.size, i.color, i.quality, i.raw_categories?.name, i.notes, i.sku].join('\n'),
+    text: i => [i.sku, i.description, i.size, i.color, i.quality, i.finish, (i.variants || []).join(' '), i.raw_shapes?.name, i.raw_categories?.name, i.notes].join('\n'),
     onChange: () => renderCurrent(),
   })
+  rules = await getRawCodeRules()
   await refresh()
   setupListeners()
 
@@ -54,7 +51,7 @@ async function loadCategories() {
   allCategories = await getRawCategories()
   const list = document.getElementById('categoryList')
 
-  list.innerHTML = renderCategoryItem({ id: null, name: 'Tutti i fili' }, !currentCategoryId)
+  list.innerHTML = renderCategoryItem({ id: null, name: 'Tutti i semilavorati' }, !currentCategoryId)
   allCategories.forEach(c => { list.innerHTML += renderCategoryItem(c, c.id === currentCategoryId) })
 
   // onclick e non addEventListener: loadCategories viene richiamata a ogni aggiornamento
@@ -62,9 +59,6 @@ async function loadCategories() {
     const item = e.target.closest('[data-category-id]')
     if (!item) return
     currentCategoryId = item.dataset.categoryId === 'null' ? null : item.dataset.categoryId
-
-    const actions = document.getElementById('categoryActions')
-    if (actions) actions.style.display = currentCategoryId ? 'flex' : 'none'
 
     list.querySelectorAll('[data-category-id]').forEach(el => el.classList.remove('active'))
     item.classList.add('active')
@@ -76,7 +70,7 @@ async function loadCategories() {
 
 function renderCategoryItem(c, isActive) {
   const count  = allItems.filter(i => !c.id || i.category_id === c.id).length
-  const colors = { pallini: '#E8A898', cannette: '#C9A84C', sassolini: '#B8B4AE' }
+  const colors = { pallini: '#E8A898', spole: '#C9A84C', navette: '#B8B4AE' }
   const color  = colors[c.slug] || '#C94030'
   return `
     <div data-category-id="${c.id}" data-category-name="${c.name}"
@@ -89,12 +83,25 @@ function renderCategoryItem(c, isActive) {
 
 // ─── Grid ─────────────────────────────────────────────────────
 
-// Fili da mostrare: categoria selezionata, poi ricerca e filtri
+// Ordine del catalogo: categoria, gruppo del codice, misura, codice (i più recenti senza gruppo in fondo)
+function sortItems(items) {
+  const catOrder = new Map(allCategories.map(c => [c.id, c.sort_order]))
+  const groupOrder = new Map(rules.groups.map(g => [g.code, g.sort_order]))
+  const size = i => Number(i.size_from_mm ?? i.width_mm ?? 0)
+  return [...items].sort((a, b) =>
+    (catOrder.get(a.category_id) ?? 99) - (catOrder.get(b.category_id) ?? 99)
+    || (groupOrder.get(a.group_code) ?? 999) - (groupOrder.get(b.group_code) ?? 999)
+    || size(a) - size(b)
+    || Number(a.length_mm ?? 0) - Number(b.length_mm ?? 0)
+    || String(a.sku).localeCompare(String(b.sku), 'it', { numeric: true }))
+}
+
+// Articoli da mostrare: categoria selezionata, poi ricerca e filtri
 function renderCurrent() {
   const inCategory = currentCategoryId ? allItems.filter(i => i.category_id === currentCategoryId) : allItems
   filters.refresh(inCategory)
-  const shown = filters.apply(inCategory)
-  document.getElementById('itemCount').textContent = `${shown.length} ${shown.length === 1 ? 'filo' : 'fili'}`
+  const shown = sortItems(filters.apply(inCategory))
+  document.getElementById('itemCount').textContent = `${shown.length} ${shown.length === 1 ? 'articolo' : 'articoli'}`
   renderGrid(shown)
 }
 
@@ -117,15 +124,7 @@ function getQualityClass(quality) {
 function renderGrid(items) {
   const grid = document.getElementById('itemsGrid')
   if (items.length === 0) {
-    if (allCategories.length === 0) {
-      grid.innerHTML = `<div style="grid-column:1/-1;padding:64px 24px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:16px;">
-        <svg style="width:48px;height:48px;color:rgba(201,168,76,0.5);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
-        <div style="font-family:var(--editorial);font-size:22px;color:var(--text-primary);">Il tuo magazzino è vuoto</div>
-        <div style="font-family:var(--editorial);font-size:14px;color:var(--text-muted);max-width:300px;">Per iniziare a inserire i fili semilavorati, crea la tua prima Categoria dalla barra laterale (es. Pallini, Cannette, ecc).</div>
-      </div>`
-    } else {
-      grid.innerHTML = `<div style="grid-column:1/-1;padding:48px;text-align:center;font-family:var(--editorial);font-size:18px;color:var(--text-muted);">Nessun filo trovato</div>`
-    }
+    grid.innerHTML = `<div style="grid-column:1/-1;padding:48px;text-align:center;font-family:var(--editorial);font-size:18px;color:var(--text-muted);">Nessun articolo trovato</div>`
     return
   }
 
@@ -134,8 +133,8 @@ function renderGrid(items) {
     const stockColor = item.stock === 0 ? 'color:var(--coral)' : item.stock < 5 ? 'color:#C9A84C' : 'color:var(--text-primary)'
 
     return `
-      <div class="raw-item-card" data-item-id="${item.id}" role="listitem" tabindex="0"
-           style="animation-delay:${i * 0.04}s" aria-label="${catName} ${item.size || ''} — ${item.stock} pz">
+      <div class="raw-item-card" data-item-id="${item.id}" role="listitem" tabindex="0" title="${(item.description || '').replace(/"/g, '&quot;')}"
+           style="animation-delay:${Math.min(i, 12) * 0.04}s" aria-label="${catName} ${item.size || ''} — ${item.stock} pz">
 
         ${item.cover_url
           ? `<div style="aspect-ratio:4/3;overflow:hidden;border-radius:3px;margin:-16px -16px 0;">
@@ -144,21 +143,24 @@ function renderGrid(items) {
           : ''}
 
         <div class="raw-item-category">${catName}</div>
-        <button class="raw-edit-btn" aria-label="Modifica filo" style="position:absolute;top:8px;right:8px;width:24px;height:24px;border-radius:4px;background:rgba(255,255,255,0.9);border:1px solid var(--ivory-dark);color:var(--text-secondary);display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:2;box-shadow:0 2px 4px rgba(0,0,0,0.05);">
+        <button class="raw-edit-btn" aria-label="Modifica articolo" style="position:absolute;top:8px;right:8px;width:24px;height:24px;border-radius:4px;background:rgba(255,255,255,0.9);border:1px solid var(--ivory-dark);color:var(--text-secondary);display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:2;box-shadow:0 2px 4px rgba(0,0,0,0.05);">
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
         </button>
         <div style="font-family:var(--mono);font-size:10px;color:var(--text-muted);margin-bottom:4px;">${item.sku || 'N/D'}</div>
         <div class="raw-item-size">${item.size || '—'}</div>
 
         <div class="raw-item-badges">
-          ${item.color   ? `<span class="raw-badge ${getColorClass(item.color)}">${item.color}</span>`     : ''}
+          ${item.raw_shapes?.name ? `<span class="raw-badge">${item.raw_shapes.name}</span>` : ''}
           ${item.quality ? `<span class="raw-badge ${getQualityClass(item.quality)}">${item.quality}</span>` : ''}
+          ${item.finish  ? `<span class="raw-badge quality-top">${item.finish}</span>` : ''}
+          ${(item.variants || []).map(v => `<span class="raw-badge">${v}</span>`).join('')}
+          ${item.color   ? `<span class="raw-badge ${getColorClass(item.color)}">${item.color}</span>`     : ''}
         </div>
 
         <div class="raw-item-stock-row">
           <div>
             <div class="raw-item-stock-num" id="stock-${item.id}" style="${stockColor}">${item.stock}</div>
-            <div class="raw-item-stock-label">fili disponibili</div>
+            <div class="raw-item-stock-label">disponibili</div>
           </div>
         </div>
 
@@ -176,7 +178,7 @@ function renderGrid(items) {
       e.stopPropagation()
       const card = btn.closest('.raw-item-card')
       const item = allItems.find(x => x.id === card.dataset.itemId)
-      if (item) openRawItemModal({ item, categories: allCategories, onSuccess: refresh })
+      if (item) openRawItemModal({ item, categories: allCategories, rules, onSuccess: refresh })
     })
   })
 
@@ -368,7 +370,7 @@ function openStockModal(item) {
 
 // ─── Refresh ──────────────────────────────────────────────────
 
-// Prima i fili, poi le categorie (che ne mostrano il conteggio)
+// Prima gli articoli, poi le categorie (che ne mostrano il conteggio)
 async function refresh() {
   allItems = await getRawItems()
   await loadCategories()
@@ -380,88 +382,7 @@ async function refresh() {
 function setupListeners() {
   // Nuovo pezzo
   document.getElementById('btnNewItem').addEventListener('click', () => {
-    openRawItemModal({ categories: allCategories, defaultCategoryId: currentCategoryId, onSuccess: refresh })
-  })
-
-  // Popola la select delle categorie disponibili
-  const catSelect = document.getElementById('f_cat_name')
-  if (catSelect && catSelect.options.length <= 1) {
-    CATEGORY_TYPES.forEach(t => {
-      const opt = document.createElement('option')
-      opt.value = t.label
-      opt.textContent = t.label
-      opt.dataset.prefix = t.prefix
-      catSelect.appendChild(opt)
-    })
-    
-    // Auto-compila col prefisso
-    catSelect.addEventListener('change', e => {
-      const selectedOpt = catSelect.options[catSelect.selectedIndex]
-      if (selectedOpt && selectedOpt.dataset.prefix) {
-        document.getElementById('f_cat_sku').value = selectedOpt.dataset.prefix
-      } else {
-        document.getElementById('f_cat_sku').value = ''
-      }
-    })
-  }
-
-  // Nuova categoria
-  document.getElementById('btnNewCategory').addEventListener('click', () => {
-    isEditingCategory = false
-    document.getElementById('categoryModalTitle').textContent = 'Nuova Categoria'
-    document.getElementById('f_cat_name').value = ''
-    document.getElementById('f_cat_sku').value = ''
-    document.getElementById('f_cat_sku').disabled = false
-    document.getElementById('categoryModal').classList.add('open')
-  })
-
-  // Modifica categoria
-  document.getElementById('btnEditCategory')?.addEventListener('click', () => {
-    const cat = allCategories.find(c => c.id === currentCategoryId)
-    if (!cat) return
-    isEditingCategory = true
-    document.getElementById('categoryModalTitle').textContent = 'Modifica Categoria'
-    document.getElementById('f_cat_name').value = cat.name
-    document.getElementById('f_cat_sku').value = cat.sku_prefix || ''
-    document.getElementById('categoryModal').classList.add('open')
-  })
-
-  // Elimina categoria
-  document.getElementById('btnDeleteCategory')?.addEventListener('click', async () => {
-    if (!confirm('ATTENZIONE: Eliminando questa categoria, tutti i fili al suo interno verranno rimossi. Continuare?')) return
-    try {
-      await deleteRawCategory(currentCategoryId)
-      showToast('Categoria eliminata')
-      currentCategoryId = null
-      document.getElementById('categoryActions').style.display = 'none'
-      document.getElementById('breadcrumb').textContent = 'Semilavorato · Tutti i fili'
-      await refresh()
-    } catch (err) { showToast('Errore: ' + err.message) }
-  })
-
-  // Salva categoria
-  document.getElementById('btnSaveCategory').addEventListener('click', async () => {
-    const name = document.getElementById('f_cat_name').value.trim()
-    let skuPrefix = document.getElementById('f_cat_sku').value.trim().toUpperCase()
-    
-    if (!name) { showToast('Inserisci un nome per la categoria'); return }
-    if (!skuPrefix || skuPrefix.length < 2) { showToast('Inserisci un prefisso SKU (almeno 2 lettere)'); return }
-
-    const slug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
-    
-    try {
-      if (isEditingCategory) {
-        const { supabase } = await import('./supabase.js')
-        await supabase.from('raw_categories').update({ name, slug, sku_prefix: skuPrefix }).eq('id', currentCategoryId)
-        showToast('Categoria aggiornata')
-      } else {
-        const { insertRawCategory } = await import('./supabase.js')
-        await insertRawCategory({ name, slug, sku_prefix: skuPrefix })
-        showToast('Categoria creata')
-      }
-      document.getElementById('categoryModal').classList.remove('open')
-      await refresh()
-    } catch (err) { showToast('Errore: ' + err.message) }
+    openRawItemModal({ categories: allCategories, rules, defaultCategoryId: currentCategoryId, onSuccess: refresh })
   })
 }
 
