@@ -399,7 +399,7 @@ export async function getStockTotals(column) {
       const t = totals.get(r[column]) || { pieces: 0, grams: 0, locations: [] }
       t.pieces += r.pieces
       t.grams += Number(r.grams)
-      if (r.pieces || Number(r.grams)) t.locations.push({ name: names.get(r.location_id) || '—', pieces: r.pieces, grams: Number(r.grams) })
+      if (r.pieces || Number(r.grams)) t.locations.push({ id: r.location_id, name: names.get(r.location_id) || '—', pieces: r.pieces, grams: Number(r.grams) })
       totals.set(r[column], t)
     }
     if (data.length < PAGE) return totals
@@ -412,6 +412,52 @@ function withStock(items, totals) {
     const t = totals.get(i.id)
     return { ...i, stock: t?.pieces ?? 0, stock_grams: Math.round((t?.grams ?? 0) * 10) / 10, stock_locations: t?.locations ?? [] }
   })
+}
+
+// Tutte le righe di una richiesta, a pagine da 1000 (il limite di una singola risposta)
+async function selectAll(build) {
+  const PAGE = 1000
+  const all = []
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await build().range(from, from + PAGE - 1)
+    if (error) throw error
+    all.push(...data)
+    if (data.length < PAGE) return all
+  }
+}
+
+// Schermata Giacenze (UC-01, UC-10, UC-14): gioielli con i prezzi, semilavorati con l'unità e la giacenza di
+// ogni articolo in ogni luogo, come somma dei movimenti (REQ-001.1, C-01)
+export async function getStockOverview() {
+  const [articles, raw, stock] = await Promise.all([
+    selectAll(() => supabase.from('articles')
+      .select('id, sku, name, price_retail, price_wholesale, collections(name), product_type:product_types(name)')
+      .is('deleted_at', null).order('sku').order('id')),
+    selectAll(() => supabase.from('raw_items')
+      .select('id, sku, description, size, unit, raw_categories(name)')
+      .is('deleted_at', null).order('sku').order('id')),
+    selectAll(() => supabase.from('stock_levels')
+      .select('article_id, raw_item_id, location_id, pieces, grams')
+      .order('article_id').order('raw_item_id').order('location_id')),
+  ])
+  return { articles, raw, stock }
+}
+
+// Nuovo luogo della sede (UC-11, REQ-M-07). Le fiere nascono col loro ciclo (UC-12)
+export async function insertLocation(name) {
+  const { data, error } = await supabase.from('locations').insert({ name, kind: 'sede' }).select().single()
+  if (error) throw error
+  return data
+}
+
+// Revoca di un dispositivo (UC-13, REQ-S-01): da qui in poi il registro rifiuta i suoi movimenti (S-02, S-03)
+export async function revokeDevice(id) {
+  const { data, error } = await supabase.from('devices')
+    .update({ revoked_at: new Date().toISOString() })
+    .eq('id', id).is('revoked_at', null)
+    .select().single()
+  if (error) throw error
+  return data
 }
 
 // Giacenza dell'articolo in ogni luogo (REQ-001.1)

@@ -1,0 +1,78 @@
+/* ============================================================
+   css/giacenze.css — Giacenze, luoghi e dispositivi (giacenze.html)
+   Riprende le classi di movimenti.css (card, chip, avvisi) e la tabella del catalogo (components.css).
+   ============================================================ */
+
+#page[hidden], [role="tabpanel"][hidden], .gia-toolbar [hidden], .gia-note[hidden] { display: none; }
+
+/* ─── Schede ────────────────────────────────────────────────── */
+.gia-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--ivory-dark); margin-bottom: 20px; }
+.gia-tab {
+  padding: 10px 16px; background: none; border: none; border-bottom: 2px solid transparent; margin-bottom: -1px;
+  font-family: var(--editorial); font-size: 12px; letter-spacing: 1px; text-transform: uppercase;
+  color: var(--text-muted); cursor: pointer;
+}
+.gia-tab:hover { color: var(--text-primary); }
+.gia-tab[aria-selected="true"] { color: var(--coral); border-bottom-color: var(--coral); }
+.gia-tab:focus-visible { outline: 2px solid var(--coral); outline-offset: -2px; }
+.gia-tab[hidden] { display: none; }
+
+/* ─── Barra dei filtri ──────────────────────────────────────── */
+.gia-toolbar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
+.gia-toolbar .search-field { flex: 1; min-width: 220px; }
+.gia-select { width: auto; min-width: 200px; }
+.gia-check { white-space: nowrap; }
+.gia-note, .gia-hint { font-family: var(--editorial); font-size: 12px; color: var(--text-muted); margin: 0 0 12px; }
+.gia-count { font-family: var(--editorial); font-size: 12px; color: var(--text-muted); margin-top: 10px; }
+
+/* ─── Tabella ───────────────────────────────────────────────── */
+.gia-table { min-width: 640px; }
+.gia-table .gia-col-code { width: 150px; }
+.gia-table .gia-col-name { width: 240px; }
+.gia-table .gia-col-qty { width: 120px; }
+.gia-table .gia-col-value { width: 150px; }
+.gia-table td.gia-total { font-weight: 600; }
+.gia-table tfoot td {
+  padding: 10px 12px; border-top: 2px solid var(--ivory-dark); background: var(--ivory);
+  font-family: var(--editorial); font-size: 13px; font-weight: 600; color: var(--text-primary);
+}
+.gia-off { font-size: 10px; color: var(--text-muted); text-transform: none; letter-spacing: 0; font-weight: 400; }
+.gia-print-head { display: none; }
+
+/* ─── Luoghi e dispositivi ──────────────────────────────────── */
+.gia-admin {
+  display: grid; grid-template-columns: minmax(0, 1fr) minmax(280px, 380px); gap: 24px; align-items: start;
+}
+@media (max-width: 900px) { .gia-admin { grid-template-columns: minmax(0, 1fr); } }
+.gia-form { display: flex; flex-direction: column; gap: 12px; }
+.gia-list { list-style: none; margin: 0; padding: 0; }
+.gia-row {
+  display: flex; justify-content: space-between; align-items: center; gap: 16px;
+  padding: 12px 0; border-top: 1px solid var(--ivory-dark);
+}
+.gia-row:first-child { border-top: none; }
+.gia-row-title { font-family: var(--editorial); font-size: 14px; color: var(--text-primary); }
+.gia-row-sub, .gia-row-meta { font-family: var(--editorial); font-size: 12px; color: var(--text-muted); }
+.gia-code { font-family: var(--mono); font-size: 12px; font-weight: 600; }
+
+@media (max-width: 600px) {
+  .gia-toolbar .search-field { flex-basis: 100%; min-width: 0; }
+  .gia-select { flex: 1; min-width: 0; }
+  .gia-toolbar .btn-primary { width: 100%; }
+}
+
+/* ─── Stampa dell'elenco (REQ-R-01) ─────────────────────────── */
+@media print {
+  .sidebar, .topbar, .mobile-nav, .skip-link, #toast, .gia-tabs, .gia-toolbar, .gia-note, .gia-count { display: none !important; }
+  .app-shell, .main, .catalog-area { display: block; height: auto; overflow: visible; padding: 0; margin: 0; }
+  .gia-print-head { display: block; font-family: var(--editorial); font-size: 11px; color: #000; margin-bottom: 12px; }
+  .gia-print-title { font-size: 18px; margin-bottom: 4px; }
+  .table-card { border: none; box-shadow: none; border-radius: 0; }
+  .table-scroll { overflow: visible; }
+  .gia-table { min-width: 0 !important; font-size: 10px; }
+  .gia-table .gia-col-name { width: auto; }
+  .gia-table th, .gia-table td { padding: 4px 6px; color: #000; white-space: normal; }
+  .gia-table thead { display: table-header-group; }
+  .gia-table tr { break-inside: avoid; }
+  .gia-table tbody tr:hover { background: none; }
+}

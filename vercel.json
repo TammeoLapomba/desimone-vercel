@@ -3,7 +3,8 @@
   "rewrites": [
     { "source": "/", "destination": "/catalog.html" },
     { "source": "/semilavorato", "destination": "/semilavorato.html" },
-    { "source": "/movimenti", "destination": "/movimenti.html" }
+    { "source": "/movimenti", "destination": "/movimenti.html" },
+    { "source": "/giacenze", "destination": "/giacenze.html" }
   ],
   "headers": [
     {
