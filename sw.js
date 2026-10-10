@@ -1,9 +1,10 @@
-const CACHE_NAME = 'desimone-os-v18'
+const CACHE_NAME = 'desimone-os-v19'
 
 const SHELL_ASSETS = [
   '/catalog.html',
   '/semilavorato.html',
   '/article.html',
+  '/movimenti.html',
   '/login.html',
   '/config.js',
   '/css/variables.css',
@@ -11,6 +12,7 @@ const SHELL_ASSETS = [
   '/css/layout.css',
   '/css/components.css',
   '/css/mobile.css',
+  '/css/movimenti.css',
   '/js/catalog.js',
   '/js/semilavorato.js',
   '/js/raw-form.js',
@@ -23,6 +25,11 @@ const SHELL_ASSETS = [
   '/js/photo-upload.js',
   '/js/utils.js',
   '/js/pwa.js',
+  '/js/movimenti.js',
+  '/js/bilancia/bilancia.js',
+  '/js/bilancia/pesi.js',
+  '/js/bilancia/sics.js',
+  '/js/bilancia/simulatore.js',
 ]
 
 // Install: pre-cache shell assets

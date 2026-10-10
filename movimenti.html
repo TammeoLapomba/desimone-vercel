@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>De Simone OS — Movimenti</title>
+
+  <!-- PWA -->
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#1A1814">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="De Simone">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
+
+  <meta name="description" content="Atelier Antonino De Simone — Carichi, scarichi e trasferimenti di magazzino">
+
+  <link rel="stylesheet" href="css/variables.css">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/layout.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/mobile.css">
+  <link rel="stylesheet" href="css/movimenti.css">
+</head>
+<body>
+<a href="#movimenti-main" class="skip-link">Vai al contenuto principale</a>
+<div id="toast" role="status" aria-live="polite"></div>
+<div class="app-shell">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar" aria-label="Navigazione principale">
+    <div class="sidebar-logo" aria-hidden="true">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+    </div>
+    <nav class="sidebar-nav" aria-label="Menu">
+      <a href="/catalog.html" class="nav-item" title="Montato">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        <span class="nav-item-label">Montato</span>
+      </a>
+      <a href="/semilavorato.html" class="nav-item" title="Semilavorato">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+        <span class="nav-item-label">Semilavorato</span>
+      </a>
+      <a href="/movimenti.html" class="nav-item active" aria-current="page" title="Movimenti">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+        <span class="nav-item-label">Movimenti</span>
+      </a>
+    </nav>
+    <div class="sidebar-bottom">
+      <button class="sidebar-account" onclick="window.signOutUser()" aria-label="Esci dall'account">ADS</button>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main" id="movimenti-main">
+    <div class="topbar" role="toolbar" aria-label="Movimenti">
+      <div class="mov-topbar-title">Movimenti</div>
+      <div class="mov-topbar-meta">
+        <span class="mov-chip" id="operatorChip" aria-live="polite"></span>
+        <button type="button" class="mov-chip mov-chip-button" id="btnDevice" aria-haspopup="dialog">Dispositivo…</button>
+      </div>
+    </div>
+
+    <div class="catalog-area">
+      <div class="mov-blocked" id="blocked" hidden></div>
+
+      <div class="mov-layout" id="movLayout" hidden>
+        <!-- Richiesta di movimento (F-01.1) -->
+        <section class="mov-card" aria-labelledby="movFormTitle">
+          <h2 class="mov-card-title" id="movFormTitle">Nuovo movimento</h2>
+          <form id="movForm" novalidate>
+            <!-- Passo 0: tipo di movimento (REQ-M-23) -->
+            <div class="mov-types" role="radiogroup" aria-label="Tipo di movimento" id="typeGroup"></div>
+
+            <!-- Articolo: lettore di codici o ricerca (REQ-I-08, B-02…B-04, B-08…B-10) -->
+            <div class="form-field">
+              <label class="field-label" for="codeInput">Articolo — leggi il codice o scrivilo</label>
+              <div class="mov-code-row">
+                <input class="field-input mov-code-input" id="codeInput" autocomplete="off" spellcheck="false"
+                       placeholder="Codice dell'articolo, poi Invio" aria-describedby="codeHint">
+                <button type="button" class="btn-ghost" id="btnSearch">Cerca</button>
+              </div>
+              <div class="field-hint" id="codeHint">Ogni lettura dello stesso codice aggiunge un pezzo.</div>
+            </div>
+            <div class="mov-item" id="itemBox" hidden></div>
+
+            <div id="details" hidden>
+              <!-- Luoghi (REQ-B-05, B-06, M-03) -->
+              <div class="form-row" id="locationsRow">
+                <div class="form-field" id="fromField">
+                  <label class="field-label" for="fromSelect">Da</label>
+                  <select class="field-input field-select" id="fromSelect"></select>
+                </div>
+                <div class="form-field" id="toField">
+                  <label class="field-label" for="toSelect">A</label>
+                  <select class="field-input field-select" id="toSelect"></select>
+                </div>
+              </div>
+
+              <!-- Quantità nell'unità dell'articolo (REQ-U-01…U-04, U-22…U-24) -->
+              <div class="form-row">
+                <div class="form-field" id="piecesField">
+                  <label class="field-label" for="piecesInput">Pezzi <span class="field-required">*</span></label>
+                  <input class="field-input" id="piecesInput" type="number" min="1" step="1" inputmode="numeric" value="1">
+                </div>
+                <div class="form-field" id="weightField">
+                  <label class="field-label" for="weightInput" id="weightLabel">Peso (g)</label>
+                  <div class="mov-weight-row">
+                    <input class="field-input" id="weightInput" inputmode="decimal" autocomplete="off" placeholder="0,0" aria-describedby="weightHint">
+                    <button type="button" class="btn-ghost mov-scale-btn" id="btnScale">Leggi dalla bilancia</button>
+                  </div>
+                  <div class="field-hint" id="weightHint"></div>
+                  <div class="field-error" id="weightError" hidden></div>
+                </div>
+              </div>
+
+              <!-- Primo carico: peso di un pezzo o totale (REQ-U-16…U-19, U-21) -->
+              <div class="mov-weight-kind" id="weightKind" hidden role="radiogroup" aria-label="Il peso scritto è">
+                <label><input type="radio" name="weightKind" value="pezzo"> peso di un pezzo</label>
+                <label><input type="radio" name="weightKind" value="totale"> peso totale</label>
+              </div>
+              <label class="mov-check" id="lastField" hidden>
+                <input type="checkbox" id="lastInput"> Ultimo scarico: dopo questo nel luogo non resta niente (REQ-U-13)
+              </label>
+
+              <!-- Bilancia: lettura continua, si conferma solo un peso stabile (D-3, REQ-I-04) -->
+              <div class="mov-scale" id="scaleBox" hidden>
+                <span class="mov-scale-reading" id="scaleReading">—</span>
+                <span class="mov-scale-status" id="scaleStatus"></span>
+                <span class="mov-sim" id="simControls" hidden>
+                  <span class="mov-sim-label">Sul piatto della bilancia simulata:</span>
+                  <button type="button" class="btn-ghost" data-load="1">+1 g</button>
+                  <button type="button" class="btn-ghost" data-load="10">+10 g</button>
+                  <button type="button" class="btn-ghost" data-load="100">+100 g</button>
+                  <button type="button" class="btn-ghost" data-load="clear">Svuota</button>
+                </span>
+              </div>
+
+              <!-- Causale dall'elenco del tipo (REQ-M-15) e nota (REQ-M-17) -->
+              <div class="form-row full">
+                <div class="form-field">
+                  <label class="field-label" for="reasonSelect">Causale <span class="field-required">*</span></label>
+                  <select class="field-input field-select" id="reasonSelect"></select>
+                </div>
+              </div>
+              <div class="form-row full">
+                <div class="form-field">
+                  <label class="field-label" for="noteInput">Nota</label>
+                  <input class="field-input" id="noteInput" autocomplete="off" placeholder="Facoltativa">
+                </div>
+              </div>
+
+              <!-- Giacenza prima e dopo, come la vede l'operatore (REQ-M-21) -->
+              <div class="mov-preview" id="preview" aria-live="polite"></div>
+
+              <div class="mov-actions">
+                <button type="button" class="btn-ghost" id="btnClear">Svuota</button>
+                <button type="submit" class="btn-primary" id="btnSubmit">Registra</button>
+              </div>
+            </div>
+          </form>
+          <div class="mov-result" id="result" role="status" aria-live="polite" hidden></div>
+        </section>
+
+        <!-- Giacenze e storico dell'articolo (F-13: REQ-001.1, M-01, M-22) -->
+        <section class="mov-card" aria-labelledby="itemPanelTitle">
+          <h2 class="mov-card-title" id="itemPanelTitle">Giacenza e storico</h2>
+          <div id="itemPanel" class="mov-empty">Scegli un articolo per vedere dove si trova e come è cambiata la sua quantità.</div>
+        </section>
+      </div>
+    </div>
+  </main>
+</div>
+
+<!-- Ricerca dell'articolo (filters.js) -->
+<div class="modal-overlay mov-modal" id="searchModal" role="dialog" aria-modal="true" aria-labelledby="searchTitle">
+  <div class="modal mov-search-modal">
+    <div class="modal-header">
+      <div>
+        <div class="modal-eyebrow">Gioielli e semilavorati</div>
+        <div class="modal-title" id="searchTitle">Cerca l'articolo</div>
+      </div>
+      <button type="button" class="mov-modal-x" data-close aria-label="Chiudi">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="filter-bar" role="search" aria-label="Cerca e filtra gli articoli">
+      <div class="filter-bar-row">
+        <div class="search-field">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+          <input id="searchInput" type="search" aria-label="Cerca articoli" placeholder="Codice o nome, anche in parte…">
+        </div>
+        <button type="button" class="filter-toggle" id="btnFilters" aria-expanded="false" aria-controls="filterFields">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 5h18l-7 8.5V19l-4 2v-7.5L3 5z"/></svg>
+          Filtri <span class="filter-count" hidden></span>
+        </button>
+        <div class="filter-chips" id="filterChips" hidden></div>
+      </div>
+      <div class="filter-fields" id="filterFields" hidden></div>
+    </div>
+    <div class="modal-body mov-search-body">
+      <div class="mov-search-count" id="searchCount" aria-live="polite"></div>
+      <ul class="mov-search-list" id="searchResults" aria-label="Articoli trovati"></ul>
+    </div>
+  </div>
+</div>
+
+<!-- Dispositivo in uso (REQ-D-04) e sua bilancia (CR7) -->
+<div class="modal-overlay mov-modal" id="deviceModal" role="dialog" aria-modal="true" aria-labelledby="deviceTitle">
+  <div class="modal mov-device-modal">
+    <div class="modal-header">
+      <div>
+        <div class="modal-eyebrow">La sua sigla entra nel codice di ogni movimento</div>
+        <div class="modal-title" id="deviceTitle">Questo dispositivo</div>
+      </div>
+      <button type="button" class="mov-modal-x" data-close aria-label="Chiudi">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body" id="deviceBody"></div>
+  </div>
+</div>
+
+<script src="config.js"></script>
+<script src="js/bilancia/pesi.js"></script>
+<script src="js/bilancia/sics.js"></script>
+<script src="js/bilancia/simulatore.js"></script>
+<script type="module" src="js/movimenti.js"></script>
+<script type="module" src="js/pwa.js"></script>
+</body>
+</html>

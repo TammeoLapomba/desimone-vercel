@@ -328,3 +328,136 @@ export async function getRawItemPhotos(rawItemId) {
   if (error) throw error
   return data
 }
+
+// ── Movimenti (migrazioni 022–023) ────────────────────────────────
+// Tutto passa da qui: nella sede (D-1) le stesse chiamate andranno a PostgREST tramite il servizio.
+
+// Chi sono, con il ruolo dei movimenti e il luogo proposto (REQ-B-05); null se non sono un operatore
+export async function getMyOperator() {
+  const { data, error } = await supabase.rpc('my_operator')
+  if (error) throw error
+  return data
+}
+
+// Anagrafiche del registro: luoghi, causali, dispositivi, bilance, operatori
+export async function getMovementSetup() {
+  const [locations, reasons, devices, scales, operators] = await Promise.all([
+    supabase.from('locations').select('id, name, kind, active').order('name'),
+    supabase.from('movement_reasons').select('id, code, name, movement_type, allowed_roles, system, active, sort_order').order('sort_order'),
+    supabase.from('devices').select('id, code, name, revoked_at').order('code'),
+    supabase.from('scales').select('id, name, model, serial_number, device_id, active'),
+    supabase.from('operators').select('id, name, role'),
+  ])
+  for (const r of [locations, reasons, devices, scales, operators]) if (r.error) throw r.error
+  return { locations: locations.data, reasons: reasons.data, devices: devices.data, scales: scales.data, operators: operators.data }
+}
+
+// Articoli che si possono movimentare: gioielli (montato) e semilavorati, con quanto serve a cercarli
+export async function getMovableItems() {
+  const { data: articles, error } = await supabase
+    .from('articles')
+    .select('id, sku, name, collection_id, collections(name), product_type:product_types(name), article_materials(material:materials(name))')
+    .is('deleted_at', null)
+  if (error) throw error
+  const PAGE = 1000
+  const raw = []
+  for (let from = 0; ; from += PAGE) {
+    const { data, error: rawError } = await supabase
+      .from('raw_items')
+      .select('id, sku, description, size, quality, color, unit, raw_categories(name), raw_shapes(name)')
+      .is('deleted_at', null)
+      .order('id')
+      .range(from, from + PAGE - 1)
+    if (rawError) throw rawError
+    raw.push(...data)
+    if (data.length < PAGE) break
+  }
+  return { articles, raw }
+}
+
+// Giacenza dell'articolo in ogni luogo (REQ-001.1)
+export async function getItemStock({ articleId = null, rawItemId = null }) {
+  let query = supabase.from('stock_levels').select('location_id, pieces, grams')
+  query = articleId ? query.eq('article_id', articleId) : query.eq('raw_item_id', rawItemId)
+  const { data, error } = await query
+  if (error) throw error
+  return data
+}
+
+// Storico con la giacenza dopo ogni movimento (REQ-M-01, M-22), dal più recente, con i dati del movimento
+export async function getItemHistory({ articleId = null, rawItemId = null }) {
+  let query = supabase
+    .from('movement_history')
+    .select('movement_id, code, movement_type, location_id, pieces, grams, occurred_at, cancelled, pieces_after, grams_after')
+    .order('occurred_at', { ascending: false })
+    .order('recorded_at', { ascending: false })
+  query = articleId ? query.eq('article_id', articleId) : query.eq('raw_item_id', rawItemId)
+  const { data: legs, error } = await query
+  if (error) throw error
+  const ids = [...new Set(legs.map(l => l.movement_id))]
+  if (!ids.length) return []
+  const { data: movements, error: movError } = await supabase
+    .from('movements')
+    .select('id, reason_id, operator_id, device_id, note, document_ref, weight_source, scale_id, parent_id, cancelled_at, cancel_reason')
+    .in('id', ids)
+  if (movError) throw movError
+  const byId = new Map(movements.map(m => [m.id, m]))
+  return legs.map(l => ({ ...l, movement: byId.get(l.movement_id) }))
+}
+
+// Registra un movimento (REQ-E-10, E-11): il codice nasce sul dispositivo e una richiesta ripetuta
+// restituisce il movimento già registrato. Risponde { duplicate, movement, from_stock, to_stock, weighing_difference }.
+export async function registerMovement(p) {
+  const { data, error } = await supabase.rpc('register_movement', {
+    p_code: p.code,
+    p_movement_type: p.type,
+    p_reason_id: p.reasonId,
+    p_device_id: p.deviceId,
+    p_occurred_at: p.occurredAt,
+    p_article_id: p.articleId ?? null,
+    p_raw_item_id: p.rawItemId ?? null,
+    p_from_location_id: p.fromId ?? null,
+    p_to_location_id: p.toId ?? null,
+    p_pieces: p.pieces ?? null,
+    p_grams: p.grams ?? null,
+    p_weight_source: p.weightSource ?? null,
+    p_scale_id: p.scaleId ?? null,
+    p_last: !!p.last,
+    p_note: p.note || null,
+    p_document_ref: p.documentRef || null,
+    p_shown_stock: p.shownStock ?? null,
+  })
+  if (error) throw error
+  return data
+}
+
+// Annulla un movimento con motivo: solo l'amministrazione (REQ-M-06, M-13)
+export async function cancelMovement(id, reason) {
+  const { data, error } = await supabase.rpc('cancel_movement', { p_movement_id: id, p_reason: reason })
+  if (error) throw error
+  return data
+}
+
+// Nuovo dispositivo, solo l'amministrazione (REQ-D-04)
+export async function insertDevice({ code, name }) {
+  const { data, error } = await supabase.from('devices').insert({ code, name }).select().single()
+  if (error) throw error
+  return data
+}
+
+// Bilancia collegata a un dispositivo (CR7), solo l'amministrazione: kind è 'nessuna', 'cavo' o 'simulata'
+export async function setDeviceScale(device, kind, simulatedModel) {
+  const { error: offError } = await supabase.from('scales').update({ active: false }).eq('device_id', device.id).eq('active', true)
+  if (offError) throw offError
+  if (kind === 'nessuna') return null
+  const fields = kind === 'simulata'
+    ? { name: `Bilancia simulata ${device.code}`, model: simulatedModel }
+    : { name: `Bilancia di ${device.code}`, model: 'Mettler Toledo MT-SICS via cavo' }
+  const { data, error } = await supabase
+    .from('scales')
+    .upsert({ ...fields, device_id: device.id, active: true }, { onConflict: 'name' })
+    .select()
+    .single()
+  if (error) throw error
+  return data
+}

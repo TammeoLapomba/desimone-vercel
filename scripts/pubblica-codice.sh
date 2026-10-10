@@ -3,7 +3,8 @@
 #
 # Il repository privato (remote "origin", DedaloTeam/desimone-os) contiene tutto: codice e materiale
 # di progetto. Il repository pubblico (remote "vercel", TammeoLapomba/desimone-vercel) serve solo per il
-# deploy e non deve ricevere le cartelle private elencate in PRIVATE_PATHS.
+# deploy e non deve ricevere le cartelle e i file privati elencati in PRIVATE_PATHS: tra questi i file SQL
+# con i codici e le descrizioni degli articoli del cliente, che Vercel non usa.
 #
 # Lo script prende l'ultimo commit locale, toglie le cartelle private e pubblica il risultato come un
 # nuovo commit sul branch main del repository pubblico. Il push diretto verso "vercel" è disattivato di
@@ -15,7 +16,8 @@
 
 set -euo pipefail
 
-PRIVATE_PATHS=(docs bilancia old_software inventory_data)
+PRIVATE_PATHS=(docs bilancia old_software inventory_data
+               supabase/migrations/020_semilavorato_import.sql supabase/setup_new_project.sql)
 REMOTE=vercel
 BRANCH=main
 
@@ -40,8 +42,8 @@ done
 TREE=$(GIT_INDEX_FILE="$TMP_INDEX" git write-tree)
 
 for p in "${PRIVATE_PATHS[@]}"; do
-  if git ls-tree -r --name-only "$TREE" | grep -q "^$p/"; then
-    echo "ERRORE: la cartella privata '$p' è ancora nell'albero da pubblicare." >&2
+  if git ls-tree -r --name-only "$TREE" | awk -v p="$p" '$0 == p || index($0, p "/") == 1 { f = 1 } END { exit !f }'; then
+    echo "ERRORE: '$p' è privato ma è ancora nell'albero da pubblicare." >&2
     exit 1
   fi
 done

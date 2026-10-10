@@ -2,7 +2,8 @@
   "cleanUrls": false,
   "rewrites": [
     { "source": "/", "destination": "/catalog.html" },
-    { "source": "/semilavorato", "destination": "/semilavorato.html" }
+    { "source": "/semilavorato", "destination": "/semilavorato.html" },
+    { "source": "/movimenti", "destination": "/movimenti.html" }
   ],
   "headers": [
     {

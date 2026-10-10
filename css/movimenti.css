@@ -1,0 +1,178 @@
+/* ============================================================
+   css/movimenti.css — Schermata dei movimenti (movimenti.html)
+   Stessi colori e caratteri del resto dell'app: Work Sans e la palette di variables.css.
+   ============================================================ */
+
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0;
+}
+
+/* ─── Barra in alto ─────────────────────────────────────────── */
+.mov-topbar-title { font-family: var(--editorial); font-size: 16px; font-weight: 600; color: var(--text-primary); flex: 1; }
+.mov-topbar-meta { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; justify-content: flex-end; }
+.mov-chip {
+  font-family: var(--editorial); font-size: 12px; color: var(--text-secondary);
+  background: var(--ivory); border: 1px solid var(--ivory-dark); border-radius: 999px; padding: 5px 12px;
+  white-space: nowrap;
+}
+.mov-chip:empty { display: none; }
+.mov-chip-button { cursor: pointer; }
+.mov-chip-button:hover { border-color: var(--coral); color: var(--coral); }
+.mov-chip-button:focus-visible { outline: 2px solid var(--coral); outline-offset: 2px; }
+
+/* ─── Impaginazione ─────────────────────────────────────────── */
+.mov-layout {
+  display: grid;
+  grid-template-columns: minmax(340px, 480px) minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+@media (max-width: 1000px) {
+  .mov-layout { grid-template-columns: minmax(0, 1fr); }
+}
+.mov-card {
+  background: white; border: 1px solid var(--ivory-dark); border-radius: 4px; padding: 20px 22px;
+  min-width: 0;
+}
+.mov-card-title {
+  font-family: var(--editorial); font-size: 11px; letter-spacing: 2px; text-transform: uppercase;
+  color: var(--text-muted); font-weight: 500; margin-bottom: 16px;
+}
+.mov-blocked {
+  max-width: 560px; padding: 20px 22px; background: white; border: 1px solid var(--ivory-dark);
+  border-left: 3px solid var(--coral); border-radius: 4px; font-family: var(--editorial); font-size: 14px;
+  color: var(--text-primary);
+}
+#movForm { display: flex; flex-direction: column; gap: 16px; }
+#details { display: flex; flex-direction: column; gap: 16px; }
+#details[hidden], #itemBox[hidden] { display: none; }
+
+/* ─── Tipo di movimento ─────────────────────────────────────── */
+.mov-types { display: flex; gap: 8px; }
+.mov-type {
+  flex: 1; padding: 10px 8px; border-radius: 4px; border: 1.5px solid var(--ivory-dark); background: white;
+  font-family: var(--editorial); font-size: 12px; letter-spacing: 1px; text-transform: uppercase;
+  color: var(--text-secondary); cursor: pointer; transition: all 0.15s;
+}
+.mov-type:hover { border-color: var(--text-secondary); }
+.mov-type[aria-checked="true"] { border-color: var(--coral); background: rgba(201,64,48,0.08); color: var(--coral); }
+.mov-type:focus-visible { outline: 2px solid var(--coral); outline-offset: 2px; }
+
+/* ─── Articolo ──────────────────────────────────────────────── */
+.mov-code-row, .mov-weight-row { display: flex; gap: 8px; }
+.mov-code-row .field-input, .mov-weight-row .field-input { flex: 1; min-width: 0; }
+.mov-code-input { font-size: 16px; letter-spacing: 0.5px; }
+.mov-item {
+  padding: 12px 14px; background: var(--ivory); border-radius: 4px; border-left: 3px solid var(--coral);
+}
+.mov-item-code { font-family: var(--mono); font-size: 12px; font-weight: 600; color: var(--text-primary); letter-spacing: 0.3px; }
+.mov-item-name { font-family: var(--editorial); font-size: 15px; color: var(--text-primary); margin-top: 2px; }
+.mov-item-meta { font-family: var(--editorial); font-size: 12px; color: var(--text-muted); margin-top: 2px; }
+
+/* ─── Peso e bilancia ───────────────────────────────────────── */
+.mov-scale-btn { white-space: nowrap; }
+.mov-scale-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+.field-input[readonly] { background: var(--ivory); }
+.mov-weight-kind, .mov-radio-list { display: flex; flex-wrap: wrap; gap: 6px 18px; font-family: var(--editorial); font-size: 13px; color: var(--text-secondary); }
+.mov-radio-list { flex-direction: column; }
+.mov-weight-kind[hidden], .mov-check[hidden], .mov-scale[hidden], .mov-sim[hidden] { display: none; }
+.mov-weight-kind label, .mov-radio-list label, .mov-check { display: inline-flex; gap: 6px; align-items: center; cursor: pointer; }
+.mov-check { font-family: var(--editorial); font-size: 13px; color: var(--text-secondary); }
+.mov-scale {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 10px 14px;
+  background: var(--ivory); border-radius: 4px; font-family: var(--editorial); font-size: 13px;
+}
+.mov-scale-reading { font-size: 20px; font-weight: 600; color: var(--text-muted); min-width: 90px; font-variant-numeric: tabular-nums; }
+.mov-scale-reading.is-stable { color: var(--text-primary); }
+.mov-scale-status { color: var(--text-secondary); }
+.mov-scale-status.is-error { color: var(--coral); }
+.mov-sim { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.mov-sim-label { color: var(--text-muted); font-size: 12px; }
+.mov-sim .btn-ghost { padding: 4px 10px; font-size: 11px; }
+.mov-link {
+  background: none; border: none; padding: 0; font: inherit; color: var(--coral); text-decoration: underline; cursor: pointer;
+}
+.mov-link:focus-visible { outline: 2px solid var(--coral); outline-offset: 2px; }
+
+/* ─── Anteprima, azioni, esito ──────────────────────────────── */
+.mov-preview {
+  display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; border-radius: 4px;
+  background: rgba(201,64,48,0.04); border: 1px solid rgba(201,64,48,0.12);
+  font-family: var(--editorial); font-size: 13px; color: var(--text-secondary);
+}
+.mov-preview:empty { display: none; }
+.mov-preview-line { display: flex; flex-wrap: wrap; gap: 4px 16px; }
+.mov-preview-line b { color: var(--text-primary); }
+.mov-preview-loc { min-width: 110px; color: var(--text-primary); }
+.mov-preview-line.is-negative b, .mov-preview-warn { color: var(--coral); }
+.mov-preview.is-warning { border-color: var(--coral); }
+.mov-preview-hint { color: var(--text-muted); }
+.mov-actions { display: flex; justify-content: flex-end; gap: 8px; }
+.mov-result {
+  margin-top: 16px; padding: 12px 14px; border-radius: 4px; font-family: var(--editorial); font-size: 13px; line-height: 1.5;
+  border: 1px solid var(--ivory-dark); color: var(--text-primary);
+}
+.mov-result[hidden] { display: none; }
+.mov-result.is-ok { background: rgba(74,124,89,0.08); border-color: rgba(74,124,89,0.35); }
+.mov-result.is-error { background: rgba(201,64,48,0.06); border-color: rgba(201,64,48,0.35); color: var(--coral-dark); }
+.mov-result.is-warn { background: rgba(201,168,76,0.12); border-color: rgba(201,168,76,0.5); }
+
+/* ─── Giacenza e storico ────────────────────────────────────── */
+.mov-empty { font-family: var(--editorial); font-size: 13px; color: var(--text-muted); }
+.mov-panel-item { font-family: var(--editorial); font-size: 15px; color: var(--text-primary); margin-bottom: 4px; }
+.mov-panel-title {
+  font-family: var(--editorial); font-size: 10px; letter-spacing: 2px; text-transform: uppercase;
+  color: var(--text-muted); font-weight: 500; margin: 18px 0 8px;
+}
+.mov-table-scroll { overflow-x: auto; }
+.mov-table { width: 100%; border-collapse: collapse; font-family: var(--editorial); font-size: 13px; }
+.mov-table th {
+  text-align: left; font-weight: 500; font-size: 10px; letter-spacing: 1px; text-transform: uppercase;
+  color: var(--text-muted); padding: 6px 8px; border-bottom: 1px solid var(--ivory-dark);
+}
+.mov-table td { padding: 7px 8px; border-bottom: 1px solid var(--ivory); color: var(--text-primary); vertical-align: top; }
+.mov-table tfoot th, .mov-table tfoot td { border-top: 1px solid var(--ivory-dark); border-bottom: none; font-weight: 600; }
+.mov-table .num { text-align: right; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.mov-history td { white-space: nowrap; }
+.mov-history td:nth-child(3) { white-space: normal; min-width: 160px; }
+.mov-history tr.is-cancelled td { color: var(--text-muted); text-decoration: line-through; }
+.mov-history tr.is-cancelled .mov-note { text-decoration: none; }
+.mov-note { font-size: 12px; color: var(--text-muted); }
+
+/* ─── Finestre ──────────────────────────────────────────────── */
+.mov-modal:not(.open) { visibility: hidden; }
+.mov-modal-x { background: none; border: none; cursor: pointer; color: var(--text-muted); padding: 4px; }
+.mov-modal-x:focus-visible { outline: 2px solid var(--coral); outline-offset: 2px; }
+.mov-modal-text { font-family: var(--editorial); font-size: 14px; color: var(--text-secondary); margin-bottom: 14px; }
+.mov-device-modal { width: 520px; }
+.mov-device-modal .modal-body { display: flex; flex-direction: column; gap: 12px; }
+.mov-device-modal .mov-panel-title { margin-top: 10px; }
+.mov-search-modal { width: 720px; height: min(640px, calc(100vh - 80px)); }
+.mov-search-modal .filter-bar { padding: 12px 28px; }
+.mov-search-body { padding-top: 8px; }
+.mov-search-count { font-family: var(--editorial); font-size: 12px; color: var(--text-muted); margin-bottom: 8px; }
+.mov-search-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 2px; }
+.mov-search-item {
+  width: 100%; display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 2px 12px; text-align: left;
+  padding: 9px 10px; background: none; border: none; border-radius: 4px; cursor: pointer;
+}
+.mov-search-item:hover, .mov-search-item:focus-visible { background: var(--ivory); outline: none; }
+.mov-search-name { font-family: var(--editorial); font-size: 14px; color: var(--text-primary); }
+.mov-search-group { grid-column: 2; font-family: var(--editorial); font-size: 12px; color: var(--text-muted); }
+
+/* ─── Telefono e tablet ─────────────────────────────────────── */
+@media (max-width: 768px) {
+  .catalog-area { padding: 16px; }
+  .mov-card { padding: 16px; }
+  .topbar { padding: 0 16px; }
+  .mov-topbar-meta .mov-chip { font-size: 11px; padding: 4px 10px; }
+  #operatorChip { display: none; }
+  .mov-search-item { grid-template-columns: minmax(0, 1fr); }
+  .mov-search-group { grid-column: 1; }
+  .mov-search-modal .filter-bar { padding: 10px 16px; }
+}
+@media (max-width: 430px) {
+  .mov-weight-row { flex-direction: column; }
+  .mov-types { flex-direction: column; }
+}
