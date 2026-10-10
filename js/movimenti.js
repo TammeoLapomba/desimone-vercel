@@ -77,8 +77,11 @@ async function init() {
   $('movLayout').hidden = false
   setupListeners()
   initSearch()
+  // Arrivo dall'inventario (catalogo, articolo, semilavorato): articolo già scelto
+  const preset = state.byCode.get((new URLSearchParams(location.search).get('codice') || '').toUpperCase())
+  if (preset) await selectItem(preset)
   if (!state.device) openModal('deviceModal')
-  else $('codeInput').focus()
+  else if (!preset) $('codeInput').focus()
 }
 
 function block(message) {

@@ -2,7 +2,7 @@
 // Il codice non si scrive: si sceglie tipo, forma, qualità, finitura, misura e varianti, e il database
 // lo compone con lo standard del cliente (raw_item_preview, vedi 019_semilavorato_codici.sql).
 import { insertRawItem, updateRawItem, uploadRawPhoto, previewRawItem } from './supabase.js'
-import { showToast, debounce } from './utils.js'
+import { showToast, debounce, stockLabel } from './utils.js'
 
 let onSuccessCallback = null
 let photoUploader = null
@@ -117,18 +117,10 @@ export function openRawItemModal({ item = null, categories = [], rules, defaultC
               </select>
             </div>
             <div class="form-field">
-              <label class="field-label">Peso totale (g)</label>
-              <div style="position:relative;display:flex;align-items:center;">
-                <input type="number" class="field-input" id="rf_weight" min="0" step="0.01" value="${item?.weight || ''}" style="padding-right:30px;">
-                <span style="position:absolute;right:12px;font-family:var(--editorial);font-size:12px;color:var(--text-muted);">g</span>
-              </div>
-            </div>
-          </div>
-          <div class="form-row full">
-            <div class="form-field">
-              <label class="field-label">Quantità (Stock iniziale) <span class="field-required">*</span></label>
-              <input type="number" class="field-input" id="rf_stock"
-                     min="0" step="1" value="${item?.stock ?? 0}">
+              <label class="field-label">Giacenza</label>
+              <input type="text" class="field-input" id="rf_stock" readonly
+                     value="${isEdit ? stockLabel(item) : 'Si carica dai Movimenti'}"
+                     title="Somma dei movimenti: si cambia solo con un movimento (Carico iniziale, Nuova produzione…)">
             </div>
           </div>
           <div class="form-row full">
@@ -147,7 +139,7 @@ export function openRawItemModal({ item = null, categories = [], rules, defaultC
               <div style="font-family:var(--mono);font-size:10px;color:var(--text-muted);" id="rfp_sku">—</div>
               <div style="font-family:var(--editorial);font-size:18px;" id="rfp_size">—</div>
               <div style="display:flex;gap:4px;flex-wrap:wrap;" id="rfp_badges"></div>
-              <div style="font-family:var(--editorial);font-size:24px;font-weight:700;" id="rfp_stock">0</div>
+              <div style="font-family:var(--editorial);font-size:24px;font-weight:700;" id="rfp_stock">${isEdit ? stockLabel(item) : 0}</div>
             </div>
           </div>
         </div>
@@ -398,8 +390,8 @@ export function openRawItemModal({ item = null, categories = [], rules, defaultC
 
   function updateCardPreview() {
     const color = $('rf_color').value || ''
-    const stock = $('rf_stock').value || '0'
-    const wgt   = $('rf_weight').value
+    const stock  = isEdit ? stockLabel(item) : '0'
+    const amount = isEdit ? (item.unit === 'grammi' ? item.stock_grams : item.stock) : 0
 
     let catName, sku, sizeText, badges
     if (isEdit) {
@@ -415,7 +407,6 @@ export function openRawItemModal({ item = null, categories = [], rules, defaultC
       sizeText = preview?.size_label || '—'
       badges = [shape?.name, f.is_tall ? 'Alta' : '', f.quality, f.finish, ...f.variants]
     }
-    if (wgt) sizeText += ` (${wgt}g)`
     badges = [...badges.filter(Boolean), color].filter(Boolean)
 
     $('rfp_cat').textContent  = catName
@@ -425,10 +416,10 @@ export function openRawItemModal({ item = null, categories = [], rules, defaultC
       `<span style="padding:2px 7px;border-radius:2px;font-family:var(--editorial);font-size:10px;background:var(--ivory-dark);color:var(--text-secondary);">${esc(b)}</span>`).join('')
     const stockEl = $('rfp_stock')
     stockEl.textContent  = stock
-    stockEl.style.color  = Number(stock) === 0 ? 'var(--coral)' : Number(stock) < 5 ? '#C9A84C' : 'var(--text-primary)'
+    stockEl.style.color  = amount === 0 ? 'var(--coral)' : item?.unit !== 'grammi' && amount < 5 ? '#C9A84C' : 'var(--text-primary)'
   }
 
-  ;['rf_color', 'rf_weight', 'rf_stock'].forEach(id => {
+  ;['rf_color'].forEach(id => {
     $(id)?.addEventListener('input', updateCardPreview)
     $(id)?.addEventListener('change', updateCardPreview)
   })
@@ -542,8 +533,6 @@ async function submitRawItem(isEdit, existingId, codeFields) {
   try {
     const details = {
       color:   document.getElementById('rf_color').value || null,
-      stock:   Number(document.getElementById('rf_stock').value)  || 0,
-      weight:  document.getElementById('rf_weight').value ? Number(document.getElementById('rf_weight').value) : 0,
       notes:   document.getElementById('rf_notes').value.trim()   || null,
     }
 

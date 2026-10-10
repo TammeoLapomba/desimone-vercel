@@ -1,5 +1,5 @@
 // js/article.js
-import { supabase, requireAuth, getCollections, getMaterials, getMetals, getProductTypes, getArticleById, updateArticle, setArticleMaterials, deleteArticle, signOut } from './supabase.js'
+import { supabase, requireAuth, getCollections, getMaterials, getMetals, getProductTypes, getArticleById, getItemStock, updateArticle, setArticleMaterials, deleteArticle, signOut } from './supabase.js'
 import { showToast, isAppSku, confirmDeleteArticle } from './utils.js'
 import { initMaterialPicker } from './material-picker.js'
 
@@ -58,7 +58,11 @@ async function init() {
     document.getElementById('f_price_retail').value = currentArticle.price_retail || ''
     document.getElementById('f_price_wholesale').value = currentArticle.price_wholesale || ''
 
-    document.getElementById('f_stock').value = currentArticle.stock_retail + (currentArticle.stock_wholesale || 0)
+    // Giacenza: somma dei movimenti in tutti i luoghi (REQ-001.1, C-01), si cambia solo dalla schermata Movimenti
+    getItemStock({ articleId }).then(rows => {
+      document.getElementById('f_stock').value = `${rows.reduce((n, r) => n + r.pieces, 0)} pz`
+    }).catch(() => { document.getElementById('f_stock').value = '—' })
+    if (currentArticle.sku) document.getElementById('f_stock_link').href = `/movimenti.html?codice=${encodeURIComponent(currentArticle.sku)}`
     
     const meas = currentArticle.measurements || {}
     document.getElementById('f_weight').value = meas.weight_g || ''
@@ -167,8 +171,6 @@ function setupListeners() {
         notes: document.getElementById('f_notes').value.trim() || null,
         price_retail: Number(document.getElementById('f_price_retail').value) || null,
         price_wholesale: Number(document.getElementById('f_price_wholesale').value) || null,
-        stock_retail: Number(document.getElementById('f_stock').value) || 0,
-        stock_wholesale: 0, // Enforce single stock per request
         measurements: Object.keys(measurements).length ? measurements : null
       }
 

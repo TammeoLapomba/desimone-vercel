@@ -1,6 +1,6 @@
 // js/semilavorato.js
-import { requireAuth, getRawCategories, getRawItems, getRawCodeRules, updateRawItem, signOut } from './supabase.js'
-import { showToast } from './utils.js'
+import { requireAuth, getRawCategories, getRawItems, getRawCodeRules, signOut } from './supabase.js'
+import { stockLabel } from './utils.js'
 import { initFilters } from './filters.js'
 import { openRawItemModal } from './raw-form.js'
 import { initMobileNav, initHamburger, initPanelToggle, closeDrawer } from './pwa.js'
@@ -23,7 +23,7 @@ const FILTER_FIELDS = [
   { key: 'color', label: 'Colore', options: items => distinct(items, i => i.color).map(v => [v, v]), test: (i, v) => i.color === v },
   { key: 'stock', label: 'Disponibilità',
     options: () => [['si', 'Disponibili'], ['no', 'Esauriti']],
-    test: (i, v) => (i.stock > 0) === (v === 'si') },
+    test: (i, v) => (i.stock > 0 || i.stock_grams > 0) === (v === 'si') },
 ]
 let filters = null
 
@@ -131,11 +131,16 @@ function renderGrid(items) {
 
   grid.innerHTML = items.map((item, i) => {
     const catName    = item.raw_categories?.name || '—'
-    const stockColor = item.stock === 0 ? 'color:var(--coral)' : item.stock < 5 ? 'color:#C9A84C' : 'color:var(--text-primary)'
+    // Giacenza: somma dei movimenti (getRawItems), nell'unità del semilavorato (REQ-U-03)
+    const byGrams    = item.unit === 'grammi'
+    const amount     = byGrams ? item.stock_grams : item.stock
+    const stockColor = amount === 0 ? 'color:var(--coral)' : !byGrams && amount < 5 ? 'color:#C9A84C' : 'color:var(--text-primary)'
+    const stockNum   = byGrams ? stockLabel(item) : item.stock
+    const stockUnit  = byGrams ? 'disponibili' : item.unit === 'pezzi_grammi' ? `pezzi · ${stockLabel(item).split(' · ')[1]}` : 'pezzi disponibili'
 
     return `
       <div class="raw-item-card" data-item-id="${item.id}" role="listitem" tabindex="0" title="${(item.description || '').replace(/"/g, '&quot;')}"
-           style="animation-delay:${Math.min(i, 12) * 0.04}s" aria-label="${catName} ${item.size || ''} — ${item.stock} pz">
+           style="animation-delay:${Math.min(i, 12) * 0.04}s" aria-label="${catName} ${item.size || ''} — ${stockLabel(item)}">
 
         ${item.cover_url
           ? `<div style="aspect-ratio:4/3;overflow:hidden;border-radius:3px;margin:-16px -16px 0;">
@@ -161,15 +166,15 @@ function renderGrid(items) {
 
         <div class="raw-item-stock-row">
           <div>
-            <div class="raw-item-stock-num" id="stock-${item.id}" style="${stockColor}">${item.stock}</div>
-            <div class="raw-item-stock-label">disponibili</div>
+            <div class="raw-item-stock-num" id="stock-${item.id}" style="${stockColor}">${stockNum}</div>
+            <div class="raw-item-stock-label">${stockUnit}</div>
           </div>
         </div>
 
-        <!-- Pulsante movimentazione stock -->
-        <button class="raw-movimento-btn" data-id="${item.id}" aria-label="Movimenta stock">
+        <!-- La giacenza cambia solo con un movimento: si apre la schermata Movimenti su questo articolo -->
+        <button class="raw-movimento-btn" data-id="${item.id}" aria-label="Movimenta ${item.sku || ''}" ${item.sku ? '' : 'disabled title="Senza codice non si movimenta"'}>
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
-          Movimenta stock
+          Movimenta
         </button>
       </div>`
   }).join('')
@@ -184,12 +189,12 @@ function renderGrid(items) {
     })
   })
 
-  // Click bottone movimenta → modale carico/scarico
+  // Click bottone movimenta → schermata Movimenti con l'articolo già scelto
   grid.querySelectorAll('.raw-movimento-btn').forEach(btn => {
     btn.addEventListener('click', e => {
       e.stopPropagation()
       const item = allItems.find(x => x.id === btn.dataset.id)
-      if (item) openStockModal(item)
+      if (item?.sku) location.href = `/movimenti.html?codice=${encodeURIComponent(item.sku)}`
     })
   })
 }
@@ -224,151 +229,6 @@ moveStyle.textContent = `
   }
 `
 document.head.appendChild(moveStyle)
-
-// ─── Modale Carico / Scarico ──────────────────────────────────
-
-function openStockModal(item) {
-  document.getElementById('stockModal')?.remove()
-
-  const catName = item.raw_categories?.name || ''
-
-  const overlay = document.createElement('div')
-  overlay.id = 'stockModal'
-  overlay.className = 'modal-overlay'
-  overlay.innerHTML = `
-    <div class="modal" style="max-width:380px;">
-      <div class="modal-header">
-        <div>
-          <div class="modal-eyebrow">${catName}${item.size ? ' · ' + item.size : ''}</div>
-          <div class="modal-title">Movimentazione Stock</div>
-        </div>
-        <button style="background:none;border:none;cursor:pointer;color:var(--text-muted);padding:4px;"
-                id="closeStockModal">
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-            <line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/>
-          </svg>
-        </button>
-      </div>
-
-      <div class="modal-body">
-
-        <!-- Tipo operazione -->
-        <div style="display:flex;gap:8px;margin-bottom:20px;">
-          <button class="stock-op-btn active" id="opCarico" data-op="carico"
-                  style="flex:1;padding:10px;border-radius:4px;border:1.5px solid var(--coral);background:rgba(201,64,48,0.08);font-family:var(--editorial);font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--coral);cursor:pointer;transition:all 0.15s;">
-            ↑ Carico
-          </button>
-          <button class="stock-op-btn" id="opScarico" data-op="scarico"
-                  style="flex:1;padding:10px;border-radius:4px;border:1.5px solid var(--ivory-dark);background:white;font-family:var(--editorial);font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--text-secondary);cursor:pointer;transition:all 0.15s;">
-            ↓ Scarico
-          </button>
-        </div>
-
-        <!-- Stock attuale -->
-        <div style="padding:12px 16px;background:var(--ivory);border-radius:4px;margin-bottom:16px;display:flex;align-items:baseline;gap:8px;">
-          <span style="font-family:var(--editorial);font-size:12px;color:var(--text-muted);">Stock attuale:</span>
-          <span style="font-family:var(--editorial);font-size:22px;font-weight:700;color:var(--text-primary);" id="currentStockDisplay">${item.stock}</span>
-          <span style="font-family:var(--editorial);font-size:11px;color:var(--text-muted);">pezzi</span>
-        </div>
-
-        <div class="form-row full">
-          <div class="form-field">
-            <label class="field-label">Quantità <span class="field-required">*</span></label>
-            <input type="number" class="field-input" id="stockQty" min="1" step="1" value="1" placeholder="Inserisci quantità…">
-          </div>
-        </div>
-
-        <!-- Anteprima nuovo stock -->
-        <div style="padding:10px 14px;background:rgba(201,64,48,0.05);border:1px solid rgba(201,64,48,0.15);border-radius:4px;margin-top:4px;display:flex;align-items:baseline;gap:8px;">
-          <span style="font-family:var(--editorial);font-size:11px;color:var(--text-muted);">Nuovo stock:</span>
-          <span style="font-family:var(--editorial);font-size:20px;font-weight:700;color:var(--coral);" id="newStockPreview">${item.stock + 1}</span>
-          <span style="font-family:var(--editorial);font-size:11px;color:var(--text-muted);">pezzi</span>
-        </div>
-
-        <div class="form-row full" style="margin-top:16px;">
-          <div class="form-field">
-            <label class="field-label">Motivo <span style="color:var(--text-muted);font-style:italic;">— opzionale</span></label>
-            <input type="text" class="field-input" id="stockNote" placeholder="es. Consegna fornitore, Vendita fiera…">
-          </div>
-        </div>
-      </div>
-
-      <div class="modal-footer" style="justify-content:flex-end;gap:8px;">
-        <button class="btn-ghost" id="cancelStockModal">Annulla</button>
-        <button class="btn-primary" id="confirmStockBtn">Conferma</button>
-      </div>
-    </div>`
-
-  document.body.appendChild(overlay)
-  requestAnimationFrame(() => overlay.classList.add('open'))
-
-  let currentOp = 'carico'
-
-  function updatePreview() {
-    const qty     = Math.max(0, Number(document.getElementById('stockQty').value) || 0)
-    const delta   = currentOp === 'carico' ? qty : -qty
-    const newStock = Math.max(0, item.stock + delta)
-    document.getElementById('newStockPreview').textContent = newStock
-  }
-
-  // Toggle carico/scarico
-  overlay.querySelectorAll('.stock-op-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      currentOp = btn.dataset.op
-      overlay.querySelectorAll('.stock-op-btn').forEach(b => {
-        const isActive = b.dataset.op === currentOp
-        b.style.borderColor  = isActive ? 'var(--coral)' : 'var(--ivory-dark)'
-        b.style.background   = isActive ? 'rgba(201,64,48,0.08)' : 'white'
-        b.style.color        = isActive ? 'var(--coral)' : 'var(--text-secondary)'
-      })
-      updatePreview()
-    })
-  })
-
-  document.getElementById('stockQty').addEventListener('input', updatePreview)
-
-  // Chiudi
-  const close = () => { overlay.classList.remove('open'); setTimeout(() => overlay.remove(), 300) }
-  document.getElementById('closeStockModal').addEventListener('click', close)
-  document.getElementById('cancelStockModal').addEventListener('click', close)
-  overlay.addEventListener('click', e => { if (e.target === overlay) close() })
-
-  // Conferma
-  document.getElementById('confirmStockBtn').addEventListener('click', async () => {
-    const qty = Number(document.getElementById('stockQty').value)
-    if (!qty || qty <= 0) { showToast('Inserisci una quantità valida'); return }
-
-    const delta    = currentOp === 'carico' ? qty : -qty
-    const newStock = Math.max(0, item.stock + delta)
-    const note     = document.getElementById('stockNote').value.trim()
-
-    const btn = document.getElementById('confirmStockBtn')
-    btn.textContent = 'Salvataggio…'; btn.disabled = true
-
-    try {
-      await updateRawItem(item.id, { stock: newStock })
-      item.stock = newStock
-
-      // Aggiorna il numero nella griglia senza re-render completo
-      const numEl = document.getElementById(`stock-${item.id}`)
-      if (numEl) {
-        numEl.textContent = newStock
-        numEl.style.color = newStock === 0 ? 'var(--coral)' : newStock < 5 ? '#C9A84C' : 'var(--text-primary)'
-        numEl.animate([
-          { transform: 'scale(1.25)', opacity: 0.7 },
-          { transform: 'scale(1)',    opacity: 1 }
-        ], { duration: 250, easing: 'ease-out' })
-      }
-
-      const opLabel = currentOp === 'carico' ? 'Caricati' : 'Scaricati'
-      showToast(`${opLabel} ${qty} pz${note ? ' — ' + note : ''}`)
-      close()
-    } catch (err) {
-      showToast('Errore: ' + err.message)
-      btn.textContent = 'Conferma'; btn.disabled = false
-    }
-  })
-}
 
 // ─── Refresh ──────────────────────────────────────────────────
 

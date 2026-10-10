@@ -148,8 +148,10 @@
         <div class="editor-title">Misure & Magazzino</div>
         <div class="form-row triple">
           <div class="form-field">
-            <label class="field-label">Stock Totale</label>
-            <input type="number" class="field-input" id="f_stock" min="0" placeholder="0">
+            <label class="field-label">Giacenza</label>
+            <input type="text" class="field-input" id="f_stock" value="—" readonly
+                   title="Somma dei movimenti: si cambia solo con un movimento">
+            <a class="field-hint" id="f_stock_link" href="/movimenti.html">Movimenta →</a>
           </div>
           <div class="form-field">
             <label class="field-label">Peso (g)</label>

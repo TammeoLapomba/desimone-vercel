@@ -94,3 +94,12 @@ export function confirmDeleteArticle(article) {
     'Si perderà anche tutto ciò che lo riguarda: foto, materiali e movimenti di magazzino. ' +
     "L'operazione non si può annullare.\n\nVuoi procedere?")
 }
+
+// Giacenza di un articolo come la mostrano le pagine dell'inventario (stock e stock_grams da getArticles o
+// getRawItems, somma dei movimenti): nell'unità del semilavorato (REQ-U-03), peso al decimo di grammo (REQ-U-08)
+export function stockLabel(item) {
+  const grams = `${Number(item.stock_grams || 0).toLocaleString('it-IT', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} g`
+  if (item.unit === 'grammi') return grams
+  if (item.unit === 'pezzi_grammi') return `${item.stock || 0} pz · ${grams}`
+  return `${item.stock || 0} pz`
+}

@@ -27,7 +27,7 @@ let tableSort = { key: null, dir: 1 }
 let selectedIds = new Set()       // selezione della tabella (solo admin: serve all'eliminazione multipla)
 
 // Filtri per campo (barra sopra gli articoli, vedi filters.js)
-const stockOf = a => (a.stock_retail || 0) + (a.stock_wholesale || 0)
+const stockOf = a => a.stock || 0   // somma dei movimenti (getArticles), un'unica giacenza (REQ-C-01)
 const FILTER_FIELDS = [
   { key: 'type', label: 'Tipo',
     options: items => items.filter(a => a.product_type_id).map(a => [a.product_type_id, a.product_type?.name || '—']),
@@ -196,7 +196,7 @@ function renderGrid(articles) {
               ${a.price_wholesale ? `<span style="font-size:10px;color:var(--text-muted);font-style:normal;font-family:var(--mono);margin-left:6px;">${formatPrice(a.price_wholesale)} ingr.</span>` : ''}
             </div>
             <div style="font-family:var(--mono);font-size:10px;color:var(--text-muted);white-space:nowrap;">
-              ${a.stock_retail + a.stock_wholesale > 0 ? `${a.stock_retail + a.stock_wholesale} pz disp.` : 'Esaurito'}
+              ${stockOf(a) > 0 ? `${stockOf(a)} pz disp.` : 'Esaurito'}
             </div>
           </div>
         </div>
@@ -220,7 +220,7 @@ const TABLE_COLUMNS = [
   { key: 'metal', label: 'Metallo', value: a => a.metal?.name || '' },
   { key: 'price', label: 'Prezzo', num: true, value: a => a.price_retail ?? -1 },
   { key: 'wholesale', label: 'Ingrosso', num: true, value: a => a.price_wholesale ?? -1 },
-  { key: 'stock', label: 'Stock', num: true, value: a => (a.stock_retail || 0) + (a.stock_wholesale || 0) },
+  { key: 'stock', label: 'Stock', num: true, value: stockOf },
 ]
 
 const ICON_SORT = { 1: '<path d="M12 19V5M5 12l7-7 7 7"/>', '-1': '<path d="M12 5v14M5 12l7 7 7-7"/>' }
@@ -276,7 +276,7 @@ function renderTable(articles) {
 
   const body = rows.length ? rows.map(a => {
     const cover = getCoverPhoto(a.photos)
-    const stock = (a.stock_retail || 0) + (a.stock_wholesale || 0)
+    const stock = stockOf(a)
     const materials = articleMaterials(a).map(m => m.name).join(', ')
     return `
       <tr data-article-id="${a.id}" tabindex="0" class="${selectedIds.has(a.id) ? 'is-selected' : ''}">
@@ -456,10 +456,12 @@ function openDetail(articleId) {
       ${detailRow('Metallo', a.metal?.name || '—')}
       ${detailRow('Prezzo retail', formatPrice(a.price_retail))}
       ${a.price_wholesale ? detailRow('Prezzo ingrosso', formatPrice(a.price_wholesale)) : ''}
-      ${detailRow('Stock', (a.stock_retail + a.stock_wholesale) + ' pz')}
+      ${detailRow('Giacenza', stockOf(a) + ' pz')}
+      ${a.stock_locations.map(l => detailRow(esc(l.name), l.pieces + ' pz')).join('')}
     </div>
     <div style="padding:16px 20px;border-top:1px solid var(--ivory-dark);display:flex;flex-direction:column;gap:8px;">
       <a href="/article.html?id=${a.id}" class="btn-primary btn-success" style="text-align:center;justify-content:center;">Modifica articolo</a>
+      ${a.sku ? `<a href="/movimenti.html?codice=${encodeURIComponent(a.sku)}" class="btn-ghost" style="text-align:center;justify-content:center;">Movimenta</a>` : ''}
       ${isAdmin ? `<button type="button" class="btn-danger" id="btnDetailDelete" style="justify-content:center;">Elimina articolo</button>` : ''}
     </div>`
 

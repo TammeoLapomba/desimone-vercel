@@ -150,10 +150,6 @@ function renderModal() {
           </div>
           <div class="form-row">
             <div class="form-field">
-              <label class="field-label">Stock</label>
-              <input type="number" class="field-input" id="f_stock" placeholder="0" min="0">
-            </div>
-            <div class="form-field">
               <label class="field-label">Peso (g)</label>
               <input type="number" class="field-input" id="f_weight" placeholder="0.0" step="0.1" min="0">
             </div>
@@ -389,8 +385,6 @@ function setupFormListeners() {
         sku: skuData,
         price_retail: Number(document.getElementById('f_price_retail').value) || null,
         price_wholesale: Number(document.getElementById('f_price_wholesale').value) || null,
-        stock_retail: Number(document.getElementById('f_stock').value) || 0,
-        stock_wholesale: 0,
         channel: 'both',
         notes: document.getElementById('f_notes').value.trim() || null,
         measurements: Object.keys(measurements).length ? measurements : null

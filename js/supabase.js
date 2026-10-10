@@ -83,7 +83,7 @@ export async function getArticles(collectionId = null) {
     .from('articles')
     .select(`
       id, name, sku, product_type_id, channel,
-      price_retail, price_wholesale, stock_retail, stock_wholesale,
+      price_retail, price_wholesale,
       collection_id, metal_id, created_at,
       collections(name, slug),
       product_type:product_types(name),
@@ -97,9 +97,9 @@ export async function getArticles(collectionId = null) {
 
   if (collectionId) query = query.eq('collection_id', collectionId)
 
-  const { data, error } = await query
+  const [{ data, error }, stock] = await Promise.all([query, getStockTotals('article_id')])
   if (error) throw error
-  return data
+  return withStock(data, stock)
 }
 
 export async function insertArticle(fields) {
@@ -220,8 +220,9 @@ export async function getRawItems(categoryId = null) {
     const { data, error } = await query
     if (error) throw error
     all.push(...data)
-    if (data.length < PAGE) return all
+    if (data.length < PAGE) break
   }
+  return withStock(all, await getStockTotals('raw_item_id'))
 }
 
 // Regole dei codici: forme, gruppi e varianti (tabelle di 019_semilavorato_codici.sql)
@@ -373,6 +374,44 @@ export async function getMovableItems() {
     if (data.length < PAGE) break
   }
   return { articles, raw }
+}
+
+// Giacenza di tutti i gioielli (column 'article_id') o di tutti i semilavorati ('raw_item_id'): la somma dei
+// movimenti, l'unica giacenza (REQ-001.1, C-01). Le vecchie colonne stock_retail, stock_wholesale e stock non
+// contano più. Risponde Map id → { pieces, grams, locations: [{ name, pieces, grams }] }; vuota per chi non è
+// un operatore, che il registro non lo legge.
+export async function getStockTotals(column) {
+  const PAGE = 1000
+  const { data: locations, error: locError } = await supabase.from('locations').select('id, name')
+  if (locError) throw locError
+  const names = new Map(locations.map(l => [l.id, l.name]))
+  const totals = new Map()
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabase
+      .from('stock_levels')
+      .select(`${column}, location_id, pieces, grams`)
+      .not(column, 'is', null)
+      .order(column)
+      .order('location_id')
+      .range(from, from + PAGE - 1)
+    if (error) throw error
+    for (const r of data) {
+      const t = totals.get(r[column]) || { pieces: 0, grams: 0, locations: [] }
+      t.pieces += r.pieces
+      t.grams += Number(r.grams)
+      if (r.pieces || Number(r.grams)) t.locations.push({ name: names.get(r.location_id) || '—', pieces: r.pieces, grams: Number(r.grams) })
+      totals.set(r[column], t)
+    }
+    if (data.length < PAGE) return totals
+  }
+}
+
+// Aggiunge a ogni articolo stock (pezzi), stock_grams e stock_locations dalla giacenza dei movimenti
+function withStock(items, totals) {
+  return items.map(i => {
+    const t = totals.get(i.id)
+    return { ...i, stock: t?.pieces ?? 0, stock_grams: Math.round((t?.grams ?? 0) * 10) / 10, stock_locations: t?.locations ?? [] }
+  })
 }
 
 // Giacenza dell'articolo in ogni luogo (REQ-001.1)
