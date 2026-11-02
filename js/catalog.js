@@ -1,9 +1,10 @@
 // js/catalog.js
-import { supabase, requireAuth, getCollections, getArticles, insertCollection, deleteArticle, deleteCollection, signOut } from './supabase.js'
-import { formatPrice, getCoverPhoto, showToast, isAppSku, articleMaterials, collectionCode, validateCollection, confirmDeleteArticle } from './utils.js'
+import { supabase, requireAuth, getCollections, getArticles, insertCollection, retirePreview, retireItem, deleteCollection, signOut } from './supabase.js'
+import { formatPrice, getCoverPhoto, showToast, isAppSku, articleMaterials, collectionCode, validateCollection, confirmRetire } from './utils.js'
 import { initColorSelect } from './color-select.js'
 import { initFilters } from './filters.js'
 import { openArticleModal } from './article-form.js'
+import { openArchiveModal } from './archivio.js'
 import { initMobileNav, initHamburger, initPanelToggle, addDetailPanelCloseBtn, closeDrawer } from './pwa.js'
 
 window.signOutUser = signOut
@@ -256,7 +257,7 @@ function renderTable(articles) {
   const selectionBar = selectable && selectedIds.size ? `
     <div class="table-selection-bar">
       <span><strong>${selectedIds.size}</strong> ${selectedIds.size === 1 ? 'selezionato' : 'selezionati'}</span>
-      <button type="button" class="btn-danger" data-bulk="delete">${ICON_DELETE} Elimina</button>
+      <button type="button" class="btn-danger" data-bulk="delete">${ICON_DELETE} Archivia o elimina</button>
       <button type="button" class="selection-clear" data-bulk="clear" aria-label="Deseleziona tutto" title="Deseleziona tutto">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
       </button>
@@ -300,7 +301,7 @@ function renderTable(articles) {
           ${stock}
           <div class="row-actions">
             <a class="row-action" href="/article.html?id=${a.id}" aria-label="Modifica ${esc(a.name)}" title="Modifica">${ICON_EDIT}</a>
-            ${isAdmin ? `<button type="button" class="row-action danger" data-delete="${a.id}" aria-label="Elimina ${esc(a.name)}" title="Elimina">${ICON_DELETE}</button>` : ''}
+            ${isAdmin ? `<button type="button" class="row-action danger" data-delete="${a.id}" aria-label="Archivia o elimina ${esc(a.name)}" title="Archivia o elimina">${ICON_DELETE}</button>` : ''}
           </div>
         </td>
       </tr>`
@@ -359,16 +360,7 @@ function setupTableEvents() {
     const del = e.target.closest('[data-delete]')
     if (del) {
       const a = allArticles.find(x => x.id === del.dataset.delete)
-      if (!a || !confirmDeleteArticle(a)) return
-      try {
-        await deleteArticle(a.id)
-        closeDetail()
-        await refreshCatalog()
-        showToast(`Articolo ${a.sku} eliminato`)
-      } catch (err) {
-        console.error(err)
-        showToast("Errore durante l'eliminazione: " + err.message)
-      }
+      if (a) await retireArticle(a)
       return
     }
     if (e.target.closest('.row-action')) return // "Modifica" è un link: la pagina si apre da sola
@@ -386,19 +378,37 @@ function setupTableEvents() {
   })
 }
 
-// Eliminazione definitiva degli articoli selezionati nella tabella
+// Toglie un articolo: si elimina se non è mai stato usato, altrimenti si archivia (lo decide il database). Vero se è tolto
+async function retireArticle(a) {
+  try {
+    if (!confirmRetire({ code: a.sku, name: a.name }, await retirePreview({ articleId: a.id }))) return false
+    const action = await retireItem({ articleId: a.id })
+    closeDetail()
+    await refreshCatalog()
+    showToast(`Articolo ${a.sku} ${action === 'deleted' ? 'eliminato' : 'archiviato'}`)
+    return true
+  } catch (err) {
+    console.error(err)
+    showToast(err.message, 6000)
+    return false
+  }
+}
+
+// Stessa regola per gli articoli selezionati nella tabella, con una conferma sola: quelli con giacenza restano
 async function removeSelectedArticles() {
   const ids = [...selectedIds]
   if (!ids.length) return
-  const msg = `ATTENZIONE: stai per eliminare definitivamente ${ids.length === 1 ? "l'articolo selezionato" : `${ids.length} articoli`}.\n\n` +
-    'Si perderà anche tutto ciò che li riguarda: foto, materiali e movimenti di magazzino. ' +
-    "L'operazione non si può annullare.\n\nVuoi procedere?"
+  const msg = `Stai per togliere dalle liste ${ids.length === 1 ? "l'articolo selezionato" : `${ids.length} articoli`}.\n\n` +
+    'Quelli mai usati si eliminano. Gli altri si archiviano: restano codice, foto e storico dei movimenti, e si possono riattivare. ' +
+    'Quelli con giacenza non si toccano.\n\nVuoi procedere?'
   if (!confirm(msg)) return
 
   const failed = []
+  let deleted = 0, archived = 0
   for (const id of ids) {
     try {
-      await deleteArticle(id)
+      if (await retireItem({ articleId: id }) === 'deleted') deleted++
+      else archived++
       selectedIds.delete(id)
     } catch (err) {
       console.error(err)
@@ -407,10 +417,7 @@ async function removeSelectedArticles() {
   }
   closeDetail()
   await refreshCatalog()
-  const done = ids.length - failed.length
-  showToast(failed.length
-    ? `${done} eliminati, ${failed.length} non eliminati: ${failed.join(', ')}`
-    : `${done} ${done === 1 ? 'articolo eliminato' : 'articoli eliminati'}`)
+  showToast(`${deleted} eliminati, ${archived} archiviati${failed.length ? `, non toccati: ${failed.join(', ')}` : ''}`, failed.length ? 6000 : 3000)
 }
 
 // Selettore Griglia / Tabella nella barra in alto
@@ -462,24 +469,14 @@ function openDetail(articleId) {
     <div style="padding:16px 20px;border-top:1px solid var(--ivory-dark);display:flex;flex-direction:column;gap:8px;">
       <a href="/article.html?id=${a.id}" class="btn-primary btn-success" style="text-align:center;justify-content:center;">Modifica articolo</a>
       ${a.sku ? `<a href="/movimenti.html?codice=${encodeURIComponent(a.sku)}" class="btn-ghost" style="text-align:center;justify-content:center;">Movimenta</a>` : ''}
-      ${isAdmin ? `<button type="button" class="btn-danger" id="btnDetailDelete" style="justify-content:center;">Elimina articolo</button>` : ''}
+      ${isAdmin ? `<button type="button" class="btn-danger" id="btnDetailDelete" style="justify-content:center;">Archivia o elimina</button>` : ''}
     </div>`
 
   document.getElementById('btnDetailClose').addEventListener('click', closeDetail)
   document.getElementById('btnDetailDelete')?.addEventListener('click', async e => {
-    if (!confirmDeleteArticle(a)) return
     const btn = e.currentTarget
     btn.disabled = true
-    try {
-      await deleteArticle(a.id)
-      closeDetail()
-      await refreshCatalog()
-      showToast(`Articolo ${a.sku} eliminato`)
-    } catch (err) {
-      console.error(err)
-      showToast("Errore durante l'eliminazione: " + err.message)
-      btn.disabled = false
-    }
+    if (!await retireArticle(a)) btn.disabled = false
   })
 
   panel.classList.add('open')
@@ -555,23 +552,23 @@ function openCollectionEditor(coll = null) {
   document.getElementById('collectionModal').classList.add('open')
 }
 
-// Eliminazione definitiva: prima tutti gli articoli della collezione, poi la collezione
+// Toglie la collezione con i suoi articoli, ciascuno con la sua regola: se uno ha giacenza, il database non tocca niente
 async function removeCollection(coll) {
   const count = allArticles.filter(a => a.collection_id === coll.id).length
-  const msg = `ATTENZIONE: stai per eliminare definitivamente la collezione "${coll.name}".\n\n` +
-    `Eliminando la collezione verranno eliminati anche tutti gli articoli al suo interno (${count}), ` +
-    'con le loro foto, materiali e movimenti di magazzino. ' +
-    "L'operazione non si può annullare.\n\nVuoi procedere?"
+  const msg = `Stai per togliere la collezione "${coll.name}" con i suoi articoli (${count}).\n\n` +
+    'Quelli mai usati si eliminano. Gli altri si archiviano: restano codice, foto e storico dei movimenti, e si possono riattivare. ' +
+    'Se un articolo ha ancora giacenza non si tocca niente.\n\nVuoi procedere?'
   if (!confirm(msg)) return
   try {
-    await deleteCollection(coll.id)
+    const result = await deleteCollection(coll.id)
     if (currentCollectionId === coll.id) currentCollectionId = null
     closeDetail()
     await refreshCatalog()
-    showToast(`Collezione ${coll.name} eliminata`)
+    showToast(`Collezione ${coll.name} ${result.action === 'deleted' ? 'eliminata' : 'archiviata'}: ` +
+      `${result.deleted} articoli eliminati, ${result.archived} archiviati`)
   } catch (err) {
     console.error(err)
-    showToast("Errore durante l'eliminazione: " + err.message)
+    showToast(err.message, 6000)
   }
 }
 
@@ -598,6 +595,9 @@ function setupListeners() {
   document.getElementById('btnNewArticleTop').addEventListener('click', openModal)
 
   document.getElementById('btnNewCollection').addEventListener('click', () => openCollectionEditor())
+  const btnArchived = document.getElementById('btnArchived')
+  if (isAdmin) btnArchived.style.display = ''
+  btnArchived.addEventListener('click', () => openArchiveModal({ onChange: refreshCatalog }))
   setupCollectionMenu()
   setupViewToggle()
   setupTableEvents()

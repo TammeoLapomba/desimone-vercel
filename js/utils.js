@@ -106,11 +106,20 @@ export function validateCollection({ name, code }, collections, editingId = null
   return null
 }
 
-// Conferma dell'eliminazione definitiva di un articolo: stesso messaggio in anteprima e in modifica
-export function confirmDeleteArticle(article) {
-  return confirm(`ATTENZIONE: stai per eliminare definitivamente l'articolo "${article.name}" (${article.sku}).\n\n` +
-    'Si perderà anche tutto ciò che lo riguarda: foto, materiali e movimenti di magazzino. ' +
-    "L'operazione non si può annullare.\n\nVuoi procedere?")
+// Prima di togliere un articolo { code, name }: dice cosa succederà, secondo la risposta di retirePreview (CR10).
+// Falso se ha ancora giacenza o se si rinuncia.
+export function confirmRetire(item, preview) {
+  if (preview.action === 'blocked') {
+    showToast(`L'articolo ${item.code} ha ancora giacenza (${preview.stock}): scaricala prima di archiviarlo`, 6000)
+    return false
+  }
+  const label = `"${item.name}" (${item.code})`
+  return confirm(preview.action === 'delete'
+    ? `ATTENZIONE: stai per eliminare definitivamente l'articolo ${label}.\n\n` +
+      'Non è mai stato usato: spariscono anche le foto e il codice torna libero. ' +
+      "L'operazione non si può annullare.\n\nVuoi procedere?"
+    : `Stai per archiviare l'articolo ${label}.\n\n` +
+      'Sparisce dalle liste. Restano codice, foto e storico dei movimenti, e si può riattivare da "Archiviati".\n\nVuoi procedere?')
 }
 
 // Giacenza di un articolo come la mostrano le pagine dell'inventario (stock e stock_grams da getArticles o

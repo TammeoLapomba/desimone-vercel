@@ -8,7 +8,7 @@
 // SD-04 trasferimento.
 import {
   requireAuth, signOut, getMyOperator, getMovementSetup, getMovableItems, getItemStock, getItemHistory,
-  registerMovement, cancelMovement, insertDevice, setDeviceScale,
+  registerMovement, cancelMovement, insertDevice, setDeviceScale, findItemByCode,
 } from './supabase.js'
 import { showToast, formatEuro, parseEuro } from './utils.js'
 import { initFilters } from './filters.js'
@@ -196,7 +196,11 @@ async function identify(raw) {
   $('codeInput').value = ''
   const item = state.byCode.get(code)
   if (!item) {
-    showResult(`Codice sconosciuto: ${raw.trim()}`, 'error')           // REQ-B-02
+    // Un codice archiviato non è sconosciuto (REQ-A-08): l'etichetta può essere ancora in giro
+    const found = await findItemByCode(code).catch(() => null)
+    showResult(found?.archived
+      ? `Articolo archiviato: ${found.code} ${found.name || ''}. Può riattivarlo l'amministrazione.`
+      : `Codice sconosciuto: ${raw.trim()}`, 'error')                  // REQ-B-02
     return
   }
   if (state.item?.id === item.id && rule().pieces) {

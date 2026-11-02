@@ -139,6 +139,7 @@ export async function getArticleById(id) {
       article_materials(material_id, sort_order)
     `)
     .eq('id', id)
+    .is('deleted_at', null)
     .single()
   if (error) throw error
   return data
@@ -153,18 +154,47 @@ export async function setArticleMaterials(articleId, materialIds) {
   if (error) throw error
 }
 
-// Eliminazione definitiva (solo admin): articolo, foto, materiali e movimenti
-export async function deleteArticle(id) {
-  const { data: paths, error } = await supabase.rpc('delete_article', { p_article_id: id })
+// Cosa succederebbe togliendo un articolo (030): { action: 'delete' | 'archive' | 'blocked', stock }
+export async function retirePreview({ articleId = null, rawItemId = null }) {
+  const { data, error } = await supabase.rpc('retire_preview', { p_article_id: articleId, p_raw_item_id: rawItemId })
   if (error) throw error
-  await removePhotoFiles(paths)
+  return data
 }
 
-// Eliminazione definitiva (solo admin): prima tutti gli articoli della collezione, poi la collezione
-export async function deleteCollection(id) {
-  const { data: paths, error } = await supabase.rpc('delete_collection', { p_collection_id: id })
+// Solo admin: elimina l'articolo se non è mai stato usato, altrimenti lo archivia. Risponde 'deleted' o 'archived'
+export async function retireItem({ articleId = null, rawItemId = null }) {
+  const { data, error } = await supabase.rpc('retire_item', { p_article_id: articleId, p_raw_item_id: rawItemId })
   if (error) throw error
-  await removePhotoFiles(paths)
+  await removePhotoFiles(data.paths)
+  return data.action
+}
+
+// Solo admin: riattiva un articolo archiviato, con il suo codice
+export async function restoreItem({ articleId = null, rawItemId = null }) {
+  const { error } = await supabase.rpc('restore_item', { p_article_id: articleId, p_raw_item_id: rawItemId })
+  if (error) throw error
+}
+
+// Articoli archiviati, dal più recente: gioielli e semilavorati insieme
+export async function getArchivedItems() {
+  const [art, raw] = await Promise.all([
+    supabase.from('articles').select('id, sku, name, deleted_at').not('deleted_at', 'is', null),
+    supabase.from('raw_items').select('id, sku, description, deleted_at').not('deleted_at', 'is', null),
+  ])
+  if (art.error) throw art.error
+  if (raw.error) throw raw.error
+  return [
+    ...art.data.map(a => ({ articleId: a.id, code: a.sku, name: a.name, archivedAt: a.deleted_at })),
+    ...raw.data.map(r => ({ rawItemId: r.id, code: r.sku, name: r.description, archivedAt: r.deleted_at })),
+  ].sort((a, b) => b.archivedAt.localeCompare(a.archivedAt))
+}
+
+// Solo admin: ogni articolo della collezione con la sua regola, poi la collezione. Risponde { action, deleted, archived }
+export async function deleteCollection(id) {
+  const { data, error } = await supabase.rpc('delete_collection', { p_collection_id: id })
+  if (error) throw error
+  await removePhotoFiles(data.paths)
+  return data
 }
 
 // I file si tolgono dopo il DB: se non ci si riesce, i dati restano comunque eliminati
@@ -502,7 +532,7 @@ export async function getMovements(f = {}, { offset = 0, limit = 100 } = {}) {
     .from('movements')
     .select(`id, code, movement_type, occurred_at, article_id, raw_item_id, from_location_id, to_location_id,
       pieces, grams, weight_source, reason_id, sale_price, note, operator_id, parent_id, cancelled_at, cancel_reason,
-      article:articles(sku, name), raw_item:raw_items(sku, description)`)
+      article:articles(sku, name, deleted_at), raw_item:raw_items(sku, description, deleted_at)`)
     .order('occurred_at', { ascending: false })
     .order('id')
   if (f.type) query = query.eq('movement_type', f.type)
@@ -519,16 +549,17 @@ export async function getMovements(f = {}, { offset = 0, limit = 100 } = {}) {
   return data
 }
 
-// Gioiello o semilavorato dal codice (lettore o scritto a mano), null se non c'è
+// Gioiello o semilavorato dal codice (lettore o scritto a mano), anche archiviato (archived: true); null se non c'è
 export async function findItemByCode(code) {
   const [art, raw] = await Promise.all([
-    supabase.from('articles').select('id, sku, name').eq('sku', code).is('deleted_at', null).limit(1),
-    supabase.from('raw_items').select('id, sku, description').eq('sku', code).is('deleted_at', null).limit(1),
+    supabase.from('articles').select('id, sku, name, deleted_at').eq('sku', code).limit(1),
+    supabase.from('raw_items').select('id, sku, description, deleted_at').eq('sku', code).limit(1),
   ])
   if (art.error) throw art.error
   if (raw.error) throw raw.error
-  if (art.data[0]) return { kind: 'montato', id: art.data[0].id, code: art.data[0].sku, name: art.data[0].name }
-  if (raw.data[0]) return { kind: 'semilavorato', id: raw.data[0].id, code: raw.data[0].sku, name: raw.data[0].description }
+  const a = art.data[0], r = raw.data[0]
+  if (a) return { kind: 'montato', id: a.id, code: a.sku, name: a.name, archived: !!a.deleted_at }
+  if (r) return { kind: 'semilavorato', id: r.id, code: r.sku, name: r.description, archived: !!r.deleted_at }
   return null
 }
 

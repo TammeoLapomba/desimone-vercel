@@ -128,7 +128,7 @@ async function setItem(raw, force = false) {
     try {
       const item = await findItemByCode(code) || (code !== code.toUpperCase() ? await findItemByCode(code.toUpperCase()) : null)
       state.item = item || { missing: true }
-      hint.textContent = item ? item.name || '' : `Codice sconosciuto: ${code}`
+      hint.textContent = item ? `${item.name || ''}${item.archived ? ' · archiviato' : ''}` : `Codice sconosciuto: ${code}`
       hint.classList.toggle('field-error', !item)
     } catch (err) {
       return showError(err)
@@ -183,10 +183,11 @@ function render() {
 
   const rows = state.rows.map(m => {
     const item = m.article ? { code: m.article.sku, name: m.article.name } : { code: m.raw_item?.sku, name: m.raw_item?.description }
+    const archived = (m.article || m.raw_item)?.deleted_at ? ' · archiviato' : ''
     return `
       <tr class="${m.cancelled_at ? 'is-cancelled' : ''}" data-code="${esc(item.code)}" tabindex="0" title="${esc(m.code)} · apri l'articolo nei Movimenti">
         <td class="reg-when">${when(m.occurred_at)}</td>
-        <td><div class="cell-code">${esc(item.code) || '—'}</div><div class="cell-sub">${esc(item.name)}</div></td>
+        <td><div class="cell-code">${esc(item.code) || '—'}</div><div class="cell-sub">${esc(item.name)}${archived}</div></td>
         <td>${TYPES[m.movement_type]} · ${esc(reasons.get(m.reason_id) || '')}${m.sale_price ? ` · ${formatEuro(m.sale_price)}` : ''}
           ${m.note ? `<div class="mov-note">${esc(m.note)}</div>` : ''}
           ${m.cancelled_at ? `<div class="mov-note">Annullato: ${esc(m.cancel_reason)}</div>` : ''}</td>

@@ -1,6 +1,6 @@
 // js/article.js
-import { requireAuth, getCollections, getMaterials, getMetals, getProductTypes, getArticleById, getItemStock, updateArticle, setArticleMaterials, deleteArticle, signOut } from './supabase.js'
-import { showToast, isAppSku, confirmDeleteArticle } from './utils.js'
+import { requireAuth, getCollections, getMaterials, getMetals, getProductTypes, getArticleById, getItemStock, updateArticle, setArticleMaterials, retirePreview, retireItem, signOut } from './supabase.js'
+import { showToast, isAppSku, confirmRetire } from './utils.js'
 import { initMaterialPicker } from './material-picker.js'
 
 window.signOutUser = signOut
@@ -13,7 +13,7 @@ let isAdmin = false
 
 async function init() {
   const session = await requireAuth()
-  // Solo l'admin può eliminare (lo impone anche il database)
+  // Solo l'admin può archiviare o eliminare (lo impone anche il database)
   isAdmin = session.user.app_metadata?.role === 'admin'
 
   const params = new URLSearchParams(window.location.search)
@@ -91,21 +91,31 @@ function setupListeners() {
     window.location.href = '/catalog.html'
   })
 
+  // Mai usato: si elimina. Altrimenti si archivia (CR10): il pulsante dice quale delle due
   const btnDelete = document.getElementById('btnDelete')
-  if (isAdmin) btnDelete.style.display = ''
+  if (isAdmin) {
+    btnDelete.style.display = ''
+    retirePreview({ articleId }).then(p => {
+      const label = p.action === 'delete' ? 'Elimina articolo' : 'Archivia articolo'
+      document.getElementById('btnDeleteLabel').textContent = label
+      btnDelete.setAttribute('aria-label', label)
+    }).catch(console.error)
+  }
   btnDelete.addEventListener('click', async () => {
-    if (!confirmDeleteArticle(currentArticle)) return
-
     btnDelete.disabled = true
     try {
-      await deleteArticle(articleId)
-      showToast('Articolo eliminato')
+      if (!confirmRetire({ code: currentArticle.sku, name: currentArticle.name }, await retirePreview({ articleId }))) {
+        btnDelete.disabled = false
+        return
+      }
+      const action = await retireItem({ articleId })
+      showToast(action === 'deleted' ? 'Articolo eliminato' : 'Articolo archiviato')
       setTimeout(() => {
         window.location.href = '/catalog.html'
       }, 1000)
     } catch (err) {
       console.error(err)
-      showToast("Errore durante l'eliminazione: " + err.message)
+      showToast(err.message, 6000)
       btnDelete.disabled = false
     }
   })

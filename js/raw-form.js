@@ -1,8 +1,8 @@
 // js/raw-form.js — Modale inserimento/modifica semilavorato (pallini, spole)
 // Il codice non si scrive: si sceglie tipo, forma, qualità, finitura, misura e varianti, e il database
 // lo compone con lo standard del cliente (raw_item_preview, vedi 019_semilavorato_codici.sql).
-import { insertRawItem, updateRawItem, uploadRawPhoto, previewRawItem } from './supabase.js'
-import { showToast, debounce, stockLabel } from './utils.js'
+import { insertRawItem, updateRawItem, uploadRawPhoto, previewRawItem, retirePreview, retireItem } from './supabase.js'
+import { showToast, debounce, stockLabel, confirmRetire } from './utils.js'
 
 let onSuccessCallback = null
 let photoUploader = null
@@ -24,7 +24,7 @@ const numField = (id, label, suffix, { required = false, value = '', hint = '' }
   </div>`
 
 // rules = { shapes, groups, variants } da getRawCodeRules()
-export function openRawItemModal({ item = null, categories = [], rules, defaultCategoryId = null, onSuccess }) {
+export function openRawItemModal({ item = null, categories = [], rules, defaultCategoryId = null, isAdmin = false, onSuccess }) {
   onSuccessCallback = onSuccess
 
   // Rimuovi modale precedente
@@ -176,6 +176,7 @@ export function openRawItemModal({ item = null, categories = [], rules, defaultC
       <div class="modal-footer">
         <span style="font-family:var(--editorial);font-size:12px;color:var(--text-muted);font-style:italic;" id="rstepLabel">Step 1 di 3 — Articolo</span>
         <div style="display:flex;gap:8px;">
+          ${isEdit && isAdmin ? '<button type="button" class="btn-danger" id="rbtnRetire">Archivia o elimina</button>' : ''}
           <button class="btn-ghost" id="rbtnBack" style="display:none;">← Indietro</button>
           <button class="btn-primary" id="rbtnNext">Avanti →</button>
         </div>
@@ -435,6 +436,26 @@ export function openRawItemModal({ item = null, categories = [], rules, defaultC
 
   $('rbtnBack').addEventListener('click', () => {
     if (step > 1) { step--; updateStep() }
+  })
+
+  // Mai usato e rifacibile dall'app: si elimina. Altrimenti si archivia (CR10): lo decide il database
+  $('rbtnRetire')?.addEventListener('click', async () => {
+    const btn = $('rbtnRetire')
+    btn.disabled = true
+    try {
+      if (!confirmRetire({ code: item.sku, name: item.description }, await retirePreview({ rawItemId: item.id }))) {
+        btn.disabled = false
+        return
+      }
+      const action = await retireItem({ rawItemId: item.id })
+      modal.classList.remove('open')
+      showToast(`Articolo ${item.sku} ${action === 'deleted' ? 'eliminato' : 'archiviato'}`)
+      onSuccessCallback?.()
+    } catch (err) {
+      console.error(err)
+      showToast(err.message, 6000)
+      btn.disabled = false
+    }
   })
 
   // Chiudi cliccando overlay

@@ -3,6 +3,7 @@ import { requireAuth, getRawCategories, getRawItems, getRawCodeRules, signOut } 
 import { stockLabel } from './utils.js'
 import { initFilters } from './filters.js'
 import { openRawItemModal } from './raw-form.js'
+import { openArchiveModal } from './archivio.js'
 import { initMobileNav, initHamburger, initPanelToggle, closeDrawer } from './pwa.js'
 
 window.signOutUser = signOut
@@ -11,6 +12,7 @@ let allItems      = []
 let allCategories = []
 let rules = { shapes: [], groups: [], variants: [] }   // regole dei codici (raw_shapes, raw_code_groups, raw_variants)
 let currentCategoryId  = null
+let isAdmin = false
 
 // Filtri per campo (barra sopra gli articoli, vedi filters.js)
 const distinct = (items, get) => [...new Set(items.map(get).filter(Boolean))]
@@ -29,7 +31,9 @@ let filters = null
 
 async function init() {
   initPanelToggle()
-  await requireAuth()
+  const session = await requireAuth()
+  // Archiviare o eliminare: solo admin (lo impone anche il database)
+  isAdmin = session.user.app_metadata?.role === 'admin'
   filters = initFilters({
     fields: FILTER_FIELDS,
     text: i => [i.sku, i.description, i.size, i.color, i.quality, i.finish, (i.variants || []).join(' '), i.raw_shapes?.name, i.raw_categories?.name, i.notes].join('\n'),
@@ -185,7 +189,7 @@ function renderGrid(items) {
       e.stopPropagation()
       const card = btn.closest('.raw-item-card')
       const item = allItems.find(x => x.id === card.dataset.itemId)
-      if (item) openRawItemModal({ item, categories: allCategories, rules, onSuccess: refresh })
+      if (item) openRawItemModal({ item, categories: allCategories, rules, isAdmin, onSuccess: refresh })
     })
   })
 
@@ -246,6 +250,10 @@ function setupListeners() {
   document.getElementById('btnNewItem').addEventListener('click', () => {
     openRawItemModal({ categories: allCategories, rules, defaultCategoryId: currentCategoryId, onSuccess: refresh })
   })
+
+  const btnArchived = document.getElementById('btnArchived')
+  if (isAdmin) btnArchived.style.display = ''
+  btnArchived.addEventListener('click', () => openArchiveModal({ onChange: refresh }))
 }
 
 init().catch(console.error)
