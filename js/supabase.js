@@ -421,8 +421,7 @@ async function getStockLevels(column = null) {
 }
 
 // Giacenza di tutti i gioielli (column 'article_id') o di tutti i semilavorati ('raw_item_id'): la somma dei
-// movimenti, l'unica giacenza (REQ-001.1, C-01). Le vecchie colonne stock_retail, stock_wholesale e stock non
-// contano più. Risponde Map id → { pieces, grams, locations: [{ name, pieces, grams }] }; vuota per chi non è
+// movimenti, l'unica giacenza (REQ-001.1, C-01). Risponde Map id → { pieces, grams, locations: [{ name, pieces, grams }] }; vuota per chi non è
 // un operatore, che il registro non lo legge.
 export async function getStockTotals(column) {
   const [{ data: locations, error: locError }, rows] = await Promise.all([

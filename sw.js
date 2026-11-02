@@ -1,4 +1,4 @@
-const CACHE_NAME = 'desimone-os-v30'
+const CACHE_NAME = 'desimone-os-v31'
 
 const SHELL_ASSETS = [
   '/catalog.html',

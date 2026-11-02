@@ -274,7 +274,6 @@ function transform(p, { collectionSlug, enBySku, enOnly }) {
   const weights = itWeights.length ? itWeights : weightsIn(lenDesc)
   const minor = p.prices.currency_minor_unit ?? 2
   const price = Number(p.prices.price) / 10 ** minor
-  const stock = Number(/(\d+)\s+(?:disponibil|in stock)/i.exec(p.stock_availability?.text || '')?.[1] || 0)
 
   const notes = [
     `Fonte: ${p.permalink}`,
@@ -292,7 +291,6 @@ function transform(p, { collectionSlug, enBySku, enOnly }) {
     materials,
     metal,
     price_retail: price > 0 ? price : null,
-    stock_retail: stock,
     description_it: enOnly ? null : desc || null,
     description_en: en ? htmlToText(en.description) || null : null,
     measurements: parseMeasurements(enOnly ? '' : desc, taglia, product_type, weights),
@@ -435,7 +433,6 @@ async function importToSupabase(articles) {
     metal_id: a.metal ? metalId[a.metal] : null,
     sku: a.sku,
     price_retail: a.price_retail,
-    stock_retail: a.stock_retail,
     channel: 'both',
     description_it: a.description_it,
     description_en: a.description_en,
