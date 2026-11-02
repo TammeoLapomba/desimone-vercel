@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>De Simone OS — Registro</title>
+
+  <!-- PWA -->
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#1A1814">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="De Simone">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
+
+  <meta name="description" content="Atelier Antonino De Simone — Registro dei movimenti di magazzino, con i filtri">
+
+  <link rel="stylesheet" href="css/variables.css">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/layout.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/mobile.css">
+  <link rel="stylesheet" href="css/movimenti.css">
+  <link rel="stylesheet" href="css/giacenze.css">
+  <link rel="stylesheet" href="css/registro.css">
+</head>
+<body>
+<a href="#registro-main" class="skip-link">Vai al contenuto principale</a>
+<div id="toast" role="status" aria-live="polite"></div>
+<div class="app-shell">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar" aria-label="Navigazione principale">
+    <div class="sidebar-logo" aria-hidden="true">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+    </div>
+    <nav class="sidebar-nav" aria-label="Menu">
+      <a href="/catalog.html" class="nav-item" title="Montato">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        <span class="nav-item-label">Montato</span>
+      </a>
+      <a href="/semilavorato.html" class="nav-item" title="Semilavorato">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+        <span class="nav-item-label">Semilavorato</span>
+      </a>
+      <a href="/movimenti.html" class="nav-item" title="Movimenti">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+        <span class="nav-item-label">Movimenti</span>
+      </a>
+      <a href="/giacenze.html" class="nav-item" title="Giacenze">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg>
+        <span class="nav-item-label">Giacenze</span>
+      </a>
+      <a href="/registro.html" class="nav-item active" aria-current="page" title="Registro">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><line x1="9" y1="6" x2="20" y2="6"/><line x1="9" y1="12" x2="20" y2="12"/><line x1="9" y1="18" x2="20" y2="18"/><circle cx="5" cy="6" r="1"/><circle cx="5" cy="12" r="1"/><circle cx="5" cy="18" r="1"/></svg>
+        <span class="nav-item-label">Registro</span>
+      </a>
+    </nav>
+    <div class="sidebar-bottom">
+      <button class="sidebar-account" onclick="window.signOutUser()" aria-label="Esci dall'account">ADS</button>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main" id="registro-main">
+    <div class="topbar" role="toolbar" aria-label="Registro">
+      <div class="mov-topbar-title">Registro dei movimenti</div>
+      <div class="mov-topbar-meta">
+        <span class="mov-chip" id="operatorChip" aria-live="polite"></span>
+      </div>
+    </div>
+
+    <div class="catalog-area">
+      <div class="mov-blocked" id="blocked" hidden></div>
+
+      <div id="page" hidden>
+        <!-- Filtri (UC-02): li applica il database -->
+        <form class="reg-filters" id="filters" role="search" aria-label="Filtra i movimenti" novalidate>
+          <div class="form-field">
+            <label class="field-label" for="fType">Tipo</label>
+            <select class="field-input field-select" id="fType">
+              <option value="">Tutti</option>
+              <option value="C">Carico</option>
+              <option value="S">Scarico</option>
+              <option value="T">Trasferimento</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label class="field-label" for="fReason">Causale</label>
+            <select class="field-input field-select" id="fReason"></select>
+          </div>
+          <div class="form-field">
+            <label class="field-label" for="fLocation">Luogo (Da o A)</label>
+            <select class="field-input field-select" id="fLocation"></select>
+          </div>
+          <div class="form-field">
+            <label class="field-label" for="fOperator">Chi</label>
+            <select class="field-input field-select" id="fOperator"></select>
+          </div>
+          <div class="form-field">
+            <label class="field-label" for="fSince">Dal</label>
+            <input class="field-input" id="fSince" type="date">
+          </div>
+          <div class="form-field">
+            <label class="field-label" for="fUntil">Al</label>
+            <input class="field-input" id="fUntil" type="date">
+          </div>
+          <div class="form-field reg-code">
+            <label class="field-label" for="fCode">Articolo</label>
+            <input class="field-input" id="fCode" autocomplete="off" spellcheck="false" placeholder="Codice, poi Invio" aria-describedby="fCodeHint">
+            <div class="field-hint" id="fCodeHint"></div>
+          </div>
+          <label class="mov-check reg-cancelled"><input type="checkbox" id="fCancelled"> Anche gli annullati</label>
+          <button type="button" class="btn-ghost" id="btnReset">Azzera</button>
+        </form>
+
+        <div class="table-card">
+          <div class="table-scroll">
+            <table class="articles-table reg-table" id="table"></table>
+          </div>
+        </div>
+        <div class="reg-footer">
+          <div class="gia-count" id="count" aria-live="polite"></div>
+          <button type="button" class="btn-ghost" id="btnMore" hidden>Mostra altri</button>
+        </div>
+      </div>
+    </div>
+  </main>
+</div>
+
+<script src="config.js"></script>
+<script type="module" src="js/registro.js"></script>
+<script type="module" src="js/pwa.js"></script>
+</body>
+</html>

@@ -8,3 +8,6 @@ node_modules/
 # Software legacy STEP: contiene credenziali del database e programmi proprietari.
 # Non va MAI su git (né nel repository privato né in quello pubblico).
 old_software/
+
+# Dati generati da sede/installa.js quando si prova fuori da Windows
+sede-dati/

@@ -1,0 +1,36 @@
+/* ============================================================
+   css/registro.css — Registro dei movimenti (registro.html)
+   Riprende movimenti.css (campi, note), giacenze.css (conteggio) e la tabella del catalogo (components.css).
+   ============================================================ */
+
+.reg-footer [hidden], .reg-filters [hidden] { display: none; }
+
+/* ─── Filtri ────────────────────────────────────────────────── */
+.reg-filters {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 12px; align-items: end;
+  margin-bottom: 16px;
+}
+.reg-filters .form-field { margin: 0; }
+.reg-code .field-hint { min-height: 16px; }
+.reg-cancelled { align-self: center; white-space: nowrap; }
+
+/* ─── Tabella ───────────────────────────────────────────────── */
+.reg-table { min-width: 960px; }
+.reg-table .reg-col-when { width: 140px; }
+.reg-table .reg-col-item { width: 200px; }
+.reg-table .reg-col-place { width: 200px; }
+.reg-table .reg-col-qty { width: 90px; }
+.reg-table .reg-col-who { width: 130px; }
+.reg-table td { vertical-align: top; }
+.reg-table td.reg-when { white-space: nowrap; }
+.reg-table tbody tr[data-code] { cursor: pointer; }
+.reg-table tr.is-cancelled td { color: var(--text-muted); text-decoration: line-through; }
+.reg-table tr.is-cancelled .mov-note { text-decoration: none; }
+
+.reg-footer { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-top: 10px; }
+.reg-footer .gia-count { margin-top: 0; }
+
+@media (max-width: 600px) {
+  .reg-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .reg-code, .reg-cancelled { grid-column: 1 / -1; }
+}

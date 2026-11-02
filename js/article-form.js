@@ -150,8 +150,9 @@ function renderModal() {
           </div>
           <div class="form-row">
             <div class="form-field">
-              <label class="field-label">Peso (g)</label>
+              <label class="field-label">Peso (g) <span class="field-required">*</span></label>
               <input type="number" class="field-input" id="f_weight" placeholder="0.0" step="0.1" min="0">
+              <div class="field-hint">Peso di un pezzo: i movimenti pesano pezzi × questo peso.</div>
             </div>
           </div>
           <div class="form-row triple">
@@ -342,6 +343,7 @@ function setupFormListeners() {
       if (!materialPicker.getIds().length) { showToast('Aggiungi almeno un materiale'); return false }
       if (!document.getElementById('f_metal').value) { showToast('Seleziona il tipo di metallo'); return false }
       if (!document.getElementById('f_price_retail').value) { showToast('Inserisci il prezzo retail'); return false }
+      if (!(Number(document.getElementById('f_weight').value) > 0)) { showToast('Inserisci il peso di un pezzo (g)'); return false }
     }
     return true
   }

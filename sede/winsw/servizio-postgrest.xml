@@ -1,0 +1,21 @@
+<!-- Generato da sede/installa.js da sede/winsw/servizio-postgrest.xml. WinSW (P-09) avvia PostgREST (P-06)
+     come servizio di Windows, dopo PostgreSQL, e lo riavvia dopo un errore o un'interruzione di corrente (D-4). -->
+<service>
+  <id>desimone-postgrest</id>
+  <name>De Simone - API dei dati (PostgREST)</name>
+  <description>API dei dati del gestionale, solo su localhost (WBA P-06)</description>
+  <executable>{DATI}\bin\postgrest.exe</executable>
+  <arguments>"{DATI}\postgrest.conf"</arguments>
+  <!-- postgrest.exe per Windows usa LIBPQ.dll della cartella bin di PostgreSQL: senza, non parte -->
+  <env name="PATH" value="{PGBIN};%PATH%"/>
+  <depend>postgresql-x64-17</depend>
+  <startmode>Automatic</startmode>
+  <onfailure action="restart" delay="10 sec"/>
+  <onfailure action="restart" delay="30 sec"/>
+  <resetfailure>1 hour</resetfailure>
+  <logpath>{DATI}\log</logpath>
+  <log mode="roll-by-size">
+    <sizeThreshold>10240</sizeThreshold>
+    <keepFiles>5</keepFiles>
+  </log>
+</service>

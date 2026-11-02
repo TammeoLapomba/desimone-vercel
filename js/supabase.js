@@ -1,7 +1,11 @@
 // js/supabase.js
-import { createClient } from 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm'
+// Dove sono i dati lo dice config.js: Supabase (sviluppo su Vercel) oppure il PC server della sede (WBA v0.5,
+// D-1), il cui servizio risponde con SEDE. Il client è nel repository, non da internet (REQ-003).
+import { createClient } from './vendor/supabase-2.117.3.mjs'
+import { createSedeClient } from './sede-client.js'
 
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+export const IN_SEDE = typeof SEDE !== 'undefined'
+export const supabase = IN_SEDE ? createSedeClient(SEDE.url) : createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
 
 // Auth helpers
 export async function requireAuth() {
@@ -78,27 +82,30 @@ export async function getProductTypes() {
   return data
 }
 
+// A pagine (selectAll): i gioielli possono essere più di 1000, il limite di una risposta di Supabase
 export async function getArticles(collectionId = null) {
-  let query = supabase
-    .from('articles')
-    .select(`
-      id, name, sku, product_type_id, channel,
-      price_retail, price_wholesale,
-      collection_id, metal_id, created_at,
-      collections(name, slug),
-      product_type:product_types(name),
-      metal:metals(name, code),
-      article_materials(material_id, sort_order, material:materials(name, code)),
-      photos(id, public_url, is_cover, photo_type, sort_order),
-      measurements
-    `)
-    .is('deleted_at', null)
-    .order('created_at', { ascending: false })
+  const build = () => {
+    let query = supabase
+      .from('articles')
+      .select(`
+        id, name, sku, product_type_id, channel,
+        price_retail, price_wholesale,
+        collection_id, metal_id, created_at,
+        collections(name, slug),
+        product_type:product_types(name),
+        metal:metals(name, code),
+        article_materials(material_id, sort_order, material:materials(name, code)),
+        photos(id, public_url, is_cover, photo_type, sort_order),
+        measurements
+      `)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false })
+      .order('id')
+    if (collectionId) query = query.eq('collection_id', collectionId)
+    return query
+  }
 
-  if (collectionId) query = query.eq('collection_id', collectionId)
-
-  const [{ data, error }, stock] = await Promise.all([query, getStockTotals('article_id')])
-  if (error) throw error
+  const [data, stock] = await Promise.all([selectAll(build), getStockTotals('article_id')])
   return withStock(data, stock)
 }
 
@@ -340,40 +347,47 @@ export async function getMyOperator() {
   return data
 }
 
-// Anagrafiche del registro: luoghi, causali, dispositivi, bilance, operatori
+// Anagrafiche del registro: luoghi, causali, dispositivi, bilance, operatori. Luoghi, causali e dispositivi
+// in ordine alfabetico italiano: l'ordine del database dipende dalla sua collation, diversa tra Supabase e sede.
 export async function getMovementSetup() {
   const [locations, reasons, devices, scales, operators] = await Promise.all([
-    supabase.from('locations').select('id, name, kind, active').order('name'),
-    supabase.from('movement_reasons').select('id, code, name, movement_type, allowed_roles, system, active, sort_order').order('sort_order'),
-    supabase.from('devices').select('id, code, name, revoked_at').order('code'),
+    supabase.from('locations').select('id, name, kind, active'),
+    supabase.from('movement_reasons').select('id, code, name, movement_type, category, allowed_roles, system, active, sort_order'),
+    supabase.from('devices').select('id, code, name, revoked_at'),
     supabase.from('scales').select('id, name, model, serial_number, device_id, active'),
     supabase.from('operators').select('id, name, role'),
   ])
   for (const r of [locations, reasons, devices, scales, operators]) if (r.error) throw r.error
-  return { locations: locations.data, reasons: reasons.data, devices: devices.data, scales: scales.data, operators: operators.data }
+  const byText = key => (a, b) => a[key].localeCompare(b[key], 'it', { numeric: true })
+  return {
+    locations: locations.data.sort(byText('name')),
+    reasons: reasons.data.sort(byText('name')),
+    devices: devices.data.sort(byText('code')),
+    scales: scales.data,
+    operators: operators.data,
+  }
 }
 
-// Articoli che si possono movimentare: gioielli (montato) e semilavorati, con quanto serve a cercarli
+// Articoli che si possono movimentare: gioielli (montato) e semilavorati, con quanto serve a cercarli.
+// Tutti e due a pagine: un gioiello oltre il millesimo non si troverebbe né col lettore né con la ricerca.
 export async function getMovableItems() {
-  const { data: articles, error } = await supabase
-    .from('articles')
-    .select('id, sku, name, collection_id, collections(name), product_type:product_types(name), article_materials(material:materials(name))')
-    .is('deleted_at', null)
-  if (error) throw error
-  const PAGE = 1000
-  const raw = []
-  for (let from = 0; ; from += PAGE) {
-    const { data, error: rawError } = await supabase
-      .from('raw_items')
+  const [articles, raw] = await Promise.all([
+    selectAll(() => supabase.from('articles')
+      .select('id, sku, name, price_retail, measurements, collection_id, collections(name), product_type:product_types(name), article_materials(material:materials(name))')
+      .is('deleted_at', null).order('id')),
+    selectAll(() => supabase.from('raw_items')
       .select('id, sku, description, size, quality, color, unit, raw_categories(name), raw_shapes(name)')
-      .is('deleted_at', null)
-      .order('id')
-      .range(from, from + PAGE - 1)
-    if (rawError) throw rawError
-    raw.push(...data)
-    if (data.length < PAGE) break
-  }
+      .is('deleted_at', null).order('id')),
+  ])
   return { articles, raw }
+}
+
+// Tutta la giacenza in una risposta sola (027): a pagine, ogni pagina ricalcolava l'intera vista stock_levels.
+// column 'article_id' o 'raw_item_id' per i soli gioielli o semilavorati, null per tutto.
+async function getStockLevels(column = null) {
+  const { data, error } = await supabase.rpc('stock_levels_all', { p_column: column })
+  if (error) throw error
+  return data
 }
 
 // Giacenza di tutti i gioielli (column 'article_id') o di tutti i semilavorati ('raw_item_id'): la somma dei
@@ -381,29 +395,21 @@ export async function getMovableItems() {
 // contano più. Risponde Map id → { pieces, grams, locations: [{ name, pieces, grams }] }; vuota per chi non è
 // un operatore, che il registro non lo legge.
 export async function getStockTotals(column) {
-  const PAGE = 1000
-  const { data: locations, error: locError } = await supabase.from('locations').select('id, name')
+  const [{ data: locations, error: locError }, rows] = await Promise.all([
+    supabase.from('locations').select('id, name'),
+    getStockLevels(column),
+  ])
   if (locError) throw locError
   const names = new Map(locations.map(l => [l.id, l.name]))
   const totals = new Map()
-  for (let from = 0; ; from += PAGE) {
-    const { data, error } = await supabase
-      .from('stock_levels')
-      .select(`${column}, location_id, pieces, grams`)
-      .not(column, 'is', null)
-      .order(column)
-      .order('location_id')
-      .range(from, from + PAGE - 1)
-    if (error) throw error
-    for (const r of data) {
-      const t = totals.get(r[column]) || { pieces: 0, grams: 0, locations: [] }
-      t.pieces += r.pieces
-      t.grams += Number(r.grams)
-      if (r.pieces || Number(r.grams)) t.locations.push({ id: r.location_id, name: names.get(r.location_id) || '—', pieces: r.pieces, grams: Number(r.grams) })
-      totals.set(r[column], t)
-    }
-    if (data.length < PAGE) return totals
+  for (const r of rows) {
+    const t = totals.get(r[column]) || { pieces: 0, grams: 0, locations: [] }
+    t.pieces += r.pieces
+    t.grams += Number(r.grams)
+    if (r.pieces || Number(r.grams)) t.locations.push({ id: r.location_id, name: names.get(r.location_id) || '—', pieces: r.pieces, grams: Number(r.grams) })
+    totals.set(r[column], t)
   }
+  return totals
 }
 
 // Aggiunge a ogni articolo stock (pezzi), stock_grams e stock_locations dalla giacenza dei movimenti
@@ -436,9 +442,7 @@ export async function getStockOverview() {
     selectAll(() => supabase.from('raw_items')
       .select('id, sku, description, size, unit, raw_categories(name)')
       .is('deleted_at', null).order('sku').order('id')),
-    selectAll(() => supabase.from('stock_levels')
-      .select('article_id, raw_item_id, location_id, pieces, grams')
-      .order('article_id').order('raw_item_id').order('location_id')),
+    getStockLevels(),
   ])
   return { articles, raw, stock }
 }
@@ -483,15 +487,54 @@ export async function getItemHistory({ articleId = null, rawItemId = null }) {
   if (!ids.length) return []
   const { data: movements, error: movError } = await supabase
     .from('movements')
-    .select('id, reason_id, operator_id, device_id, note, document_ref, weight_source, scale_id, parent_id, cancelled_at, cancel_reason')
+    .select('id, from_location_id, to_location_id, reason_id, operator_id, device_id, note, document_ref, weight_source, scale_id, sale_price, parent_id, cancelled_at, cancel_reason')
     .in('id', ids)
   if (movError) throw movError
   const byId = new Map(movements.map(m => [m.id, m]))
   return legs.map(l => ({ ...l, movement: byId.get(l.movement_id) }))
 }
 
+// Registro dei movimenti (UC-02, REQ-M-01): dal più recente, una pagina alla volta. I filtri li applica il database,
+// perché i movimenti arrivano al milione (§5.3 dell'analisi): { type, reasonIds, locationId (Da o A), operatorId,
+// since, until (ISO), articleId, rawItemId, withCancelled }
+export async function getMovements(f = {}, { offset = 0, limit = 100 } = {}) {
+  let query = supabase
+    .from('movements')
+    .select(`id, code, movement_type, occurred_at, article_id, raw_item_id, from_location_id, to_location_id,
+      pieces, grams, weight_source, reason_id, sale_price, note, operator_id, parent_id, cancelled_at, cancel_reason,
+      article:articles(sku, name), raw_item:raw_items(sku, description)`)
+    .order('occurred_at', { ascending: false })
+    .order('id')
+  if (f.type) query = query.eq('movement_type', f.type)
+  if (f.reasonIds?.length) query = query.in('reason_id', f.reasonIds)
+  if (f.locationId) query = query.or(`from_location_id.eq.${f.locationId},to_location_id.eq.${f.locationId}`)
+  if (f.operatorId) query = query.eq('operator_id', f.operatorId)
+  if (f.since) query = query.gte('occurred_at', f.since)
+  if (f.until) query = query.lt('occurred_at', f.until)
+  if (f.articleId) query = query.eq('article_id', f.articleId)
+  if (f.rawItemId) query = query.eq('raw_item_id', f.rawItemId)
+  if (!f.withCancelled) query = query.is('cancelled_at', null)
+  const { data, error } = await query.range(offset, offset + limit - 1)
+  if (error) throw error
+  return data
+}
+
+// Gioiello o semilavorato dal codice (lettore o scritto a mano), null se non c'è
+export async function findItemByCode(code) {
+  const [art, raw] = await Promise.all([
+    supabase.from('articles').select('id, sku, name').eq('sku', code).is('deleted_at', null).limit(1),
+    supabase.from('raw_items').select('id, sku, description').eq('sku', code).is('deleted_at', null).limit(1),
+  ])
+  if (art.error) throw art.error
+  if (raw.error) throw raw.error
+  if (art.data[0]) return { kind: 'montato', id: art.data[0].id, code: art.data[0].sku, name: art.data[0].name }
+  if (raw.data[0]) return { kind: 'semilavorato', id: raw.data[0].id, code: raw.data[0].sku, name: raw.data[0].description }
+  return null
+}
+
 // Registra un movimento (REQ-E-10, E-11): il codice nasce sul dispositivo e una richiesta ripetuta
-// restituisce il movimento già registrato. Risponde { duplicate, movement, from_stock, to_stock, weighing_difference }.
+// restituisce il movimento già registrato. Nelle vendite serve il prezzo totale (026).
+// Risponde { duplicate, movement, from_stock, to_stock, weighing_difference }.
 export async function registerMovement(p) {
   const { data, error } = await supabase.rpc('register_movement', {
     p_code: p.code,
@@ -511,6 +554,7 @@ export async function registerMovement(p) {
     p_note: p.note || null,
     p_document_ref: p.documentRef || null,
     p_shown_stock: p.shownStock ?? null,
+    p_sale_price: p.salePrice ?? null,
   })
   if (error) throw error
   return data

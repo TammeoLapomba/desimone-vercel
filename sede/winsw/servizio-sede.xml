@@ -1,0 +1,19 @@
+<!-- Generato da sede/installa.js da sede/winsw/servizio-sede.xml. WinSW (P-09) avvia il servizio della sede (P-07)
+     come servizio di Windows, dopo PostgREST, e lo riavvia dopo un errore o un'interruzione di corrente (D-4). -->
+<service>
+  <id>desimone-sede</id>
+  <name>De Simone - Servizio della sede</name>
+  <description>Accessi, foto e pagine del gestionale (WBA P-07)</description>
+  <executable>{NODE}</executable>
+  <arguments>"{REPO}\sede\servizio\servizio.js" "{DATI}\sede.json"</arguments>
+  <depend>desimone-postgrest</depend>
+  <startmode>Automatic</startmode>
+  <onfailure action="restart" delay="10 sec"/>
+  <onfailure action="restart" delay="30 sec"/>
+  <resetfailure>1 hour</resetfailure>
+  <logpath>{DATI}\log</logpath>
+  <log mode="roll-by-size">
+    <sizeThreshold>10240</sizeThreshold>
+    <keepFiles>5</keepFiles>
+  </log>
+</service>

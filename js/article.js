@@ -1,5 +1,5 @@
 // js/article.js
-import { supabase, requireAuth, getCollections, getMaterials, getMetals, getProductTypes, getArticleById, getItemStock, updateArticle, setArticleMaterials, deleteArticle, signOut } from './supabase.js'
+import { requireAuth, getCollections, getMaterials, getMetals, getProductTypes, getArticleById, getItemStock, updateArticle, setArticleMaterials, deleteArticle, signOut } from './supabase.js'
 import { showToast, isAppSku, confirmDeleteArticle } from './utils.js'
 import { initMaterialPicker } from './material-picker.js'
 
@@ -9,7 +9,6 @@ let articleId = null
 let currentArticle = null
 let collections = []
 let materialPicker = null
-let originalMaterialIds = []
 let isAdmin = false
 
 async function init() {
@@ -51,9 +50,9 @@ async function init() {
     document.getElementById('f_sku').value = currentArticle.sku
     document.getElementById('f_notes').value = currentArticle.notes || ''
     
-    originalMaterialIds = (currentArticle.article_materials || [])
+    const articleMaterialIds = (currentArticle.article_materials || [])
       .slice().sort((a, b) => a.sort_order - b.sort_order).map(am => am.material_id)
-    materialPicker = initMaterialPicker(document.getElementById('f_materials'), materials, originalMaterialIds)
+    materialPicker = initMaterialPicker(document.getElementById('f_materials'), materials, articleMaterialIds)
     document.getElementById('f_metal').value = currentArticle.metal_id || ''
     document.getElementById('f_price_retail').value = currentArticle.price_retail || ''
     document.getElementById('f_price_wholesale').value = currentArticle.price_wholesale || ''
@@ -112,7 +111,7 @@ function setupListeners() {
   })
 
   document.getElementById('btnSave').addEventListener('click', async () => {
-    // Validazione base — materiale, metallo e prezzo servono a generate_sku solo per gli SKU dell'app
+    // Validazione base — materiale, metallo e prezzo restano obbligatori per gli articoli creati dall'app, come all'inserimento
     const appSku = isAppSku(currentArticle.sku)
     const materialIds = materialPicker.getIds()
     const title = document.getElementById('f_title').value.trim()
@@ -122,11 +121,10 @@ function setupListeners() {
     if (appSku && !materialIds.length) return showToast('Aggiungi almeno un materiale')
     if (appSku && !document.getElementById('f_metal').value) return showToast('Seleziona il tipo di metallo')
     if (appSku && !document.getElementById('f_price_retail').value) return showToast('Inserisci il prezzo retail')
+    // Il peso del modello serve a ogni movimento (028): obbligatorio per tutti, anche per gli articoli del sito
+    if (!(Number(document.getElementById('f_weight').value) > 0)) return showToast('Inserisci il peso di un pezzo (g)')
 
-    const confirmMsg = appSku
-      ? 'ATTENZIONE: Stai per sovrascrivere in modo permanente i dati di questo articolo. Vuoi procedere?'
-      : 'ATTENZIONE: Stai per sovrascrivere in modo permanente i dati di questo articolo. Il codice originale resta invariato. Vuoi procedere?'
-    if (!confirm(confirmMsg)) {
+    if (!confirm('ATTENZIONE: Stai per sovrascrivere in modo permanente i dati di questo articolo. Il codice resta invariato. Vuoi procedere?')) {
       return
     }
 
@@ -147,27 +145,12 @@ function setupListeners() {
       if (h) measurements.height_cm = Number(h)
       if (wt) measurements.weight_g = Number(wt)
 
-      // SKU dell'app (COLL-MATERIALE-METALLO-NNN): si rigenera se cambiano collezione, primo materiale o metallo
-      let sku = currentArticle.sku
-      const newColl = document.getElementById('f_collection').value
-      const newMetal = document.getElementById('f_metal').value
-
-      if (appSku && (newColl !== currentArticle.collection_id || materialIds[0] !== originalMaterialIds[0] || newMetal !== currentArticle.metal_id)) {
-         const { data: newSku, error: skuError } = await supabase.rpc('generate_sku', {
-            p_collection_id: newColl,
-            p_material_id: materialIds[0],
-            p_metal_id: newMetal
-         })
-         if (skuError) throw skuError
-         sku = newSku
-      }
-
+      // Il codice non è tra i campi: non cambia mai, neanche se cambiano collezione, materiali o metallo (AC-03)
       const updates = {
         name: title,
         product_type_id: typeSel.value,
-        collection_id: newColl,
-        metal_id: newMetal || null,
-        sku: sku,
+        collection_id: document.getElementById('f_collection').value,
+        metal_id: document.getElementById('f_metal').value || null,
         notes: document.getElementById('f_notes').value.trim() || null,
         price_retail: Number(document.getElementById('f_price_retail').value) || null,
         price_wholesale: Number(document.getElementById('f_price_wholesale').value) || null,

@@ -5,8 +5,26 @@ export function formatPrice(amount, currency = '€') {
   return `${currency} ${Number(amount).toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
 }
 
-// SKU generato dall'app (generate_sku): CODICE-MATERIALE-METALLO-NNN.
-// Gli articoli importati dal sito hanno il codice originale: SKU e nome non vanno ricalcolati.
+// Importo al centesimo: 240.5 → "240,50 €"
+export function formatEuro(amount) {
+  return Number(amount).toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })
+}
+
+// Importo scritto a mano, all'italiana: "240", "240,50", "240.50", "1.250", "1.250,50" (punto delle migliaia).
+// Risponde { ok, value } oppure { ok: false, error }.
+export function parseEuro(text) {
+  const t = String(text ?? '').replace(/€|\s/g, '')
+  let normalized = null
+  if (/^\d{1,3}(\.\d{3})+(,\d{1,2})?$/.test(t)) normalized = t.replace(/\./g, '').replace(',', '.')
+  else if (/^\d+([.,]\d{1,2})?$/.test(t)) normalized = t.replace(',', '.')
+  if (normalized === null) return { ok: false, error: 'Prezzo non valido: per esempio 120 oppure 120,50.' }
+  const value = Number(normalized)
+  if (!(value > 0)) return { ok: false, error: 'Il prezzo deve essere maggiore di zero.' }
+  return { ok: true, value }
+}
+
+// SKU generato dall'app (generate_sku): CODICE-MATERIALE-METALLO-NNN. Una volta assegnato non cambia più (AC-03).
+// Gli articoli importati dal sito hanno il codice originale: il loro titolo non segue il nome della collezione.
 export function isAppSku(sku) {
   return /^[A-Z0-9]{4}-[A-Z]{2,3}-[A-Z]{2,3}-\d{3}$/.test(sku || '')
 }

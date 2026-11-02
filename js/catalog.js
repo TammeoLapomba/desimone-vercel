@@ -624,9 +624,8 @@ function setupListeners() {
       if (editingCollectionId) {
         const baseSlug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
         const slug = `${code.toLowerCase()}-${baseSlug}`
-        if (!confirm("Avviso: negli articoli creati dall'app il codice SKU verrà aggiornato e il nome della collezione verrà sostituito nel titolo (gli articoli con codice originale restano invariati). Continuare?")) return
+        if (!confirm("Avviso: negli articoli creati dall'app il nome della collezione verrà sostituito nel titolo. I codici degli articoli non cambiano. Continuare?")) return
         const coll = currentCollections.find(c => c.id === editingCollectionId)
-        const oldCode = collectionCode(coll)
 
         const { error } = await supabase.from('collections').update({
           name, slug, description_en: color, description_it: code
@@ -636,15 +635,12 @@ function setupListeners() {
         const relatedArticles = allArticles.filter(a => a.collection_id === editingCollectionId)
         for (const a of relatedArticles) {
           if (!isAppSku(a.sku)) continue
-          let updatedSku = a.sku
-          if (code !== oldCode) {
-            updatedSku = code + a.sku.substring(4)
-          }
-          // Nel titolo si sostituisce solo il nome della collezione: il resto, anche se scritto a mano, resta
+          // Nel titolo si sostituisce solo il nome della collezione: il resto, anche se scritto a mano, resta.
+          // Il codice dell'articolo non cambia, neanche se cambia quello della collezione (AC-03).
           const updatedName = a.name.includes(coll.name) ? a.name.replace(coll.name, name) : a.name
 
-          if (updatedName !== a.name || updatedSku !== a.sku) {
-            await supabase.from('articles').update({ name: updatedName, sku: updatedSku }).eq('id', a.id)
+          if (updatedName !== a.name) {
+            await supabase.from('articles').update({ name: updatedName }).eq('id', a.id)
           }
         }
         showToast('Collezione aggiornata con successo')

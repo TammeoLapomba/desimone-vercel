@@ -4,6 +4,8 @@
 //   node scripts/import-sito.mjs --preview anteprima.json
 // Import reale (serve la secret key di Supabase in .env.local, mai committata):
 //   node --env-file=.env.local scripts/import-sito.mjs --import
+// Solo il peso mancante degli articoli già importati (lo stesso .env.local):
+//   node --env-file=.env.local scripts/import-sito.mjs --pesi
 //
 // Fonte: WooCommerce Store API pubblica del sito. Lo SKU è il codice originale del sito.
 // Rilanciabile: salta collezioni, articoli (per SKU) e foto già presenti.
@@ -42,6 +44,16 @@ const COLLECTIONS = [
   ['gemelli-collezione', 'Gemelli', 'GEME', '#2A2620'],
   ['say-my-name', 'Say My Name', 'SAYN', '#C9A84C'],
 ]
+
+// Collezione come la salva l'app, per categoria del sito: slug, codice in description_it, colore in description_en.
+// Va anche nell'anteprima, che sede/importa-catalogo.js carica nella sede (senza internet).
+const COLLECTION_INFO = new Map(COLLECTIONS.map(([site, name, code, color], i) => [site, {
+  name,
+  slug: `${code.toLowerCase()}-${name.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}`,
+  code,
+  color,
+  sort_order: i + 1,
+}]))
 
 // ── Parsing ──────────────────────────────────────────────────
 
@@ -174,7 +186,40 @@ function pickMetal(candidates) {
 
 const num = s => Number(String(s).replace(',', '.'))
 
-function parseMeasurements(desc, taglia, type) {
+// Peso di un pezzo dalla descrizione (028: serve a ogni movimento del gioiello). Forme trovate sul sito: "Peso ca.
+// 0.7gr", "Peso collana: gr 115", "il peso totale è di circa gr 12", "gr. 6,2", "GR 0,9", "10 grammi", "weight 3 g".
+// Dopo "peso" al massimo due parole prima del numero ("Peso collana: gr 115"; "a parità di peso dichiarato, ha n.5
+// fili" non è un peso) e il numero non è una misura (cm, mm, carati); [ \t] e non \s: il numero sta sulla stessa riga.
+const WEIGHT_RES = [
+  /\b(?:pes(?:o|a|ano)|weighs?|weight)\b(?:[ \t]*[^\d\s]+){0,2}?[ \t]*(\d+(?:[.,]\d+)?)(?![ \t]*(?:cm|mm|ct|kt|carat))/dg,
+  /\b(?:gr|grammi|grams?)\b\.?[ \t]*:?[ \t]*(\d+(?:[.,]\d+)?)/dg,
+  /(\d+(?:[.,]\d+)?)[ \t]*(?:gr|grammi|grams?)\b/dg,
+]
+
+// Pesi citati nel testo, uno per numero, nell'ordine in cui compaiono; total: preceduto da "totale"
+function weightsIn(text) {
+  const t = (text || '').toLowerCase()
+  const at = new Map()
+  for (const re of WEIGHT_RES) {
+    for (const m of t.matchAll(re)) {
+      const [start] = m.indices[1]
+      const v = num(m[1])
+      if (v > 0.1 && v < 1000) at.set(start, { v, total: /total/.test(t.slice(Math.max(0, start - 20), start)) })
+    }
+  }
+  return [...at.entries()].sort((a, b) => a[0] - b[0]).map(([, w]) => w)
+}
+
+// Peso di un pezzo: il totale, se la descrizione lo dice ("ghianda gr 3,9 + catena gr 1 = totale gr 4,9"); altrimenti
+// la somma delle parti diverse ("Peso oro gr 1,7. Peso corallo gr 0,6"), che con un peso solo è quel peso
+function pieceWeight(weights) {
+  if (!weights.length) return null
+  const total = weights.find(w => w.total)
+  if (total) return total.v
+  return Math.round([...new Set(weights.map(w => w.v))].reduce((s, v) => s + v, 0) * 10) / 10
+}
+
+function parseMeasurements(desc, taglia, type, weights) {
   const t = desc.toLowerCase()
   const out = {}
   const len = /lunghezza(?:\s+(?:totale|complessiva|regolabile|massima))?\s*(?:è\s*)?:?\s*(?:di\s*)?(?:circa\s*)?(cm|mm)?\.?\s*(\d+(?:[.,]\d+)?)\s*(cm|mm)?/.exec(t)
@@ -187,11 +232,7 @@ function parseMeasurements(desc, taglia, type) {
     const m = /^(\d+(?:[.,]\d+)?)\s*cm$/.exec(taglia.trim())
     if (m) out.length_cm = num(m[1])
   }
-  const wt = /\bpes(?:o|a|ano)\b(?:\s+(?:circa|totale|complessivo|medio))*\s*:?\s*(?:di\s*)?(?:circa\s*)?(?:gr|g|grammi)?\.?\s*(\d+(?:[.,]\d+)?)/.exec(t)
-  if (wt) {
-    const v = num(wt[1])
-    if (v > 0.1 && v < 1000) out.weight_g = v
-  }
+  if (weights.length) out.weight_g = pieceWeight(weights)
   return Object.keys(out).length ? out : null
 }
 
@@ -228,6 +269,9 @@ function transform(p, { collectionSlug, enBySku, enOnly }) {
   const metal = pickMetal([metalIn(lname), metalIn(ldesc), METAL_BY_ATTR[attr('Metallo')[0]?.toLowerCase()]])
 
   const taglia = attr('Taglia')[0] || null
+  // Peso: dalla descrizione italiana, altrimenti dall'inglese
+  const itWeights = enOnly ? [] : weightsIn(desc)
+  const weights = itWeights.length ? itWeights : weightsIn(lenDesc)
   const minor = p.prices.currency_minor_unit ?? 2
   const price = Number(p.prices.price) / 10 ** minor
   const stock = Number(/(\d+)\s+(?:disponibil|in stock)/i.exec(p.stock_availability?.text || '')?.[1] || 0)
@@ -241,6 +285,7 @@ function transform(p, { collectionSlug, enBySku, enOnly }) {
 
   return {
     collectionSlug,
+    collection: COLLECTION_INFO.get(collectionSlug),
     sku: p.sku.trim(),
     name,
     product_type,
@@ -250,7 +295,8 @@ function transform(p, { collectionSlug, enBySku, enOnly }) {
     stock_retail: stock,
     description_it: enOnly ? null : desc || null,
     description_en: en ? htmlToText(en.description) || null : null,
-    measurements: parseMeasurements(enOnly ? '' : desc, taglia, product_type),
+    measurements: parseMeasurements(enOnly ? '' : desc, taglia, product_type, weights),
+    weights,
     notes,
     image: pickImage(p),
   }
@@ -349,10 +395,7 @@ async function importToSupabase(articles) {
   if (!KEY) throw new Error('Manca SUPABASE_SECRET_KEY (usa: node --env-file=.env.local scripts/import-sito.mjs --import)')
 
   // Sicurezza: il DB deve contenere solo dati di questo import (eseguire prima la pulizia)
-  const ourSlugs = new Map(COLLECTIONS.map(([site, name, code, color]) => {
-    const slug = `${code.toLowerCase()}-${name.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}`
-    return [site, { name, slug, code, color }]
-  }))
+  const ourSlugs = COLLECTION_INFO
   const existingColl = await rest('GET', 'collections?select=id,slug')
   const foreign = existingColl.filter(c => ![...ourSlugs.values()].some(o => o.slug === c.slug))
   const existingArt = await rest('GET', 'articles?select=id,sku')
@@ -426,6 +469,26 @@ async function importToSupabase(articles) {
   errors.forEach(e => console.log('  ✗', e))
 }
 
+// Completa il peso degli articoli già nel catalogo che non ce l'hanno (028: senza peso un gioiello non si carica).
+// Non tocca un peso già scritto, nemmeno se diverso da quello del sito: lo ha scritto qualcuno nella scheda.
+// Non chiede un catalogo fatto solo da questo import, come --import: cambia solo il peso, per SKU.
+async function fillWeights(articles) {
+  if (!KEY) throw new Error('Manca SUPABASE_SECRET_KEY (usa: node --env-file=.env.local scripts/import-sito.mjs --pesi)')
+  const fromSite = new Map(articles.filter(a => a.measurements?.weight_g).map(a => [a.sku, a.measurements.weight_g]))
+  const hasWeight = m => typeof m?.weight_g === 'number' && m.weight_g > 0
+  const existing = await rest('GET', 'articles?select=id,sku,measurements&deleted_at=is.null')
+  const missing = []
+  let filled = 0
+  for (const a of existing.filter(a => !hasWeight(a.measurements))) {
+    const w = fromSite.get(a.sku)
+    if (!w) { missing.push(a.sku); continue }
+    await rest('PATCH', `articles?id=eq.${a.id}`, { measurements: { ...(a.measurements || {}), weight_g: w } })
+    filled++
+  }
+  console.log(`Pesi: ${filled} completati dal sito, ${existing.length - filled - missing.length} c'erano già`)
+  if (missing.length) console.log(`  ${missing.length} senza peso anche sul sito, da pesare e scrivere nella scheda: ${missing.join(', ')}`)
+}
+
 // ── Main ─────────────────────────────────────────────────────
 
 const args = process.argv.slice(2)
@@ -434,6 +497,11 @@ console.log(`\nTotale: ${articles.length} articoli`)
 report.shared.forEach(s => console.log('  condiviso:', s))
 articles.filter(a => !a.product_type).forEach(a => console.log('  tipo non riconosciuto:', a.sku, a.name))
 if (report.enOnly.length) console.log('  solo sito EN:', report.enOnly.join(', '))
+// Il peso serve a ogni movimento (028): chi non ce l'ha sul sito va pesato; con più pesi, da controllare
+const noWeight = articles.filter(a => !a.weights.length)
+if (noWeight.length) console.log(`  senza peso sul sito (${noWeight.length}):`, noWeight.map(a => a.sku).join(', '))
+articles.filter(a => a.weights.length > 1).forEach(a =>
+  console.log(`  più pesi: ${a.sku} ${a.weights.map(w => `${w.total ? 'totale ' : ''}${w.v}`).join(' / ')} g → ${a.measurements.weight_g} g`))
 
 const previewPath = args[args.indexOf('--preview') + 1]
 if (args.includes('--preview') && previewPath) {
@@ -441,3 +509,4 @@ if (args.includes('--preview') && previewPath) {
   console.log(`Anteprima scritta in ${previewPath}`)
 }
 if (args.includes('--import')) await importToSupabase(articles)
+if (args.includes('--pesi')) await fillWeights(articles)

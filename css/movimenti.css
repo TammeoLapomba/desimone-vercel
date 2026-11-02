@@ -47,6 +47,8 @@
 #movForm { display: flex; flex-direction: column; gap: 16px; }
 #details { display: flex; flex-direction: column; gap: 16px; }
 #details[hidden], #itemBox[hidden] { display: none; }
+/* .form-row e .form-field hanno un display proprio, che vincerebbe su hidden: Da, A, Pezzi, Prezzo */
+#movForm [hidden] { display: none; }
 
 /* ─── Tipo di movimento ─────────────────────────────────────── */
 .mov-types { display: flex; gap: 8px; }

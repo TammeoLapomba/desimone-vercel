@@ -49,6 +49,10 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg>
         <span class="nav-item-label">Giacenze</span>
       </a>
+      <a href="/registro.html" class="nav-item" title="Registro">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><line x1="9" y1="6" x2="20" y2="6"/><line x1="9" y1="12" x2="20" y2="12"/><line x1="9" y1="18" x2="20" y2="18"/><circle cx="5" cy="6" r="1"/><circle cx="5" cy="12" r="1"/><circle cx="5" cy="18" r="1"/></svg>
+        <span class="nav-item-label">Registro</span>
+      </a>
     </nav>
     <div class="sidebar-bottom">
       <button class="sidebar-account" onclick="window.signOutUser()" aria-label="Esci dall'account">ADS</button>
@@ -109,7 +113,7 @@
                 </div>
                 <div class="form-field" id="weightField">
                   <label class="field-label" for="weightInput" id="weightLabel">Peso (g)</label>
-                  <div class="mov-weight-row">
+                  <div class="mov-weight-row" id="weightRow">
                     <input class="field-input" id="weightInput" inputmode="decimal" autocomplete="off" placeholder="0,0" aria-describedby="weightHint">
                     <button type="button" class="btn-ghost mov-scale-btn" id="btnScale">Leggi dalla bilancia</button>
                   </div>
@@ -145,6 +149,14 @@
                 <div class="form-field">
                   <label class="field-label" for="reasonSelect">Causale <span class="field-required">*</span></label>
                   <select class="field-input field-select" id="reasonSelect"></select>
+                </div>
+              </div>
+              <!-- Prezzo di vendita: in ogni vendita, il totale pagato (026) -->
+              <div class="form-row full" id="priceField" hidden>
+                <div class="form-field">
+                  <label class="field-label" for="priceInput">Prezzo di vendita, totale (€) <span class="field-required">*</span></label>
+                  <input class="field-input" id="priceInput" inputmode="decimal" autocomplete="off" placeholder="0,00" aria-describedby="priceHint">
+                  <div class="field-hint" id="priceHint"></div>
                 </div>
               </div>
               <div class="form-row full">

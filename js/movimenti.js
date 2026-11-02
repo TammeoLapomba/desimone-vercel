@@ -10,7 +10,7 @@ import {
   requireAuth, signOut, getMyOperator, getMovementSetup, getMovableItems, getItemStock, getItemHistory,
   registerMovement, cancelMovement, insertDevice, setDeviceScale,
 } from './supabase.js'
-import { showToast } from './utils.js'
+import { showToast, formatEuro, parseEuro } from './utils.js'
 import { initFilters } from './filters.js'
 import { initMobileNav } from './pwa.js'
 import { createScale, sourceFor, SIMULATED_MODEL } from './bilancia/bilancia.js'
@@ -44,6 +44,7 @@ const state = {
   history: [],
   scaleWeight: null,  // { grams, scaleId } letto dalla bilancia; null se il peso è scritto a mano
   pending: null,      // richiesta partita senza esito: si ripete con lo stesso codice (REQ-E-11)
+  priceTouched: false, // il prezzo di vendita l'ha scritto l'operatore: non si ripropone più
 }
 
 const storage = {
@@ -89,6 +90,12 @@ function block(message) {
   $('blocked').hidden = false
 }
 
+// Come model_weight nel database (028): un numero maggiore di zero, al decimo; altrimenti null
+const modelWeight = m => {
+  const w = m?.weight_g
+  return typeof w === 'number' && w > 0 ? Math.round(w * 10) / 10 : null
+}
+
 // Gioielli (montato) e semilavorati nella stessa forma, per il lettore di codici e la ricerca
 function normalizeItems({ articles, raw }) {
   const art = articles.map(a => ({
@@ -97,6 +104,8 @@ function normalizeItems({ articles, raw }) {
     code: a.sku,
     name: a.name,
     unit: 'pezzi',
+    price: a.price_retail ?? null,     // listino: si propone nel prezzo di vendita
+    weight: modelWeight(a.measurements), // peso del modello: i movimenti pesano pezzi × questo (028)
     group: `Gioiello · ${a.product_type?.name || '—'}`,
     collection: a.collections?.name || null,
     materials: (a.article_materials || []).map(m => m.material?.name).filter(Boolean),
@@ -107,6 +116,7 @@ function normalizeItems({ articles, raw }) {
     code: r.sku,
     name: r.description || [r.raw_categories?.name, r.raw_shapes?.name, r.size].filter(Boolean).join(' '),
     unit: r.unit,
+    price: null,
     group: `Semilavorato · ${r.raw_categories?.name || '—'}`,
     collection: null,
     materials: [],
@@ -122,6 +132,10 @@ const reasonsFor = type => state.setup.reasons.filter(r =>
   (state.operator.role === 'admin' || r.allowed_roles.includes(state.operator.role)))
 
 const allowedTypes = () => Object.keys(TYPES).filter(t => reasonsFor(t).length)
+
+// L'elenco è in ordine alfabetico; si propone la prima causale nell'ordine dell'azienda (sort_order, 025),
+// così uno scarico parte da Vendita Showroom e non da Omaggio
+const proposedReason = reasons => reasons.reduce((a, b) => (b.sort_order < a.sort_order ? b : a), reasons[0])
 
 function renderTypes() {
   $('typeGroup').innerHTML = allowedTypes().map(t => `
@@ -170,7 +184,7 @@ function renderScale() {
     : s.source === 'sede' ? 'La bilancia della sede si leggerà con il servizio del PC server: per ora scrivi il peso a mano'
       : `${s.scale.name} (${SOURCE_LABELS[s.source]})`
   $('simControls').hidden = s?.source !== 'simulata'
-  $('scaleBox').hidden = s?.source !== 'simulata' && !state.driver?.connected
+  $('scaleBox').hidden = rule().weight === 'model' || (s?.source !== 'simulata' && !state.driver?.connected)  // il gioiello non si pesa (028)
 }
 
 // ─── Articolo ────────────────────────────────────────────────
@@ -201,6 +215,8 @@ async function selectItem(item) {
   $('weightInput').readOnly = false
   $('noteInput').value = ''
   $('lastInput').checked = false
+  $('priceInput').value = ''
+  state.priceTouched = false
   $('itemBox').innerHTML = `
     <div class="mov-item-code">${esc(item.code)}</div>
     <div class="mov-item-name">${esc(item.name)}</div>
@@ -209,7 +225,7 @@ async function selectItem(item) {
   $('details').hidden = false
   hideResult()
   await loadItemData()
-  setDefaultLocations()
+  renderLocations()
   setDefaultWeightKind()
   changed()
 }
@@ -231,31 +247,40 @@ const stockAt = locationId => {
 
 const activeLocations = () => state.setup.locations.filter(l => l.active)
 const locationName = id => state.setup.locations.find(l => l.id === id)?.name || '—'
+// Un articolo a pezzi c'è dove ha pezzi: i grammi rimasti in un luogo a zero pezzi (montato caricato col peso e poi
+// spostato senza) non bastano, register_movement rifiuterebbe ogni quantità. Solo gli articoli a grammi contano i grammi.
+const holds = locationId => state.item?.unit === 'grammi' ? stockAt(locationId).grams > 0 : stockAt(locationId).pieces > 0
 
-function setDefaultLocations() {
+// "Da" offre solo i luoghi dove l'articolo c'è: da altrove register_movement rifiuterebbe comunque. "A" offre
+// tutti i luoghi attivi. keep tiene la scelta dell'operatore se è ancora possibile (dopo una registrazione).
+function renderLocations(keep = false) {
   const locs = activeLocations()
+  const held = locs.filter(l => holds(l.id))
   const proposed = state.operator.default_location_id
-  const withStock = locs.find(l => stockAt(l.id).pieces > 0 || stockAt(l.id).grams > 0)
-  const from = (proposed && (stockAt(proposed).pieces > 0 || stockAt(proposed).grams > 0)) ? proposed : withStock?.id || proposed || locs[0]?.id
-  const options = locs.map(l => `<option value="${l.id}">${esc(l.name)}${l.kind === 'fiera' ? ' (fiera)' : ''}</option>`).join('')
-  $('fromSelect').innerHTML = options
-  $('toSelect').innerHTML = options
-  $('fromSelect').value = from || ''
-  $('toSelect').value = state.type === 'T'
-    ? (locs.find(l => l.id !== from && l.id === proposed) || locs.find(l => l.id !== from))?.id || ''
-    : proposed || locs[0]?.id || ''
+  const option = l => `<option value="${l.id}">${esc(l.name)}${l.kind === 'fiera' ? ' (fiera)' : ''}</option>`
+  const prevFrom = $('fromSelect').value
+  const prevTo = $('toSelect').value
+  $('fromSelect').innerHTML = held.length ? held.map(option).join('') : '<option value="">Nessun luogo con giacenza</option>'
+  $('toSelect').innerHTML = locs.map(option).join('')
+  const from = keep && held.some(l => l.id === prevFrom) ? prevFrom
+    : (held.find(l => l.id === proposed) || held[0])?.id || ''
+  $('fromSelect').value = from
+  $('toSelect').value = keep && locs.some(l => l.id === prevTo) ? prevTo
+    : state.type === 'T' ? (locs.find(l => l.id !== from && l.id === proposed) || locs.find(l => l.id !== from))?.id || ''
+      : proposed || locs[0]?.id || ''
 }
 
 // ─── Quantità e peso (REQ-U-01…U-25) ──────────────────────────
 
 const hasHistory = () => state.history.some(l => !l.cancelled)
 
-// Cosa chiede l'articolo in questo movimento, come lo controlla il database (register_movement, 023)
+// Cosa chiede l'articolo in questo movimento, come lo controlla il database (register_movement, 023 e 028).
+// weight 'model': il gioiello non si pesa, il peso è pezzi × peso del modello (028)
 function rule() {
   const { item, type } = state
   if (!item) return { pieces: true, weight: 'optional', measured: false, firstLoad: false }
   const firstLoad = type === 'C' && !hasHistory()
-  if (item.kind === 'montato') return { pieces: true, weight: firstLoad ? 'required' : 'optional', measured: false, firstLoad }
+  if (item.kind === 'montato') return { pieces: true, weight: 'model', measured: false, firstLoad }
   if (item.unit === 'pezzi') return { pieces: true, weight: 'optional', measured: false, firstLoad }
   if (item.unit === 'grammi') return { pieces: false, weight: 'required', measured: false, firstLoad }
   return { pieces: true, weight: 'required', measured: type !== 'C', firstLoad }  // pezzi e grammi (REQ-U-04, U-10)
@@ -269,14 +294,32 @@ function setDefaultWeightKind() {
 
 const weightKind = () => document.querySelector('input[name="weightKind"]:checked')?.value || 'totale'
 
+// Peso del gioiello per i pezzi scritti (028); null se il modello non ha il peso
+function modelGrams() {
+  const pieces = parseInt($('piecesInput').value, 10)
+  const w = state.item?.weight
+  return w && pieces >= 1 ? Math.round(w * pieces * 10) / 10 : null
+}
+
 function renderQuantity() {
   const r = rule()
+  const byModel = r.weight === 'model'
   $('piecesField').hidden = !r.pieces
+  $('weightRow').hidden = byModel
   $('weightLabel').innerHTML = `Peso (g)${r.weight === 'required' ? ' <span class="field-required">*</span>' : ''}`
-  $('weightKind').hidden = !(r.firstLoad && r.pieces)
+  $('weightKind').hidden = !(r.firstLoad && r.pieces && !byModel)
   $('lastField').hidden = !(state.item?.unit === 'grammi' && state.type !== 'C')
+  renderScale()
+  if (byModel) {
+    const w = state.item.weight
+    const grams = modelGrams()
+    $('weightHint').innerHTML = !w
+      ? `Il modello non ha il peso${state.type === 'C' ? ': per caricarlo inseriscilo nella' : ': si registrano solo i pezzi. Si inserisce nella'} <a href="/article.html?id=${esc(state.item.id)}">scheda dell'articolo</a>.`
+      : grams !== null ? `${gramsText(w)} del modello × ${parseInt($('piecesInput').value, 10)} pz = <b>${gramsText(grams)}</b>, calcolato (orientativo).`
+        : `${gramsText(w)} a pezzo, dal modello: si calcola sui pezzi (orientativo).`
+    return
+  }
   const hints = []
-  if (r.firstLoad && state.item?.kind === 'montato') hints.push('Primo carico: il peso del gioiello si registra come orientativo.')
   if (r.measured) hints.push('Peso misurato di ciò che esce.')
   if (r.weight === 'optional') hints.push('Facoltativo.')
   if (state.scaleWeight) hints.push(`Letto dalla bilancia ${esc(state.scale.scale.name)}. <button type="button" class="mov-link" id="btnManual">Scrivi a mano</button>`)
@@ -293,32 +336,66 @@ function readWeight(r) {
   return { ok: true, grams: v.mg / 1000, source: 'mano' }
 }
 
+// ─── Prezzo di vendita (026) ──────────────────────────────────
+
+const selectedReason = () => state.setup.reasons.find(x => x.id === $('reasonSelect').value)
+const isSale = () => selectedReason()?.category === 'vendita'
+
+// Il campo c'è solo nelle vendite. Per un gioiello propone listino × pezzi, finché l'operatore non lo cambia.
+function renderPrice() {
+  const sale = isSale()
+  $('priceField').hidden = !sale
+  if (!sale) return
+  const pieces = parseInt($('piecesInput').value, 10)
+  const list = state.item?.price
+  const proposal = list && pieces >= 1 ? Math.round(list * pieces * 100) / 100 : null
+  if (!state.priceTouched) $('priceInput').value = proposal ? proposal.toFixed(2).replace('.', ',') : ''
+  const typed = $('priceInput').value.trim() ? parseEuro($('priceInput').value) : null
+  $('priceHint').textContent = typed && !typed.ok ? typed.error
+    : proposal && !state.priceTouched ? `Proposto il listino: ${formatEuro(list)} × ${pieces}. Scrivi quanto ha pagato il cliente.`
+      : 'Il totale pagato dal cliente per questo movimento.'
+  $('priceHint').classList.toggle('field-error', !!typed && !typed.ok)
+}
+
 // ─── Richiesta, anteprima e codice ────────────────────────────
 
 function buildRequest() {
   const r = rule()
   const type = state.type
-  const reason = state.setup.reasons.find(x => x.id === $('reasonSelect').value)
+  const reason = selectedReason()
   const fromId = type === 'C' ? null : $('fromSelect').value
   const toId = type === 'S' ? null : $('toSelect').value
   if (!reason) return { error: 'Scegli la causale.' }
+  if (type !== 'C' && !fromId) return { error: 'Questo articolo non ha giacenza in nessun luogo: non c\'è niente da far uscire.' }
   if (type === 'T' && fromId === toId) return { error: 'Partenza e arrivo devono essere luoghi diversi.' }
 
   const pieces = r.pieces ? parseInt($('piecesInput').value, 10) : null
   if (r.pieces && !(pieces >= 1)) return { error: 'Indica quanti pezzi, almeno uno.' }
 
-  const w = readWeight(r)
+  // Come register_movement (028): senza peso del modello non si carica, ma si annulla una vendita
+  if (r.weight === 'model' && type === 'C' && reason.code !== 'annullamento_vendita' && !state.item.weight) {
+    return { error: 'Il modello non ha il peso: inseriscilo nella scheda dell\'articolo, poi carica.' }
+  }
+  const w = r.weight === 'model'
+    ? { ok: true, grams: modelGrams(), source: 'calcolo', scaleId: null }  // lo ricalcola il database (028)
+    : readWeight(r)
   if (!w.ok) return { error: w.error }
   let { grams, source, scaleId } = w
   // Peso di un pezzo al primo carico: si registra il totale calcolato, segnato come orientativo (REQ-U-19, U-21)
-  if (grams !== null && r.firstLoad && r.pieces && weightKind() === 'pezzo') {
+  if (grams !== null && r.weight !== 'model' && r.firstLoad && r.pieces && weightKind() === 'pezzo') {
     grams = Math.round(grams * pieces * 10) / 10
     source = 'calcolo'
     scaleId = null
   }
   if (grams !== null && grams <= 0) return { error: 'Il peso deve essere maggiore di zero.' }
-  if (r.weight === 'required' && grams === null) {
-    return { error: r.firstLoad && state.item.kind === 'montato' ? 'Al primo carico di un gioiello serve il peso.' : 'Per questo articolo serve il peso.' }
+  if (r.weight === 'required' && grams === null) return { error: 'Per questo articolo serve il peso.' }
+
+  let salePrice = null
+  if (reason.category === 'vendita') {
+    if (!$('priceInput').value.trim()) return { error: 'Scrivi il prezzo di vendita.' }
+    const price = parseEuro($('priceInput').value)
+    if (!price.ok) return { error: price.error }
+    salePrice = price.value
   }
 
   // Giacenza prima e dopo nei luoghi toccati, come la vede l'operatore (REQ-M-21)
@@ -351,6 +428,7 @@ function buildRequest() {
       last: state.item.unit === 'grammi' && type !== 'C' && $('lastInput').checked,
       note: $('noteInput').value.trim(),
       shownStock: shown,
+      salePrice,
     },
   }
 }
@@ -372,7 +450,9 @@ function renderPreview() {
   const { from, to } = req.params.shownStock
   const over = from && from.pieces_after < 0
   box.classList.toggle('is-warning', !!over)
-  box.innerHTML = (from ? line(from) : '') + (to ? line(to) : '') +
+  const price = req.params.salePrice !== null
+    ? `<div class="mov-preview-line"><span class="mov-preview-loc">Prezzo di vendita</span><b>${formatEuro(req.params.salePrice)}</b></div>` : ''
+  box.innerHTML = (from ? line(from) : '') + (to ? line(to) : '') + price +
     (over ? `<div class="mov-preview-warn">Oltre la giacenza: in ${esc(from.location)} ci sono ${from.pieces_before} pezzi.</div>` : '')
 }
 
@@ -400,10 +480,11 @@ async function submit(e) {
   await send({ ...req.params, code: newCode(state.type, when), occurredAt: when.toISOString(), deviceId: state.device.id })
 }
 
-// Stesso movimento? Serve se il codice risultasse già usato da un altro movimento
+// Stesso movimento? Serve se il codice risultasse già usato da un altro movimento. Il peso di un gioiello lo
+// calcola il database dal modello (028): può differire se il modello è cambiato nel frattempo, non si confronta.
 const sameMovement = (m, p) => m.movement_type === p.type && (m.article_id ?? null) === p.articleId &&
   (m.raw_item_id ?? null) === p.rawItemId && (m.pieces ?? null) === p.pieces &&
-  (m.grams === null ? null : Number(m.grams)) === p.grams &&
+  (p.articleId !== null || (m.grams === null ? null : Number(m.grams)) === p.grams) &&
   (m.from_location_id ?? null) === p.fromId && (m.to_location_id ?? null) === p.toId
 
 // Errore di rete: la richiesta forse è arrivata, forse no. Il database si accorge della ripetizione dal codice.
@@ -422,6 +503,7 @@ async function send(params, attempt = 1) {
     state.pending = null
     showOutcome(res, params)
     await loadItemData()
+    renderLocations(true)
     afterSuccess()
   } catch (err) {
     if (isNetworkError(err)) {
@@ -450,7 +532,8 @@ function showOutcome(res, params) {
   const where = [part(res.from_stock, m.from_location_id), part(res.to_stock, m.to_location_id)].filter(Boolean).join(' · ')
   const diff = res.weighing_difference !== null && res.weighing_difference !== undefined
     ? `<div>Differenza di pesatura registrata: ${signed(-Number(res.weighing_difference), gramsText(Math.abs(Number(res.weighing_difference))))}</div>` : ''
-  showResult(`<b>${res.duplicate ? 'Era già registrato' : 'Registrato'}</b> · ${TYPES[params.type]} ${esc(m.code)}<div>${where}</div>${diff}`, 'ok', true)
+  const price = m.sale_price ? `<div>Prezzo di vendita: ${formatEuro(m.sale_price)}</div>` : ''
+  showResult(`<b>${res.duplicate ? 'Era già registrato' : 'Registrato'}</b> · ${TYPES[params.type]} ${esc(m.code)}<div>${where}</div>${price}${diff}`, 'ok', true)
 }
 
 function afterSuccess() {
@@ -459,6 +542,8 @@ function afterSuccess() {
   $('weightInput').readOnly = false
   $('noteInput').value = ''
   $('lastInput').checked = false
+  $('priceInput').value = ''
+  state.priceTouched = false
   state.scaleWeight = null
   changed(false)
   $('codeInput').focus()
@@ -491,8 +576,9 @@ function changed(clearResult = true) {
   const current = $('reasonSelect').value
   const reasons = reasonsFor(type)
   $('reasonSelect').innerHTML = reasons.map(r => `<option value="${r.id}">${esc(r.name)}</option>`).join('')
-  if (reasons.some(r => r.id === current)) $('reasonSelect').value = current
+  $('reasonSelect').value = reasons.some(r => r.id === current) ? current : proposedReason(reasons)?.id || ''
   renderQuantity()
+  renderPrice()
   renderPreview()
 }
 
@@ -509,8 +595,17 @@ function renderItemPanel() {
   const operators = new Map(state.setup.operators.map(o => [o.id, o.name]))
   const reasons = new Map(state.setup.reasons.map(r => [r.id, r.name]))
   const isAdmin = state.operator.role === 'admin'
-  const seen = new Set()
   const when = d => new Date(d).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+  const rows = historyRows()
+  // Il trasferimento non aggiunge né toglie: la quantità si mostra senza segno
+  const sign = (r, text) => (r.movement_type === 'C' ? '+' : r.movement_type === 'S' ? '−' : '') + text
+  const afterText = l => [showPieces ? `${l.pieces_after} pz` : '', showGrams ? gramsText(l.grams_after) : ''].filter(Boolean).join(' · ')
+  const place = r => r.movement_type === 'T'
+    ? `${esc(locationName(r.m.from_location_id))} → ${esc(locationName(r.m.to_location_id))}`
+    : esc(locationName(r.legs[0].location_id))
+  const after = r => r.legs.length === 1 ? afterText(r.legs[0])
+    : [r.m.from_location_id, r.m.to_location_id].map(id => r.legs.find(l => l.location_id === id)).filter(Boolean)
+      .map(l => `${esc(locationName(l.location_id))}: ${afterText(l)}`).join('<br>')
 
   $('itemPanel').className = ''
   $('itemPanel').innerHTML = `
@@ -523,7 +618,7 @@ function renderItemPanel() {
       ${stockRows.length > 1 ? `<tfoot><tr><th scope="row">Totale</th>${showPieces ? `<td class="num">${total.pieces}</td>` : ''}${showGrams ? `<td class="num">${gramsText(total.grams)}</td>` : ''}</tr></tfoot>` : ''}
     </table>` : '<p class="mov-empty">Nessuna giacenza registrata con i movimenti.</p>'}
     <h3 class="mov-panel-title">Storico</h3>
-    ${state.history.length ? `
+    ${rows.length ? `
     <div class="mov-table-scroll">
     <table class="mov-table mov-history">
       <thead><tr>
@@ -531,26 +626,36 @@ function renderItemPanel() {
         ${showPieces ? '<th scope="col" class="num">Pezzi</th>' : ''}${showGrams ? '<th scope="col" class="num">Peso</th>' : ''}
         <th scope="col" class="num">Dopo</th><th scope="col">Chi</th>${isAdmin ? '<th scope="col"><span class="sr-only">Azioni</span></th>' : ''}
       </tr></thead>
-      <tbody>${state.history.map(l => {
-        const m = l.movement || {}
-        const first = !seen.has(l.movement_id)
-        seen.add(l.movement_id)
-        const after = [showPieces ? `${l.pieces_after} pz` : '', showGrams ? gramsText(l.grams_after) : ''].filter(Boolean).join(' · ')
-        const cancel = isAdmin && first && !l.cancelled && !m.parent_id
-          ? `<button type="button" class="mov-link" data-cancel="${l.movement_id}" data-code="${esc(l.code)}">Annulla</button>` : ''
-        return `<tr class="${l.cancelled ? 'is-cancelled' : ''}" title="${esc(l.code)}">
-          <td>${when(l.occurred_at)}</td>
-          <td>${esc(locationName(l.location_id))}</td>
-          <td>${TYPES[l.movement_type]} · ${esc(reasons.get(m.reason_id) || '')}${m.note ? `<div class="mov-note">${esc(m.note)}</div>` : ''}${l.cancelled ? `<div class="mov-note">Annullato: ${esc(m.cancel_reason)}</div>` : ''}</td>
-          ${showPieces ? `<td class="num">${l.pieces ? signed(l.pieces, String(Math.abs(l.pieces))) : ''}</td>` : ''}
-          ${showGrams ? `<td class="num">${Number(l.grams) ? signed(Number(l.grams), gramsText(Math.abs(Number(l.grams)))) : ''}${m.weight_source === 'calcolo' ? ' <span class="mov-note">calcolato</span>' : ''}</td>` : ''}
-          <td class="num">${l.cancelled ? '—' : after}</td>
+      <tbody>${rows.map(r => {
+        const m = r.m
+        const pieces = Math.abs(r.legs[0].pieces)
+        const grams = Math.abs(Number(r.legs[0].grams))
+        const cancel = isAdmin && !r.cancelled && !m.parent_id
+          ? `<button type="button" class="mov-link" data-cancel="${r.movement_id}" data-code="${esc(r.code)}">Annulla</button>` : ''
+        return `<tr class="${r.cancelled ? 'is-cancelled' : ''}" title="${esc(r.code)}">
+          <td>${when(r.occurred_at)}</td>
+          <td>${place(r)}</td>
+          <td>${TYPES[r.movement_type]} · ${esc(reasons.get(m.reason_id) || '')}${m.sale_price ? ` · ${formatEuro(m.sale_price)}` : ''}${m.note ? `<div class="mov-note">${esc(m.note)}</div>` : ''}${r.cancelled ? `<div class="mov-note">Annullato: ${esc(m.cancel_reason)}</div>` : ''}</td>
+          ${showPieces ? `<td class="num">${pieces ? sign(r, String(pieces)) : ''}</td>` : ''}
+          ${showGrams ? `<td class="num">${grams ? sign(r, gramsText(grams)) : ''}${m.weight_source === 'calcolo' ? ' <span class="mov-note">calcolato</span>' : ''}</td>` : ''}
+          <td class="num">${r.cancelled ? '—' : after(r)}</td>
           <td>${esc(operators.get(m.operator_id) || '')}</td>
           ${isAdmin ? `<td>${cancel}</td>` : ''}
         </tr>`
       }).join('')}</tbody>
     </table>
     </div>` : '<p class="mov-empty">Nessun movimento.</p>'}`
+}
+
+// Una riga per movimento (REQ-M-01): le gambe di movement_history sono una per luogo toccato, quindi due per un
+// trasferimento (F-12). Arrivano dal più recente: il movimento resta al posto della sua prima gamba.
+function historyRows() {
+  const rows = new Map()
+  for (const l of state.history) {
+    if (!rows.has(l.movement_id)) rows.set(l.movement_id, { ...l, m: l.movement || {}, legs: [] })
+    rows.get(l.movement_id).legs.push(l)
+  }
+  return [...rows.values()]
 }
 
 // Annullamento con motivo, solo l'amministrazione (REQ-M-06, M-13, M-14)
@@ -561,6 +666,7 @@ async function cancel(id, code) {
     await cancelMovement(id, reason)
     showToast('Movimento annullato')
     await loadItemData()
+    renderLocations(true)
     changed(false)
   } catch (err) {
     showToast(err.message, 5000)
@@ -695,7 +801,7 @@ function setupListeners() {
     if (!btn) return
     state.type = btn.dataset.type
     renderTypes()
-    if (state.item) setDefaultLocations()
+    if (state.item) renderLocations()
     changed()
   })
 
@@ -719,6 +825,10 @@ function setupListeners() {
     $(id).addEventListener('input', () => changed())
   }
   $('weightKind').addEventListener('change', () => changed())
+  $('priceInput').addEventListener('input', () => {
+    state.priceTouched = true
+    changed()
+  })
   $('weightInput').addEventListener('input', () => {
     const v = $('weightInput').value.trim()
     const check = v ? validaPeso(v) : { ok: true }
