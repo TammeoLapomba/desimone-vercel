@@ -323,14 +323,6 @@ export async function updateRawItem(id, fields) {
   return data
 }
 
-export async function deleteRawCategory(id) {
-  const delDate = new Date().toISOString()
-  // Soft-delete anche tutti i raw_items della categoria
-  await supabase.from('raw_items').update({ deleted_at: delDate }).eq('category_id', id)
-  const { error } = await supabase.from('raw_categories').update({ deleted_at: delDate }).eq('id', id)
-  if (error) throw error
-}
-
 export async function uploadRawPhoto(file, rawItemId, setCover = false) {
   const ext = file.name.split('.').pop()
   const path = `raw-items/${rawItemId}/${crypto.randomUUID()}.${ext}`

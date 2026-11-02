@@ -102,6 +102,8 @@ Restart-Service desimone-sede
 Lo script applica solo le migrazioni nuove (sono elencate in `sede.migrazioni`) e non tocca dati, segreti e account.
 Nel browser, se vedi ancora la versione vecchia, ricarica forzando con `Ctrl + F5`.
 
+Con la migrazione 032, una volta sola, l'app chiede a tutti di rifare l'accesso: serve per vedere le foto.
+
 ## Catalogo del sito
 
 La sede non ha internet: il catalogo di antoninodesimone.it si scarica su un PC che ce l'ha e si porta in un file.
@@ -127,6 +129,7 @@ tranne il peso se manca (uno scritto nella scheda resta). Alla fine elenca gli a
   `bin` di PostgreSQL, che `servizio-postgrest.xml` aggiunge al `PATH`. Rilancia `installa.js`, che riscrive il file.
 - **"Il database della sede non risponde"**: PostgREST è fermo, oppure la password in `postgrest.conf` non è quella
   del ruolo `authenticator`. Rilancia `installa.js`, che la reimposta.
+- **Le foto non si vedono**: senza accesso il servizio non le dà (401). Esci e rientra: l'accesso le riabilita.
 - Per ricominciare da zero sul mini PC: ferma i servizi, poi
   `psql -U postgres -c "DROP DATABASE desimone"`, cancella `C:\DeSimone\dati\segreti` e rilancia l'installazione.
 

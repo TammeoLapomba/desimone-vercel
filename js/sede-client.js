@@ -5,7 +5,9 @@
 // servizio stesso (/auth/login, /foto). Il token firmato dal servizio vale per PostgREST (D-1).
 import { PostgrestClient } from './vendor/supabase-2.117.3.mjs'
 
-const SESSION_KEY = 'desimone-os:sessione'
+// Nuovo nome con la 032: l'accesso dà anche il cookie delle foto, quindi chi era già dentro rientra una volta
+const SESSION_KEY = 'desimone-os:sessione-foto'
+try { localStorage.removeItem('desimone-os:sessione') } catch {}
 
 const storage = {
   get() { try { return JSON.parse(localStorage.getItem(SESSION_KEY)) } catch { return null } },
@@ -57,6 +59,7 @@ export function createSedeClient(baseUrl = '') {
     },
     async signOut() {
       storage.clear()
+      await fetch(`${base}/auth/logout`, { method: 'POST' }).catch(() => {})
       return { error: null }
     },
   }

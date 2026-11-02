@@ -1,9 +1,10 @@
 // sede/servizio/servizio.js — Servizio della sede (P-07, WBA v0.5): l'unico ingresso dai dispositivi
 //
 // Realizza, per ora, le parti di L-05 e L-10 che servono a usare l'app sul PC server e in rete:
-//   POST /auth/login      email e password → token firmato per PostgREST (L-05: accesso e token)
+//   POST /auth/login      email e password → token firmato per PostgREST (L-05: accesso e token) e cookie delle foto
+//   POST /auth/logout     toglie il cookie delle foto
 //   /rest/v1/…            inoltro a PostgREST su localhost (P-06), che verifica il token (PC-3)
-//   /foto/…               archivio delle foto: file in una cartella del PC server (L-10)
+//   /foto/…               archivio delle foto, solo dopo l'accesso: file in una cartella del PC server (L-10)
 //   POST /foto-elimina    cancellazione delle foto, solo amministrazione (come la regola della 016)
 //   /config.js            dice all'app che è nella sede
 //   tutto il resto        le pagine dell'app (P-01), finché non c'è il programma per Windows (P-04)
@@ -54,6 +55,15 @@ function verifyToken(token) {
 }
 
 const bearer = req => verifyToken((req.headers.authorization || '').replace(/^Bearer\s+/i, ''))
+
+// Un'immagine nella pagina non può mandare il token: per leggere le foto vale un cookie, che arriva solo a /foto
+const PHOTO_COOKIE = 'desimone_foto'
+const photoCookie = (req, value, maxAge) =>
+  `${PHOTO_COOKIE}=${value}; Path=/foto; HttpOnly; SameSite=Strict; Max-Age=${maxAge}${req.socket.encrypted ? '; Secure' : ''}`
+function photoReader(req) {
+  const cookie = (req.headers.cookie || '').split(/;\s*/).find(c => c.startsWith(`${PHOTO_COOKIE}=`))
+  return bearer(req) || verifyToken(cookie?.slice(PHOTO_COOKIE.length + 1))
+}
 const now = () => Math.floor(Date.now() / 1000)
 
 // ─── Risposte ─────────────────────────────────────────────────
@@ -130,7 +140,8 @@ async function login(req, res) {
     app_metadata: user.app_metadata, user_metadata: user.user_metadata, iat: now(), exp,
   })
   log('accesso', user.email, ip)
-  send(res, 200, { access_token: accessToken, token_type: 'bearer', expires_at: exp, user })
+  send(res, 200, { access_token: accessToken, token_type: 'bearer', expires_at: exp, user },
+    { 'Set-Cookie': photoCookie(req, accessToken, SESSION_HOURS * 3600) })
 }
 
 // ─── Inoltro a PostgREST (PC-3) ───────────────────────────────
@@ -167,7 +178,10 @@ function photoPath(rel) {
 async function photos(req, res, rel) {
   const file = photoPath(rel)
   if (!file) return send(res, 400, { error: 'Percorso non valido' })
-  if (req.method === 'GET' || req.method === 'HEAD') return serveFile(req, res, file, 'public, max-age=31536000, immutable')
+  if (req.method === 'GET' || req.method === 'HEAD') {
+    if (!photoReader(req)) return send(res, 401, { error: 'Accesso richiesto' })
+    return serveFile(req, res, file, 'private, no-cache')
+  }
   if (req.method === 'PUT' || req.method === 'POST') {
     if (!bearer(req)) return send(res, 401, { error: 'Accesso richiesto' })
     if (fs.existsSync(file)) return send(res, 409, { error: 'La foto esiste già' })
@@ -207,10 +221,16 @@ const ROUTES = { '/': '/catalog.html', '/semilavorato': '/semilavorato.html', '/
 function serveFile(req, res, file, cache) {
   fs.stat(file, (err, st) => {
     if (err || !st.isFile()) return send(res, 404, 'Non trovato')
+    const etag = `"${st.size}-${Math.floor(st.mtimeMs)}"`
+    if (req.headers['if-none-match'] === etag) {
+      res.writeHead(304, { ETag: etag, 'Cache-Control': cache })
+      return res.end()
+    }
     res.writeHead(200, {
       'Content-Type': TYPES[path.extname(file).toLowerCase()] || 'application/octet-stream',
       'Content-Length': st.size,
       'Cache-Control': cache,
+      ETag: etag,
       'X-Content-Type-Options': 'nosniff',
     })
     if (req.method === 'HEAD') return res.end()
@@ -238,6 +258,7 @@ async function handle(req, res) {
   try {
     if (pathname === '/salute') return send(res, 200, { servizio: 'ok', ora: new Date().toISOString() })
     if (pathname === '/auth/login' && req.method === 'POST') return await login(req, res)
+    if (pathname === '/auth/logout' && req.method === 'POST') return send(res, 200, {}, { 'Set-Cookie': photoCookie(req, '', 0) })
     if (pathname.startsWith('/rest/v1/')) return proxy(req, res, pathname.slice('/rest/v1'.length) + search)
     if (pathname === '/foto-elimina' && req.method === 'POST') return await deletePhotos(req, res)
     if (pathname.startsWith('/foto/')) return await photos(req, res, pathname.slice('/foto/'.length))
