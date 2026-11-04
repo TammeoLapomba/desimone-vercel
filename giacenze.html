@@ -73,12 +73,14 @@
       <div class="mov-blocked" id="blocked" hidden></div>
 
       <div id="page" hidden>
-        <!-- Schede: le ultime due solo per l'amministrazione (UC-11, UC-13) -->
+        <!-- Schede: le altre solo per l'amministrazione (UC-11, UC-13); la copia di sicurezza solo nella sede (7.2) -->
         <div class="gia-tabs" role="tablist" aria-label="Sezioni">
           <button type="button" role="tab" class="gia-tab" id="tab-stock" aria-controls="panel-stock" aria-selected="true">Giacenze</button>
           <button type="button" role="tab" class="gia-tab" id="tab-locations" aria-controls="panel-locations" aria-selected="false" hidden>Luoghi</button>
           <button type="button" role="tab" class="gia-tab" id="tab-devices" aria-controls="panel-devices" aria-selected="false" hidden>Dispositivi</button>
+          <button type="button" role="tab" class="gia-tab" id="tab-backup" aria-controls="panel-backup" aria-selected="false" hidden>Copia di sicurezza</button>
         </div>
+        <div class="gia-alert" id="backupAlert" role="alert" hidden></div>
 
         <!-- Giacenze per articolo e luogo (UC-01, REQ-001.1), elenco stampabile (UC-10, REQ-R-01), valore (UC-14) -->
         <section role="tabpanel" id="panel-stock" aria-labelledby="tab-stock">
@@ -135,6 +137,16 @@
             <h2 class="mov-card-title">Dispositivi</h2>
             <p class="field-hint gia-hint">Un dispositivo revocato non può più registrare movimenti, neanche quelli fatti senza collegamento e inviati dopo. La revoca non si annulla dall'app.</p>
             <ul class="gia-list" id="deviceList"></ul>
+          </div>
+        </section>
+
+        <!-- Copia di sicurezza (7.2, REQ-I-02, architettura-locale §8): solo nella sede -->
+        <section role="tabpanel" id="panel-backup" aria-labelledby="tab-backup" hidden>
+          <div class="mov-card">
+            <h2 class="mov-card-title">Copia di sicurezza</h2>
+            <p class="field-hint gia-hint">Ogni notte il PC server copia database e foto su un disco a parte. Si tengono le copie degli ultimi 30 giorni e una al mese per un anno. Prima di un aggiornamento conviene farne una subito.</p>
+            <ul class="gia-list" id="backupList" aria-live="polite"></ul>
+            <div class="mov-actions"><button type="button" class="btn-primary" id="btnBackup">Copia adesso</button></div>
           </div>
         </section>
       </div>

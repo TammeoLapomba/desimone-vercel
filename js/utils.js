@@ -65,8 +65,9 @@ export function buildSkuPreview(collectionSlug, materialCode, metalCode) {
     'trame-di-corallo': 'TRAM',
     'cielo-stellato': 'CIEL'
   }
-  // Come generate_sku: i vecchi slug hanno un codice fisso, gli altri iniziano con il codice della collezione
-  const coll = collMap[collectionSlug] || collectionSlug?.slice(0, 4).toUpperCase() || '—'
+  // Come generate_sku: i vecchi slug hanno un codice fisso, gli altri danno i primi 4 caratteri senza trattini
+  const coll = collMap[collectionSlug]
+    || (collectionSlug ? collectionSlug.replace(/[^a-zA-Z0-9]/g, '').slice(0, 4).toUpperCase().padEnd(4, 'X') : '—')
   const material = materialCode || '—'
   const metal = metalCode || '—'
   return `${coll}-${material}-${metal}-###`
@@ -93,16 +94,35 @@ export const COLLECTION_COLORS = [
   ['#2A2620', 'Ebano / Scuro'],
 ]
 
-// Codice di 4 lettere della collezione, quello che entra negli SKU dell'app
-export function collectionCode(collection) {
-  return collection.description_it || (collection.slug ? collection.slug.substring(0, 4).toUpperCase() : '')
+// null se la collezione va bene, altrimenti il messaggio da mostrare. Il codice è quello della linea di STEP (AC-10).
+export function validateCollection({ name, code }, collections, editingId = null) {
+  if (!name || !/^[A-Z0-9]{3}$/.test(code)) return 'Nome richiesto e codice di 3 caratteri esatti, lettere o cifre'
+  if (code === 'ZZZ') return 'ZZZ è riservato ai vuoti del codice: scegline un altro'
+  const clash = collections.find(c => c.id !== editingId && c.code === code)
+  if (clash) return `Il codice ${code} è già usato dalla collezione ${clash.name}`
+  return null
 }
 
-// null se la collezione va bene, altrimenti il messaggio da mostrare
-export function validateCollection({ name, code }, collections, editingId = null) {
-  if (!name || !/^[A-Z]{4}$/.test(code)) return 'Nome richiesto e codice di 4 lettere esatte'
-  const clash = collections.find(c => c.id !== editingId && collectionCode(c) === code)
-  if (clash) return `Il codice ${code} è già usato dalla collezione ${clash.name}`
+// ── Anagrafiche: regole uguali a quelle del database (033, AN-04, AN-09) ──
+
+// Lettera di un tipo, materiale, metallo o colore: un carattere, Z è riservata ai vuoti del codice
+export const isCodeLetter = v => /^[A-Y0-9]$/.test(v)
+
+// null se la voce va bene, altrimenti il messaggio. others: le altre voci dello stesso elenco;
+// positions: { position: nome } di metalli e materiali, che hanno un'unica numerazione.
+export function validateAnagrafica({ name, letter, colorLetter, code, position }, { others, positions = {}, needsCode = false }) {
+  if (!name) return 'Il nome è obbligatorio'
+  const sameName = others.find(o => o.name.toLowerCase() === name.toLowerCase())
+  if (sameName) return `Esiste già: ${sameName.name}`
+  if (letter && !isCodeLetter(letter)) return 'La lettera è un carattere solo, lettera o cifra, diverso da Z'
+  if (colorLetter && !isCodeLetter(colorLetter)) return 'La lettera del colore è un carattere solo, lettera o cifra, diverso da Z'
+  if (needsCode) {
+    if (!/^[A-Z]{2,3}$/.test(code)) return 'La sigla ha 2 o 3 lettere: entra nei codici degli articoli di oggi'
+    const sameCode = others.find(o => o.code === code)
+    if (sameCode) return `La sigla ${code} è già usata da ${sameCode.name}`
+    if (position && !(Number.isInteger(Number(position)) && Number(position) > 0)) return 'La posizione è un numero intero maggiore di zero'
+    if (position && positions[Number(position)]) return `La posizione ${position} è già usata da ${positions[Number(position)]}`
+  }
   return null
 }
 

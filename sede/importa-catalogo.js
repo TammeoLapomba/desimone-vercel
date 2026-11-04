@@ -72,8 +72,8 @@ function readCatalog(file) {
   if (!Array.isArray(data) || !data.length || !data.every(a => a.sku && a.name)) {
     fail(`${file} non è un catalogo: serve l'anteprima di scripts/import-sito.mjs --preview`)
   }
-  const old = data.filter(a => !a.collection?.slug)
-  if (old.length) fail(`${file} è un'anteprima vecchia, senza le collezioni: rifalla con scripts/import-sito.mjs --preview`)
+  const old = data.filter(a => !a.collection?.slug || !/^[A-Z0-9]{3}$/.test(a.collection.code || ''))
+  if (old.length) fail(`${file} è un'anteprima vecchia, senza le collezioni o con i codici di 4 lettere: rifalla con scripts/import-sito.mjs --preview`)
   const untyped = data.filter(a => !a.product_type)
   if (untyped.length) fail(`tipo prodotto non riconosciuto per: ${untyped.map(a => a.sku).join(', ')}`)
   return data
@@ -129,13 +129,15 @@ CREATE TEMP TABLE coll_nuove (slug text) ON COMMIT DROP;
 CREATE TEMP TABLE art_nuovi (id uuid, sku text) ON COMMIT DROP;
 CREATE TEMP TABLE pesati (sku text) ON COMMIT DROP;
 
--- Collezioni che mancano, come le salva l'app: codice in description_it, colore in description_en
+-- Collezioni che mancano, come le salva l'app. Quella con lo stesso codice è la stessa collezione, anche con un altro
+-- slug: per esempio l'Intreccio iniziale della migrazione 005
 WITH ins AS (
-  INSERT INTO collections (name, slug, channel, sort_order, description_it, description_en)
+  INSERT INTO collections (name, slug, channel, sort_order, code, color)
   SELECT DISTINCT ON (coll ->> 'slug') coll ->> 'name', coll ->> 'slug', 'both', (coll ->> 'sort_order')::int,
          coll ->> 'code', coll ->> 'color'
   FROM imp
-  WHERE NOT EXISTS (SELECT 1 FROM collections c WHERE c.slug = imp.coll ->> 'slug')
+  WHERE NOT EXISTS (SELECT 1 FROM collections c WHERE c.slug = imp.coll ->> 'slug'
+                    OR (c.code = imp.coll ->> 'code' AND c.deleted_at IS NULL))
   RETURNING slug)
 INSERT INTO coll_nuove SELECT slug FROM ins;
 
@@ -145,7 +147,10 @@ WITH ins AS (
                         description_it, description_en, measurements, notes)
   SELECT c.id, i.name, t.id, m.id, i.sku, i.price, 'both', i.desc_it, i.desc_en, i.measurements, i.notes
   FROM imp i
-  JOIN collections c ON c.slug = i.coll ->> 'slug'
+  CROSS JOIN LATERAL (
+    SELECT c.id FROM collections c
+    WHERE c.slug = i.coll ->> 'slug' OR (c.code = i.coll ->> 'code' AND c.deleted_at IS NULL)
+    ORDER BY c.slug = i.coll ->> 'slug' DESC LIMIT 1) c
   JOIN product_types t ON t.slug = i.type
   LEFT JOIN metals m ON m.code = i.metal
   WHERE NOT EXISTS (SELECT 1 FROM articles a WHERE a.sku = i.sku)

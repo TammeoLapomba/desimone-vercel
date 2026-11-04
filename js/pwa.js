@@ -1,4 +1,5 @@
 // js/pwa.js — Registrazione Service Worker + utils PWA
+import { supabase } from './supabase.js'
 
 // Registra il service worker
 if ('serviceWorker' in navigator) {
@@ -22,6 +23,22 @@ if ('serviceWorker' in navigator) {
   })
 }
 
+// ─── Voce Anagrafiche: solo con l'account dev (AN-02) ─────────────
+
+async function addDevMenuItem() {
+  const nav = document.querySelector('.sidebar-nav')
+  if (!nav) return
+  const { data: { session } } = await supabase.auth.getSession()
+  if (session?.user?.app_metadata?.role !== 'dev') return
+  const current = window.location.pathname.includes('anagrafiche')
+  nav.insertAdjacentHTML('beforeend', `
+    <a href="/anagrafiche.html" class="nav-item${current ? ' active' : ''}" ${current ? 'aria-current="page"' : ''} title="Anagrafiche">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M20.6 13.4l-7.2 7.2a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="8" cy="8" r="1.2"/></svg>
+      <span class="nav-item-label">Anagrafiche</span>
+    </a>`)
+}
+addDevMenuItem().catch(console.error)
+
 // ─── Bottom Nav / Drawer mobile ──────────────────────────────────
 
 export function initMobileNav({ onNewArticle, onOpenDrawer } = {}) {
@@ -30,6 +47,7 @@ export function initMobileNav({ onNewArticle, onOpenDrawer } = {}) {
 
   const isCatalog = window.location.pathname.includes('catalog') || window.location.pathname === '/'
   const isSemilavorato = window.location.pathname.includes('semilavorato')
+  const isAnagrafiche = window.location.pathname.includes('anagrafiche')
 
   const nav = document.createElement('nav')
   nav.className = 'mobile-nav'
@@ -60,7 +78,7 @@ export function initMobileNav({ onNewArticle, onOpenDrawer } = {}) {
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
         <path d="M3 7l9-4 9 4v10l-9 4-9-4V7z"/><path d="M12 3v18"/>
       </svg>
-      ${isSemilavorato ? 'Categorie' : 'Collezioni'}
+      ${isAnagrafiche ? 'Elenchi' : isSemilavorato ? 'Categorie' : 'Collezioni'}
     </button>
   `
   document.body.appendChild(nav)

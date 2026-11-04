@@ -89,6 +89,13 @@ Si creano dal PC, non dall'app. Il ruolo dei movimenti è uno tra `admin`, `labo
 & "C:\Program Files\PostgreSQL\17\bin\psql.exe" -U postgres -d desimone -c "SELECT auth.cambia_password('negozio@desimone.it', 'nuova-password')"
 ```
 
+Chi lavora in Dedalo ha un account dev personale. Gestisce tipi, materiali e metalli nella pagina Anagrafiche e non è un
+operatore: non registra movimenti. Le credenziali stanno nel gestore di password di Dedalo, mai nel repository.
+
+```powershell
+& "C:\Program Files\PostgreSQL\17\bin\psql.exe" -U postgres -d desimone -c "SELECT auth.crea_utente_dev('nome@dedalo.it', 'una-password', 'Nome')"
+```
+
 ## Aggiornare a una nuova versione (L-14)
 
 ```powershell
@@ -103,6 +110,93 @@ Lo script applica solo le migrazioni nuove (sono elencate in `sede.migrazioni`) 
 Nel browser, se vedi ancora la versione vecchia, ricarica forzando con `Ctrl + F5`.
 
 Con la migrazione 032, una volta sola, l'app chiede a tutti di rifare l'accesso: serve per vedere le foto.
+
+Prima di un aggiornamento conviene fare una copia di sicurezza: Giacenze → **Copia di sicurezza** → **Copia adesso**.
+
+## Copia di sicurezza (7.2, REQ-I-02)
+
+Ogni notte alle 2 il servizio della sede copia database e foto in una cartella a parte, e controlla che la copia
+si legga. Tiene le copie degli ultimi 30 giorni e la prima di ogni mese per un anno; le altre le cancella da sola.
+Lo stato, con gli avvisi (copia non riuscita, disco non collegato, copia sullo stesso disco dei dati), lo vede
+l'amministrazione in Giacenze → **Copia di sicurezza**, dove c'è anche **Copia adesso**. Se il PC era spento alle 2,
+la copia parte 5 minuti dopo l'accensione.
+
+**Dove va la copia.** Su un disco dedicato, diverso da quello dei dati (decisione del 04/11/2026, piano 7.2). Si
+sceglie una volta, rilanciando `installa.js`, e resta per gli aggiornamenti successivi:
+
+```powershell
+node sede\installa.js --dati C:\DeSimone\dati --copia E:\CopieDeSimone
+Restart-Service desimone-sede
+```
+
+Senza `--copia` la copia va in `C:\DeSimone\dati\copie`, sullo stesso disco: protegge dagli errori, non da un guasto,
+e la pagina lo segnala. Nella cartella ci sono i file `desimone-AAAAMMGG-HHMMSS.dump` (il database) e la cartella
+`foto`, a cui si aggiungono le foto nuove: non se ne cancella nessuna, perché le copie vecchie le citano. Una copia si
+fa anche a mano: `node sede\servizio\copia.js C:\DeSimone\dati\sede.json adesso`.
+
+**Rimettere una copia** (il database torna al momento della copia; ciò che è stato fatto dopo resta solo nel
+salvataggio `prima-del-ripristino-….dump`, vedi sotto):
+
+```powershell
+Stop-Service desimone-sede, desimone-postgrest
+$env:PGPASSWORD = "la password di postgres"
+node sede\ripristina.js --dati C:\DeSimone\dati E:\CopieDeSimone\desimone-20261104-020000.dump
+Start-Service desimone-postgrest, desimone-sede
+```
+
+Lo script si ferma se i servizi sono ancora collegati al database, fa tutto in una sola transazione (se qualcosa va
+storto il database non cambia) e rimette le foto che mancano. Su un PC nuovo: prima l'installazione dei passi 2 e 3,
+poi `ripristina.js`. Se la copia è di una versione più vecchia, dopo si rilancia `installa.js`.
+
+Prima di sovrascrivere, lo script salva il database com'è in quel momento in `prima-del-ripristino-AAAAMMGG-HHMMSS.dump`,
+nella cartella della copia. Se la copia rimessa era quella sbagliata, o il lavoro fatto dopo serviva, si torna indietro
+rimettendo quel file con lo stesso comando. Questi file non li cancella nessuno: quando non servono più si tolgono a mano.
+Se il salvataggio non riesce lo script si ferma senza toccare niente. Solo se il database è così rovinato da non potersi
+salvare si va avanti con `--senza-copia si`.
+
+## Provare una PR sul PC
+
+Per provare una modifica non serve il mini PC: `sede/prove/sede-locale.ps1` installa la sede sul PC di chi prova,
+con gli stessi programmi (PostgreSQL 17, PostgREST, il servizio della sede e `installa.js`), presi da questo
+repository. Non installa servizi di Windows e non tocca un PostgreSQL già installato: tiene tutto in
+`%USERPROFILE%\DeSimoneSede`. PostgreSQL ascolta sulla porta 5432, l'app su `http://localhost:8080`.
+
+Serve, una volta sola:
+
+1. **Node.js 22** installato, e nella cartella `%USERPROFILE%\DeSimoneSandbox\installer` (o un'altra, con
+   `-Installer`) l'installer di **PostgreSQL 17** e lo ZIP di **PostgREST** del passo 0.
+2. Il file `%USERPROFILE%\DeSimoneSede\credenziali.txt`, **mai nel repository**, con quattro righe:
+   ```
+   PostgresPassword=una password per postgres
+   AdminNome=Nome dell'amministratore
+   AdminEmail=email dell'amministratore
+   AdminPassword=la sua password, almeno 8 caratteri
+   ```
+
+Poi, dalla cartella del repository (Windows blocca gli script: va lanciato con `-ExecutionPolicy Bypass`):
+
+```powershell
+git switch <branch di partenza>
+# sede nuova da questo branch (la prima volta basta "installa")
+powershell -ExecutionPolicy Bypass -File sede\prove\sede-locale.ps1 installa -Azzera
+# dati di prova (con -Pallino anche un semilavorato con 2 pezzi)
+powershell -ExecutionPolicy Bypass -File sede\prove\sede-locale.ps1 dati
+git switch <branch della PR>
+# come L-14: solo le migrazioni nuove, poi riavvio del servizio della sede
+powershell -ExecutionPolicy Bypass -File sede\prove\sede-locale.ps1 aggiorna
+```
+
+Poi in Edge si ricarica con Ctrl + Shift + R. Gli altri comandi: `stato`, `ferma`, `avvia` (dopo un riavvio del
+PC). `dati` scrive i codici da annotare anche in `%USERPROFILE%\DeSimoneSede\esito\dati-prova.txt`. Le prove SQL:
+
+```powershell
+$env:PGPASSWORD = (Get-Content $env:USERPROFILE\DeSimoneSede\credenziali.txt | ConvertFrom-StringData).PostgresPassword
+powershell -ExecutionPolicy Bypass -File supabase\tests\run.ps1 -PgBin $env:USERPROFILE\DeSimoneSede\pg\bin
+```
+
+Rispetto al mini PC mancano i servizi di Windows (WinSW), il limite di 4 GB e l'assenza di internet: una modifica
+che tocca uno di questi va provata sul mini PC. Al posto di `Restart-Service desimone-sede` c'è `aggiorna`.
+La Windows Sandbox non si usa più: dal 03/11/2026 va in crash (schermata blu 0x3B) a ogni prova.
 
 ## Catalogo del sito
 
@@ -130,6 +224,9 @@ tranne il peso se manca (uno scritto nella scheda resta). Alla fine elenca gli a
 - **"Il database della sede non risponde"**: PostgREST è fermo, oppure la password in `postgrest.conf` non è quella
   del ruolo `authenticator`. Rilancia `installa.js`, che la reimposta.
 - **Le foto non si vedono**: senza accesso il servizio non le dà (401). Esci e rientra: l'accesso le riabilita.
+- **"Copia di sicurezza non riuscita"**: il motivo è nella pagina e in `C:\DeSimone\dati\log\` (cerca "copia di
+  sicurezza"). "Il disco … non è collegato": collega il disco e premi **Copia adesso**. "Manca la password
+  del ruolo copia": rilancia `installa.js`.
 - Per ricominciare da zero sul mini PC: ferma i servizi, poi
   `psql -U postgres -c "DROP DATABASE desimone"`, cancella `C:\DeSimone\dati\segreti` e rilancia l'installazione.
 
@@ -140,7 +237,7 @@ tranne il peso se manca (uno scritto nella scheda resta). Alla fine elenca gli a
 - **Programma per Windows** (P-04, Electron) e **APK** (P-03, Capacitor), in attesa del parere di Lorenzo e
   Giorgio. Per ora l'app si apre nel browser.
 - **Bilancia della sede letta dal servizio** sulla porta COM (L-09). Per ora si legge via cavo dal browser.
-- Etichette sulla QL-800, copia notturna sul NAS (L-12), import da STEP (P-11), sincronizzazione dei tablet (L-08),
-  PIN per entrare senza collegamento (REQ-E-06).
+- Etichette sulla QL-800, import da STEP (P-11), sincronizzazione dei tablet (L-08), PIN per entrare senza
+  collegamento (REQ-E-06). La copia notturna c'è (sopra).
 - I dati di Supabase non vengono copiati: la sede parte con il database vuoto, a parte i semilavorati della
   migrazione 020. Gli articoli del sito si caricano con `importa-catalogo.js` (sopra); le **foto** non ancora.

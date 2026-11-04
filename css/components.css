@@ -757,3 +757,26 @@
 .modal-compact .form-row { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
 .modal-compact .form-row.full { grid-template-columns: minmax(0, 1fr); }
 .modal-compact .field-input { width: 100%; min-width: 0; }
+
+/* Anagrafiche: elenco delle voci, come la tabella del catalogo */
+.anag-table { min-width: 100%; table-layout: auto; }
+.anag-table tbody tr { cursor: default; }
+.anag-table .col-short { width: 1%; }
+.anag-table .col-actions { width: 1%; }
+.anag-table td.col-actions { overflow: visible; text-align: right; padding: 4px 8px; }
+.anag-table tr.is-archived td { color: var(--text-muted); }
+.anag-table tr.is-archived .cell-title { color: var(--text-muted); font-weight: 400; }
+.anag-table .row-action { margin-left: auto; }
+.anag-tag {
+  margin-left: 8px;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background: var(--ivory-dark);
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.anag-warning { color: var(--coral); }
+.anag-block { padding: 48px; text-align: center; font-family: var(--editorial); font-size: 16px; color: var(--text-muted); }
+.modal-overlay .form-field[hidden], .modal-footer .btn-danger[hidden], .context-menu button[hidden] { display: none; }

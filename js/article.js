@@ -24,21 +24,21 @@ async function init() {
   }
 
   try {
-    // Carica dipendenze
+    // Carica articolo
+    currentArticle = await getArticleById(articleId)
+    if (!currentArticle) throw new Error('Articolo non trovato')
+
+    // Carica dipendenze, con le voci archiviate che questo articolo usa già (AN-08)
     const [productTypes, materials, metals] = await Promise.all([
-      getProductTypes(),
-      getMaterials(),
-      getMetals()
+      getProductTypes([currentArticle.product_type_id]),
+      getMaterials((currentArticle.article_materials || []).map(am => am.material_id)),
+      getMetals(currentArticle.metal_id ? [currentArticle.metal_id] : [])
     ])
     collections = await getCollections()
 
     populateSelect('f_collection', collections, 'id', 'name', 'Seleziona collezione…')
     populateSelect('f_type', productTypes, 'id', 'name', 'Seleziona…')
     populateSelect('f_metal', metals, 'id', 'name', 'Seleziona…', 'code')
-
-    // Carica articolo
-    currentArticle = await getArticleById(articleId)
-    if (!currentArticle) throw new Error('Articolo non trovato')
 
     document.getElementById('headerName').textContent = currentArticle.name
     document.getElementById('f_title').value = currentArticle.name

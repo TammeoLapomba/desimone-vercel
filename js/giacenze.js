@@ -7,6 +7,7 @@
 // (stock_levels, REQ-C-01) e i permessi li decide il database: qui si mostra solo ciò che il ruolo può fare.
 import {
   requireAuth, signOut, getMyOperator, getMovementSetup, getStockOverview, insertLocation, revokeDevice,
+  IN_SEDE, getBackupStatus, startBackup,
 } from './supabase.js'
 import { showToast } from './utils.js'
 import { initMobileNav } from './pwa.js'
@@ -28,6 +29,7 @@ const state = {
   locations: [],
   devices: [],
   items: [],       // { kind, id, code, name, group, unit, priceRetail, priceWholesale, at: Map location_id → { pieces, grams } }
+  backup: null,    // stato della copia di sicurezza (sede/servizio/copia.js), solo nella sede e per l'amministrazione
 }
 const isAdmin = () => state.operator?.role === 'admin'
 
@@ -53,6 +55,10 @@ async function init() {
   }
   setupListeners()
   renderAll()
+  if (isAdmin() && IN_SEDE) {
+    $('tab-backup').hidden = false
+    loadBackup()
+  }
 }
 
 function block(message) {
@@ -272,6 +278,58 @@ async function revoke(id, btn) {
   }
 }
 
+// ─── Copia di sicurezza (7.2, REQ-I-02) ───────────────────────
+
+async function loadBackup() {
+  try {
+    state.backup = await getBackupStatus()
+  } catch (err) {
+    state.backup = { avvisi: [`Stato della copia non disponibile: ${err.message}`] }
+  }
+  renderBackup()
+  // Mentre una copia è in corso si riguarda ogni pochi secondi
+  if (state.backup?.inCorso) setTimeout(loadBackup, 3000)
+}
+
+function renderBackup() {
+  const b = state.backup
+  if (!b) return
+  const when = d => d ? new Date(d).toLocaleString('it-IT', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'
+  const size = n => n == null ? '—' : n >= 1e9 ? `${num(n / 1e9, 1)} GB` : `${num(n / 1e6, 1)} MB`
+  const last = b.ultima
+  const ok = b.ultimaRiuscita
+  const row = (title, sub) => `<li class="gia-row"><div><div class="gia-row-title">${title}</div><div class="gia-row-sub">${sub}</div></div></li>`
+  $('backupList').innerHTML = [
+    row(b.inCorso ? '<span class="gia-ok">Copia in corso…</span>'
+      : last?.esito === 'errore' ? '<span class="gia-ko">Ultima copia non riuscita</span>'
+      : ok ? '<span class="gia-ok">Ultima copia riuscita</span>' : '<span class="gia-ko">Nessuna copia ancora</span>',
+      last?.esito === 'errore' ? `${when(last.fine)} · ${esc(last.errore)}`
+        : ok ? `${when(ok.fine)} · ${size(ok.byte)} · ${num(ok.fotoNuove)} foto nuove` : 'La prima parte da sola, o con "Copia adesso"'),
+    row('Prossima copia', when(b.prossima)),
+    row('Dove', `<span class="gia-code">${esc(b.cartella || '—')}</span> · libero ${size(b.liberoByte)} · ` +
+      (b.copie === 1 ? '1 copia conservata' : `${num(b.copie ?? 0)} copie conservate`)),
+  ].join('')
+  $('btnBackup').disabled = !!b.inCorso
+  const alert = $('backupAlert')
+  alert.hidden = !b.avvisi?.length
+  alert.innerHTML = b.avvisi?.length
+    ? `<b>Copia di sicurezza</b><ul>${b.avvisi.map(a => `<li>${esc(a)}</li>`).join('')}</ul>`
+    : ''
+}
+
+async function backupNow() {
+  $('btnBackup').disabled = true
+  try {
+    state.backup = await startBackup()
+    renderBackup()
+    showToast('Copia di sicurezza avviata')
+    setTimeout(loadBackup, 2000)
+  } catch (err) {
+    $('btnBackup').disabled = false
+    showToast(err.message || 'Copia non avviata')
+  }
+}
+
 // ─── Eventi ───────────────────────────────────────────────────
 
 function setupListeners() {
@@ -281,6 +339,7 @@ function setupListeners() {
   $('onlyStock').addEventListener('change', renderStock)
   $('btnPrint').addEventListener('click', printList)
   $('locationForm').addEventListener('submit', createLocation)
+  $('btnBackup').addEventListener('click', backupNow)
   $('deviceList').addEventListener('click', e => {
     const btn = e.target.closest('[data-revoke]')
     if (btn) revoke(btn.dataset.revoke, btn)

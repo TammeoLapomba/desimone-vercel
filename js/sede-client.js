@@ -84,10 +84,23 @@ export function createSedeClient(baseUrl = '') {
     },
   }
 
+  // Copia di sicurezza notturna (servizio della sede, copia.js): c'è solo nella sede, non in supabase-js
+  const backupCall = async (method, name) => {
+    const res = await authFetch(`${base}/copia/${name}`, { method })
+    const body = await res.json().catch(() => ({}))
+    if (!res.ok) throw new Error(body.error || 'Copia di sicurezza non raggiungibile')
+    return body
+  }
+  const backup = {
+    stato: () => backupCall('GET', 'stato'),
+    adesso: () => backupCall('POST', 'adesso'),
+  }
+
   return {
     from: table => rest.from(table),
     rpc: (fn, args, options) => rest.rpc(fn, args, options),
     auth,
     storage: { from: () => photoBucket },
+    backup,
   }
 }

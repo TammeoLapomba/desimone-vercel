@@ -6,7 +6,8 @@
 //      (tranne la 008, solo sviluppo), sede/database/90_accessi_sede.sql; quelle già applicate sono in
 //      sede.migrazioni e non si ripetono
 //   3. imposta PostgreSQL per un PC con 4 GB (D-1): vale dal prossimo riavvio del servizio di PostgreSQL
-//   4. genera, solo la prima volta, la password di PostgREST e il segreto dei token
+//   4. genera, solo la prima volta, la password di PostgREST e il segreto dei token; prepara il ruolo in sola lettura
+//      della copia di sicurezza (sede/servizio/copia.js)
 //   5. scrive nella cartella dei dati postgrest.conf, sede.json e i file di WinSW per i due servizi
 //   6. se non c'è ancora nessun account, crea il primo amministratore
 //
@@ -14,6 +15,7 @@
 //   $env:PGPASSWORD = "password dell'utente postgres scelta installando PostgreSQL"
 //   node sede\installa.js --dati C:\DeSimone\dati
 // Opzioni: --psql <percorso di psql.exe>  --db <nome>  --host <host>  --porta-db <porta>  --porta <porta dell'app>
+//          --copia <cartella della copia di sicurezza, su un disco dedicato: resta per i giri successivi>
 // Solo moduli di Node.js (REQ-003).
 
 'use strict'
@@ -141,6 +143,14 @@ async function main() {
   query(DB, `ALTER ROLE authenticator WITH LOGIN PASSWORD ${literal(dbPassword)}`)
   console.log('fatto (in segreti\\ dentro la cartella dei dati)')
 
+  // Copia di sicurezza (7.2): legge tutto, righe protette comprese, e non scrive niente
+  step('Ruolo della copia di sicurezza')
+  const copyPassword = secret('copia-db-password')
+  query(DB, "DO $$ BEGIN IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'copia') THEN CREATE ROLE copia; END IF; END $$")
+  query(DB, `ALTER ROLE copia WITH LOGIN BYPASSRLS NOSUPERUSER NOCREATEDB NOCREATEROLE PASSWORD ${literal(copyPassword)}`)
+  query(DB, 'GRANT pg_read_all_data TO copia')
+  console.log('fatto')
+
   step('Configurazioni')
   const photoDir = path.join(DATA_DIR, 'foto')
   fs.mkdirSync(photoDir, { recursive: true })
@@ -168,7 +178,20 @@ async function main() {
     cartellaApp: REPO,
     cartellaFoto: photoDir,
     durataSessioneOre: previous.durataSessioneOre || 12,
+    // Copia di sicurezza: la cartella si sceglie con --copia e resta; senza, si usa quella dentro i dati, che
+    // la pagina segnala come "stesso disco" finché non se ne indica una su un disco dedicato
+    pgBin: path.dirname(PSQL),
+    database: { host: HOST, porta: Number(DB_PORT), nome: DB },
+    segretoCopia: copyPassword,
+    copia: {
+      cartella: args.copia ? path.resolve(args.copia) : previous.copia?.cartella || path.join(DATA_DIR, 'copie'),
+      ora: previous.copia?.ora || '02:00',
+      giorni: previous.copia?.giorni || 30,
+      mesi: previous.copia?.mesi || 12,
+    },
   }, null, 2) + '\n', { mode: 0o600 })
+  console.log(`copia di sicurezza ogni notte alle ${previous.copia?.ora || '02:00'} in ` +
+    (args.copia ? path.resolve(args.copia) : previous.copia?.cartella || path.join(DATA_DIR, 'copie')))
   for (const name of ['servizio-postgrest', 'servizio-sede']) {
     const xml = fs.readFileSync(path.join(REPO, 'sede', 'winsw', `${name}.xml`), 'utf8')
       .replaceAll('{DATI}', DATA_DIR).replaceAll('{REPO}', REPO).replaceAll('{NODE}', process.execPath)

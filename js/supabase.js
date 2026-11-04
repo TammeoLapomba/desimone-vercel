@@ -33,51 +33,81 @@ export async function signOut() {
 export async function getCollections() {
   const { data, error } = await supabase
     .from('collections')
-    .select('id, name, slug, channel, sort_order, description_it, description_en')
+    .select('id, name, slug, channel, sort_order, code, color')
     .is('deleted_at', null)
   if (error) throw error
   // Sempre in ordine alfabetico: barra laterale e menu di scelta della collezione
   return data.sort((a, b) => a.name.localeCompare(b.name, 'it'))
 }
 
-// Il codice di 4 lettere va in description_it e il colore del pallino in description_en
+// Lo slug comincia con il codice: lo SKU di oggi ne prende i primi 4 caratteri (generate_sku, 033)
 export async function insertCollection({ name, code, color }) {
   const baseSlug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
   const { data, error } = await supabase
     .from('collections')
-    .insert({ name, slug: `${code.toLowerCase()}-${baseSlug}`, description_it: code, description_en: color })
-    .select('id, name, slug, channel, sort_order, description_it, description_en')
+    .insert({ name, slug: `${code.toLowerCase()}-${baseSlug}`, code, color })
+    .select('id, name, slug, channel, sort_order, code, color')
     .single()
   if (error) throw error
   return data
 }
 
-export async function getMaterials() {
+// Voci da proporre: quelle attive, più quelle archiviate che l'articolo aperto usa già (AN-08)
+const activeOr = keepIds => keepIds.length ? `active.eq.true,id.in.(${keepIds.join(',')})` : 'active.eq.true'
+
+export async function getMaterials(keepIds = []) {
   const { data, error } = await supabase
     .from('materials')
     .select('id, name, code')
-    .eq('active', true)
+    .or(activeOr(keepIds))
     .order('name')
   if (error) throw error
   return data
 }
 
-export async function getMetals() {
+export async function getMetals(keepIds = []) {
   const { data, error } = await supabase
     .from('metals')
     .select('id, name, code')
-    .eq('active', true)
+    .or(activeOr(keepIds))
     .order('name')
   if (error) throw error
   return data
 }
 
-export async function getProductTypes() {
+export async function getProductTypes(keepIds = []) {
   const { data, error } = await supabase
     .from('product_types')
     .select('id, name, slug')
-    .eq('active', true)
-    .order('sort_order')
+    .or(activeOr(keepIds))
+  if (error) throw error
+  return data.sort((a, b) => a.name.localeCompare(b.name, 'it'))
+}
+
+// Anagrafiche (anagrafiche.html): tutte le voci di un elenco, archiviate comprese. Le scrive solo l'account dev (033).
+export async function getAnagrafica(list) {
+  const { data, error } = await supabase.from(list).select('*')
+  if (error) throw error
+  return data.sort((a, b) => a.name.localeCompare(b.name, 'it'))
+}
+
+// Quanti articoli usano ogni voce: { "materials:<id>": 3, … }
+export async function getAnagraficaUsage() {
+  const { data, error } = await supabase.rpc('anagrafica_usage')
+  if (error) throw error
+  return Object.fromEntries(data.map(r => [`${r.list}:${r.id}`, Number(r.articles)]))
+}
+
+export async function saveAnagrafica(list, id, fields) {
+  const { error } = id
+    ? await supabase.from(list).update(fields).eq('id', id)
+    : await supabase.from(list).insert(fields)
+  if (error) throw error
+}
+
+// Mai usata si elimina, già usata si archivia: risponde 'deleted' o 'archived'
+export async function retireAnagrafica(list, id) {
+  const { data, error } = await supabase.rpc('anagrafica_retire', { p_list: list, p_id: id })
   if (error) throw error
   return data
 }
@@ -484,6 +514,10 @@ export async function revokeDevice(id) {
   if (error) throw error
   return data
 }
+
+// Copia di sicurezza notturna (7.2, REQ-I-02): solo nella sede e solo per l'amministrazione; su Vercel la fa Supabase
+export const getBackupStatus = () => IN_SEDE ? supabase.backup.stato() : Promise.resolve(null)
+export const startBackup = () => supabase.backup.adesso()
 
 // Giacenza dell'articolo in ogni luogo (REQ-001.1)
 export async function getItemStock({ articleId = null, rawItemId = null }) {

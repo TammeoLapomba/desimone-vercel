@@ -1,4 +1,4 @@
-const CACHE_NAME = 'desimone-os-v32'
+const CACHE_NAME = 'desimone-os-v34'
 
 const SHELL_ASSETS = [
   '/catalog.html',
@@ -7,6 +7,7 @@ const SHELL_ASSETS = [
   '/movimenti.html',
   '/giacenze.html',
   '/registro.html',
+  '/anagrafiche.html',
   '/login.html',
   '/config.js',
   '/css/variables.css',
@@ -42,6 +43,7 @@ const SHELL_ASSETS = [
   '/fonts/work-sans/work-sans-latin-400-italic.woff2',
   '/js/giacenze.js',
   '/js/registro.js',
+  '/js/anagrafiche.js',
   '/js/bilancia/bilancia.js',
   '/js/bilancia/pesi.js',
   '/js/bilancia/sics.js',
@@ -79,9 +81,9 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url)
 
   // Dati e accessi: sempre dalla rete, mai dalla cache. Su Supabase (sviluppo) e nella sede, dove il servizio
-  // (P-07) li serve dallo stesso indirizzo dell'app: /rest/v1 (PostgREST), /auth, /foto, /foto-elimina, /salute
+  // (P-07) li serve dallo stesso indirizzo dell'app: /rest/v1 (PostgREST), /auth, /foto, /foto-elimina, /salute, /copia
   if (url.hostname.includes('supabase.co') || event.request.method !== 'GET' ||
-      /^\/(rest|auth|salute|foto|foto-elimina)(\/|$)/.test(url.pathname)) {
+      /^\/(rest|auth|salute|foto|foto-elimina|copia)(\/|$)/.test(url.pathname)) {
     return // lascia passare senza intercettare
   }
 

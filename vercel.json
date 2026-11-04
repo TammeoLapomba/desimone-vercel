@@ -5,7 +5,8 @@
     { "source": "/semilavorato", "destination": "/semilavorato.html" },
     { "source": "/movimenti", "destination": "/movimenti.html" },
     { "source": "/giacenze", "destination": "/giacenze.html" },
-    { "source": "/registro", "destination": "/registro.html" }
+    { "source": "/registro", "destination": "/registro.html" },
+    { "source": "/anagrafiche", "destination": "/anagrafiche.html" }
   ],
   "headers": [
     {

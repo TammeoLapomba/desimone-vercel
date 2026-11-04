@@ -6,8 +6,10 @@
 #page[hidden], [role="tabpanel"][hidden], .gia-toolbar [hidden], .gia-note[hidden] { display: none; }
 
 /* ─── Schede ────────────────────────────────────────────────── */
-.gia-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--ivory-dark); margin-bottom: 20px; }
+/* Con quattro schede su un telefono la barra scorre da sola, senza spostare la pagina */
+.gia-tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--ivory-dark); margin-bottom: 20px; overflow-x: auto; scrollbar-width: none; }
 .gia-tab {
+  flex: 0 0 auto; white-space: nowrap;
   padding: 10px 16px; background: none; border: none; border-bottom: 2px solid transparent; margin-bottom: -1px;
   font-family: var(--editorial); font-size: 12px; letter-spacing: 1px; text-transform: uppercase;
   color: var(--text-muted); cursor: pointer;
@@ -54,6 +56,16 @@
 .gia-row-title { font-family: var(--editorial); font-size: 14px; color: var(--text-primary); }
 .gia-row-sub, .gia-row-meta { font-family: var(--editorial); font-size: 12px; color: var(--text-muted); }
 .gia-code { font-family: var(--mono); font-size: 12px; font-weight: 600; }
+
+/* ─── Copia di sicurezza ────────────────────────────────────── */
+.gia-alert {
+  margin: 0 0 16px; padding: 10px 14px; border-left: 3px solid var(--coral);
+  background: var(--ivory-dark); font-family: var(--editorial); font-size: 13px; color: var(--text-primary);
+}
+.gia-alert ul { margin: 4px 0 0; padding-left: 18px; }
+.gia-alert button { margin-top: 6px; }
+.gia-ok { color: var(--text-secondary); }
+.gia-ko { color: var(--coral); font-weight: 600; }
 
 @media (max-width: 600px) {
   .gia-toolbar .search-field { flex-basis: 100%; min-width: 0; }

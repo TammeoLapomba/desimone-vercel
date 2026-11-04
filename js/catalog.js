@@ -1,6 +1,6 @@
 // js/catalog.js
 import { supabase, requireAuth, getCollections, getArticles, insertCollection, retirePreview, retireItem, deleteCollection, signOut } from './supabase.js'
-import { formatPrice, getCoverPhoto, showToast, isAppSku, articleMaterials, collectionCode, validateCollection, confirmRetire } from './utils.js'
+import { formatPrice, getCoverPhoto, showToast, isAppSku, articleMaterials, validateCollection, confirmRetire } from './utils.js'
 import { initColorSelect } from './color-select.js'
 import { initFilters } from './filters.js'
 import { openArticleModal } from './article-form.js'
@@ -15,6 +15,7 @@ let currentCollectionId = null
 let editingCollectionId = null // collezione aperta in "Modifica collezione"; null = nuova
 let collColor = null           // menu colori della finestra collezione
 let isAdmin = false
+let isDev = false
 
 // Vista del catalogo: 'grid' (schede) o 'table'. Su telefono sempre schede.
 const VIEW_KEY = 'desimone-os:vista-catalogo'
@@ -51,6 +52,7 @@ async function init() {
   const session = await requireAuth()
   // Modifica/eliminazione di collezioni e articoli: solo admin (lo impone anche il database)
   isAdmin = session.user.app_metadata?.role === 'admin'
+  isDev = session.user.app_metadata?.role === 'dev'
   filters = initFilters({
     fields: FILTER_FIELDS,
     // Ricerca libera: titolo, codice, collezione, tipo e materiali
@@ -79,8 +81,7 @@ async function loadCollections() {
   list.innerHTML = renderCollectionItem({ id: null, name: 'Tutti gli articoli', slug: 'all', color: '#C94030' }, !currentCollectionId)
 
   collections.forEach(c => {
-    const colorMap = { 'intreccio': '#C94030', 'abbraccio': '#E8A898', 'trame-di-corallo': '#D4C4B8', 'cielo-stellato': '#C8C8C8' }
-    list.innerHTML += renderCollectionItem({ ...c, color: c.description_en || colorMap[c.slug] || '#C94030' }, c.id === currentCollectionId)
+    list.innerHTML += renderCollectionItem(c, c.id === currentCollectionId)
   })
 
   // onclick e non addEventListener: loadCollections viene richiamata più volte
@@ -547,8 +548,8 @@ function openCollectionEditor(coll = null) {
   editingCollectionId = coll?.id ?? null
   document.getElementById('collectionModalTitle').textContent = coll ? 'Modifica Collezione' : 'Nuova Collezione'
   document.getElementById('f_coll_name').value = coll?.name || ''
-  document.getElementById('f_coll_code').value = coll ? collectionCode(coll) : ''
-  collColor.setValue(coll?.description_en)
+  document.getElementById('f_coll_code').value = coll?.code || ''
+  collColor.setValue(coll?.color)
   document.getElementById('collectionModal').classList.add('open')
 }
 
@@ -589,12 +590,17 @@ function setupListeners() {
       showToast(`Articolo ${article.sku} creato`)
     },
     // Collezione creata dalla finestra dell'articolo: compare subito nella barra laterale
-    onCollectionCreated: () => loadCollections()
+    onCollectionCreated: () => loadCollections(),
+    canCreateCollection: isAdmin
   })
 
   document.getElementById('btnNewArticleTop').addEventListener('click', openModal)
+  // L'account dev non crea articoli (lo impone anche il database)
+  if (isDev) document.getElementById('btnNewArticleTop').style.display = 'none'
 
+  // Le collezioni le gestisce l'amministrazione (lo impone anche il database)
   document.getElementById('btnNewCollection').addEventListener('click', () => openCollectionEditor())
+  document.getElementById('btnNewCollection').parentElement.hidden = !isAdmin
   const btnArchived = document.getElementById('btnArchived')
   if (isAdmin) btnArchived.style.display = ''
   btnArchived.addEventListener('click', () => openArchiveModal({ onChange: refreshCatalog }))
@@ -628,7 +634,7 @@ function setupListeners() {
         const coll = currentCollections.find(c => c.id === editingCollectionId)
 
         const { error } = await supabase.from('collections').update({
-          name, slug, description_en: color, description_it: code
+          name, slug, color, code
         }).eq('id', editingCollectionId)
         if (error) throw error
 

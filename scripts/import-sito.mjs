@@ -45,12 +45,16 @@ const COLLECTIONS = [
   ['say-my-name', 'Say My Name', 'SAYN', '#C9A84C'],
 ]
 
-// Collezione come la salva l'app, per categoria del sito: slug, codice in description_it, colore in description_en.
+// Codice di 3 caratteri della collezione (033): i primi 3 del vecchio codice, che resta nello slug e negli SKU.
+// Say My Name e Amo come nelle lettere dedotte dal sito (piano, §8).
+const lineCode = old => ({ SAYN: 'SMN', LAMO: 'AMO' })[old] ?? old.slice(0, 3)
+
+// Collezione come la salva l'app, per categoria del sito: slug, codice e colore.
 // Va anche nell'anteprima, che sede/importa-catalogo.js carica nella sede (senza internet).
 const COLLECTION_INFO = new Map(COLLECTIONS.map(([site, name, code, color], i) => [site, {
   name,
   slug: `${code.toLowerCase()}-${name.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')}`,
-  code,
+  code: lineCode(code),
   color,
   sort_order: i + 1,
 }]))
@@ -420,7 +424,7 @@ async function importToSupabase(articles) {
   const collId = Object.fromEntries(existingColl.map(c => [c.slug, c.id]))
   const newColls = COLLECTIONS.map(([site], i) => ({ ...ourSlugs.get(site), sort_order: i + 1 }))
     .filter(c => !collId[c.slug])
-    .map(c => ({ name: c.name, slug: c.slug, channel: 'both', sort_order: c.sort_order, description_it: c.code, description_en: c.color }))
+    .map(c => ({ name: c.name, slug: c.slug, channel: 'both', sort_order: c.sort_order, code: c.code, color: c.color }))
   if (newColls.length) for (const c of await rest('POST', 'collections', newColls)) collId[c.slug] = c.id
   console.log(`Collezioni: ${newColls.length} create`)
 

@@ -56,8 +56,8 @@
     errEl.style.display = 'none'
 
     try {
-      await signIn(email, password)
-      window.location.href = '/catalog.html'
+      const { user } = await signIn(email, password)
+      window.location.href = user?.app_metadata?.role === 'dev' ? '/anagrafiche.html' : '/catalog.html'
     } catch(e) {
       errEl.textContent = 'Email o password non validi.'
       errEl.style.display = 'block'

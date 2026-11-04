@@ -6,10 +6,12 @@
 //   /rest/v1/…            inoltro a PostgREST su localhost (P-06), che verifica il token (PC-3)
 //   /foto/…               archivio delle foto, solo dopo l'accesso: file in una cartella del PC server (L-10)
 //   POST /foto-elimina    cancellazione delle foto, solo amministrazione (come la regola della 016)
+//   GET /copia/stato      stato della copia di sicurezza notturna (L-12, copia.js), solo amministrazione
+//   POST /copia/adesso    una copia subito, per esempio prima di un aggiornamento, solo amministrazione
 //   /config.js            dice all'app che è nella sede
 //   tutto il resto        le pagine dell'app (P-01), finché non c'è il programma per Windows (P-04)
 // Arriveranno qui, come moduli dello stesso processo (4 GB, D-1): bilancia sulla porta COM (L-09), etichette
-// (QL-800), sincronizzazione dei tablet (L-08), copia notturna (L-12), migrazioni (L-14).
+// (QL-800), sincronizzazione dei tablet (L-08), migrazioni (L-14).
 //
 // Solo moduli di Node.js: niente da scaricare (REQ-003). Uso: node servizio.js <percorso di sede.json>
 
@@ -19,6 +21,7 @@ const https = require('node:https')
 const fs = require('node:fs')
 const path = require('node:path')
 const crypto = require('node:crypto')
+const { createCopia } = require('./copia.js')
 
 const CONFIG_PATH = process.argv[2] || process.env.SEDE_CONFIG || path.join(__dirname, 'sede.json')
 const config = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'))
@@ -206,6 +209,21 @@ async function deletePhotos(req, res) {
   send(res, 200, { removed })
 }
 
+// ─── Copia di sicurezza (L-12, copia.js) ──────────────────────
+
+const copia = createCopia(config, CONFIG_PATH, log)
+
+function backup(req, res, action) {
+  const user = bearer(req)
+  if (!user) return send(res, 401, { error: 'Accesso richiesto' })
+  if (user.app_metadata?.role !== 'admin') return send(res, 403, { error: 'Solo l\'amministrazione vede la copia di sicurezza' })
+  if (action === 'adesso') {
+    copia.adesso(`a richiesta di ${user.email}`)
+    return send(res, 202, copia.stato())
+  }
+  send(res, 200, copia.stato())
+}
+
 // ─── Pagine dell'app (P-01) ───────────────────────────────────
 
 const TYPES = {
@@ -216,7 +234,7 @@ const TYPES = {
 }
 // Cartelle del repository che non sono l'app: materiale privato e strumenti (come scripts/pubblica-codice.sh)
 const PRIVATE = ['docs', 'bilancia', 'old_software', 'inventory_data', 'supabase', 'sede', 'scripts', 'node_modules']
-const ROUTES = { '/': '/catalog.html', '/semilavorato': '/semilavorato.html', '/movimenti': '/movimenti.html', '/giacenze': '/giacenze.html', '/registro': '/registro.html' }
+const ROUTES = { '/': '/catalog.html', '/semilavorato': '/semilavorato.html', '/movimenti': '/movimenti.html', '/giacenze': '/giacenze.html', '/registro': '/registro.html', '/anagrafiche': '/anagrafiche.html' }
 
 function serveFile(req, res, file, cache) {
   fs.stat(file, (err, st) => {
@@ -262,6 +280,8 @@ async function handle(req, res) {
     if (pathname.startsWith('/rest/v1/')) return proxy(req, res, pathname.slice('/rest/v1'.length) + search)
     if (pathname === '/foto-elimina' && req.method === 'POST') return await deletePhotos(req, res)
     if (pathname.startsWith('/foto/')) return await photos(req, res, pathname.slice('/foto/'.length))
+    if (pathname === '/copia/stato' && req.method === 'GET') return backup(req, res, 'stato')
+    if (pathname === '/copia/adesso' && req.method === 'POST') return backup(req, res, 'adesso')
     return app(req, res, pathname)
   } catch (err) {
     log('errore', req.method, pathname, err.message)
@@ -272,6 +292,7 @@ async function handle(req, res) {
 // HTTP per il PC server stesso (localhost); HTTPS col certificato di casa per i tablet (architettura-locale §4)
 const port = config.porta || 8080
 http.createServer(handle).listen(port, config.indirizzo || '127.0.0.1', () => log(`servizio della sede su http://${config.indirizzo || '127.0.0.1'}:${port}`))
+copia.avvia()
 if (config.https) {
   const options = { cert: fs.readFileSync(config.https.certificato), key: fs.readFileSync(config.https.chiave) }
   https.createServer(options, handle).listen(config.https.porta || 443, '0.0.0.0', () => log(`HTTPS sulla porta ${config.https.porta || 443}`))

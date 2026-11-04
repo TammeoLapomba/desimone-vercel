@@ -13,10 +13,15 @@ let photoUploader = null
 let materialPicker = null
 let onSuccessCallback = null
 let onCollectionCreatedCallback = null
+let canCreateCollection = false
 
-export async function openArticleModal({ onSuccess, onCollectionCreated }) {
+// Tipi, materiali e metalli li aggiunge l'account dev di Dedalo (033): qui non si creano
+const MISSING_HINT = 'Se manca una voce, chiedi a Dedalo di aggiungerla.'
+
+export async function openArticleModal({ onSuccess, onCollectionCreated, canCreateCollection: canCreate = false }) {
   onSuccessCallback = onSuccess
   onCollectionCreatedCallback = onCollectionCreated
+  canCreateCollection = canCreate
 
   // Le collezioni si ricaricano ogni volta (possono essere state create nel frattempo), il resto una volta sola
   const lists = productTypes.length ? [] : [getProductTypes(), getMaterials(), getMetals()]
@@ -65,7 +70,7 @@ function renderModal() {
               <select class="field-select" id="f_collection">
                 ${collectionOptions()}
               </select>
-              <button type="button" class="btn-ghost" id="btnNewCollectionInline" style="align-self:flex-start;">+ Nuova collezione</button>
+              <button type="button" class="btn-ghost" id="btnNewCollectionInline" style="align-self:flex-start;${canCreateCollection ? '' : 'display:none;'}">+ Nuova collezione</button>
             </div>
           </div>
           <div class="inline-panel" id="newCollectionPanel" style="display:none;">
@@ -78,8 +83,9 @@ function renderModal() {
             </div>
             <div class="form-row">
               <div class="form-field">
-                <label class="field-label" for="f_newcoll_code">Codice SKU (4 lettere) <span class="field-required">*</span></label>
-                <input type="text" class="field-input" id="f_newcoll_code" maxlength="4" placeholder="es. ESTA" style="text-transform:uppercase;">
+                <label class="field-label" for="f_newcoll_code">Codice (3 caratteri) <span class="field-required">*</span></label>
+                <input type="text" class="field-input" id="f_newcoll_code" maxlength="3" placeholder="es. EST" style="text-transform:uppercase;">
+                <span class="field-hint">Entra nel codice dei gioielli: controllalo bene, dopo non si potrà più cambiare.</span>
               </div>
               <div class="form-field">
                 <label class="field-label" id="f_newcoll_color_label">Colore badge <span class="field-required">*</span></label>
@@ -98,6 +104,7 @@ function renderModal() {
                 <option value="">Seleziona…</option>
                 ${productTypes.map(t => `<option value="${t.id}">${t.name}</option>`).join('')}
               </select>
+              <span class="field-hint">${MISSING_HINT}</span>
             </div>
           </div>
           <div class="form-row full">
@@ -127,6 +134,7 @@ function renderModal() {
             <div class="form-field">
               <label class="field-label">Materiali <span class="field-required">*</span></label>
               <div id="f_materials"></div>
+              <span class="field-hint">${MISSING_HINT}</span>
             </div>
           </div>
           <div class="form-row">
@@ -136,6 +144,7 @@ function renderModal() {
                 <option value="">Seleziona…</option>
                 ${metals.map(m => `<option value="${m.id}" data-code="${m.code}">${m.name}</option>`).join('')}
               </select>
+              <span class="field-hint">${MISSING_HINT}</span>
             </div>
           </div>
           <div class="form-row">
@@ -173,10 +182,6 @@ function renderModal() {
         </div>
 
         <div id="step3Content" style="display:none;">
-          <p style="font-family:var(--editorial);font-style:italic;font-size:13px;color:var(--text-muted);margin-bottom:16px;">
-            Le foto raw verranno elaborate automaticamente: rimozione sfondo e generazione descrizioni in IT/EN/FR.
-          </p>
-
           <!-- Pulsante fotocamera — visibile solo su mobile via CSS -->
           <label id="btnCameraMobile" class="btn-camera-mobile" style="display:none;">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
