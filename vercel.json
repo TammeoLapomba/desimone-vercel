@@ -6,7 +6,8 @@
     { "source": "/movimenti", "destination": "/movimenti.html" },
     { "source": "/giacenze", "destination": "/giacenze.html" },
     { "source": "/registro", "destination": "/registro.html" },
-    { "source": "/anagrafiche", "destination": "/anagrafiche.html" }
+    { "source": "/anagrafiche", "destination": "/anagrafiche.html" },
+    { "source": "/impostazioni", "destination": "/impostazioni.html" }
   ],
   "headers": [
     {

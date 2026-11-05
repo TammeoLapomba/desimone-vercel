@@ -74,7 +74,7 @@ Start-Service desimone-sede
 2. Controlla che il servizio risponda: `http://localhost:8080/salute`.
 3. In **Movimenti** registra il dispositivo, ad esempio `PC1`, poi fai un carico. Con la SB16001 collegata via cavo,
    usa "via cavo" (Web Serial funziona su `localhost`).
-4. In **Giacenze** controlla la giacenza, i luoghi e i dispositivi.
+4. In **Giacenze** controlla la giacenza. In **Impostazioni**, solo per l'amministrazione, i luoghi e i dispositivi.
 5. **Memoria**: con l'app aperta, apri Gestione attività → Dettagli e annota la RAM di `postgres.exe` (somma),
    `postgrest.exe`, `node.exe` e del browser. La WBA (par 6a) prevede circa 0,5 GB per i servizi e
    1,2–1,8 GB liberi su 4.
@@ -170,7 +170,7 @@ aperto non è nel certificato (rilancia `installa.js` con il PC collegato a quel
 
 ## Altri account
 
-Li gestisce l'amministrazione, nell'app: Giacenze → **Utenti**. Crea un account per persona con nome, nome utente, ruolo
+Li gestisce l'amministrazione, nell'app: Impostazioni → **Utenti**. Crea un account per persona con nome, nome utente, ruolo
 e password provvisoria, e la persona sceglie la sua al primo accesso. Da lì si cambia il ruolo, si disattiva e si reimposta
 una password. Ognuno cambia la propria da **Esci**. Si entra con il nome utente, per esempio `gioia`; chi ha un'email
 intera, come il primo amministratore se ne ha scritta una in `installa.js`, entra con quella.
@@ -203,14 +203,14 @@ Nel browser, se vedi ancora la versione vecchia, ricarica forzando con `Ctrl + F
 
 Con la migrazione 032, una volta sola, l'app chiede a tutti di rifare l'accesso: serve per vedere le foto.
 
-Prima di un aggiornamento conviene fare una copia di sicurezza: Giacenze → **Copia di sicurezza** → **Copia adesso**.
+Prima di un aggiornamento conviene fare una copia di sicurezza: Impostazioni → **Copia di sicurezza** → **Copia adesso**.
 
 ## Copia di sicurezza (7.2, REQ-I-02)
 
 Ogni notte alle 2 il servizio della sede copia database e foto in una cartella a parte, e controlla che la copia
 si legga. Tiene le copie degli ultimi 30 giorni e la prima di ogni mese per un anno; le altre le cancella da sola.
 Lo stato, con gli avvisi (copia non riuscita, disco non collegato, copia sullo stesso disco dei dati), lo vede
-l'amministrazione in Giacenze → **Copia di sicurezza**, dove c'è anche **Copia adesso**. Se il PC era spento alle 2,
+l'amministrazione in Impostazioni → **Copia di sicurezza**, dove c'è anche **Copia adesso**. Gli avvisi compaiono anche in cima a Giacenze. Se il PC era spento alle 2,
 la copia parte 5 minuti dopo l'accensione.
 
 **Dove va la copia.** Su un disco dedicato, diverso da quello dei dati (decisione del 04/11/2026, piano 7.2). Si

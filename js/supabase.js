@@ -68,6 +68,51 @@ export async function changeMyPassword(login, password, newPassword) {
   if (error) throw error
 }
 
+// Impostazioni (scheda 1.5): dati dell'azienda, aliquote e numeri dei documenti, uguali nei due ambienti
+export async function getCompanySettings() {
+  const { data, error } = await supabase.from('company_settings').select('*').single()
+  if (error) throw error
+  return data
+}
+
+export async function saveCompanySettings(id, fields) {
+  const { data, error } = await supabase.from('company_settings').update(fields).eq('id', id).select().single()
+  if (error) throw error
+  return data
+}
+
+// In ordine alfabetico italiano: l'ordine del database dipende dalla sua collation, diversa tra Supabase e sede
+export async function getVatRates() {
+  const { data, error } = await supabase.from('vat_rates').select('id, name, rate, is_default, active')
+  if (error) throw error
+  return data.sort((a, b) => a.name.localeCompare(b.name, 'it', { numeric: true }))
+}
+
+export async function saveVatRate(id, name, rate) {
+  const { error } = await supabase.rpc('vat_rate_save', { p_id: id ?? null, p_name: name, p_rate: rate })
+  if (error) throw error
+}
+
+const vatRateCall = fn => async id => {
+  const { error } = await supabase.rpc(fn, { p_id: id })
+  if (error) throw error
+}
+export const setDefaultVatRate = vatRateCall('vat_rate_set_default')
+export const archiveVatRate = vatRateCall('vat_rate_archive')
+export const restoreVatRate = vatRateCall('vat_rate_restore')
+export const deleteVatRate = vatRateCall('vat_rate_delete')
+
+export async function getDocumentCounters() {
+  const { data, error } = await supabase.rpc('document_counters_list')
+  if (error) throw error
+  return data
+}
+
+export async function raiseDocumentCounter(series, next) {
+  const { error } = await supabase.rpc('document_counter_raise', { p_series: series, p_next: next })
+  if (error) throw error
+}
+
 // Account (scheda 1.4): l'elenco, il ruolo e lo stato in entrambi gli ambienti; creazione e reset solo nella sede
 export async function getAccounts() {
   const { data, error } = await supabase.rpc('accounts_list')
@@ -617,6 +662,15 @@ export async function getStockOverview() {
     getStockLevels(),
   ])
   return { articles, raw, stock }
+}
+
+// Per ogni luogo, quanti articoli ci hanno giacenza (scheda Luoghi)
+export async function getLocationHolding() {
+  const holding = new Map()
+  for (const s of await getStockLevels()) {
+    if (s.pieces !== 0 || Math.abs(Number(s.grams)) >= 0.05) holding.set(s.location_id, (holding.get(s.location_id) || 0) + 1)
+  }
+  return holding
 }
 
 // Nuovo luogo della sede (UC-11, REQ-M-07). Le fiere nascono col loro ciclo (UC-12)

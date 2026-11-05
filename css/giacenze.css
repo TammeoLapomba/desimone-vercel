@@ -57,6 +57,15 @@
 .gia-row-sub, .gia-row-meta { font-family: var(--editorial); font-size: 12px; color: var(--text-muted); }
 .gia-code { font-family: var(--mono); font-size: 12px; font-weight: 600; }
 
+/* ─── Impostazioni: dati dell'azienda ───────────────────────── */
+.imp-card { max-width: 720px; }
+.imp-card .form-row { margin-bottom: 12px; }
+.imp-card .field-input { width: 100%; min-width: 0; }
+.imp-card .field-error { min-height: 16px; margin-bottom: 8px; }
+.imp-city { grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) minmax(0, 1fr); }
+.gia-alert[hidden] { display: none; }
+#vatModal .field-input, #counterModal .field-input { width: 100%; min-width: 0; }
+
 /* ─── Utenti ────────────────────────────────────────────────── */
 .gia-card-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 8px; }
 .gia-card-head .mov-card-title { margin-bottom: 0; }
@@ -70,6 +79,7 @@
 .gia-section { padding: 16px 0 4px; font-family: var(--editorial); font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: var(--text-muted); }
 #userModal .form-row[hidden] { display: none; }
 @media (max-width: 600px) {
+  .imp-city { grid-template-columns: minmax(0, 1fr); }
   .gia-users .gia-row { flex-direction: column; align-items: stretch; gap: 8px; }
   .gia-users .gia-row-actions { justify-content: flex-start; }
 }
@@ -81,6 +91,7 @@
 }
 .gia-alert ul { margin: 4px 0 0; padding-left: 18px; }
 .gia-alert button { margin-top: 6px; }
+.gia-alert a { display: inline-block; margin-top: 4px; color: var(--coral); text-decoration: underline; }
 .gia-ok { color: var(--text-secondary); }
 .gia-ko { color: var(--coral); font-weight: 600; }
 

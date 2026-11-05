@@ -24,27 +24,34 @@ if ('serviceWorker' in navigator) {
   })
 }
 
-// ─── Voce Anagrafiche: solo con l'account dev (AN-02) ─────────────
+// ─── Voce per ruolo: Anagrafiche per il dev (AN-02), Impostazioni per l'amministrazione (scheda 1.5) ─
 
-async function addDevMenuItem() {
+const SETTINGS_ICON = '<line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/>'
+const ANAGRAFICHE_ICON = '<path d="M20.6 13.4l-7.2 7.2a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="8" cy="8" r="1.2"/>'
+
+async function addRoleMenuItem() {
   const nav = document.querySelector('.sidebar-nav')
   if (!nav) return
   const { data: { session } } = await supabase.auth.getSession()
-  if (!session || (await getMyRole()) !== 'dev') return
-  const current = window.location.pathname.includes('anagrafiche')
+  if (!session) return
+  const role = await getMyRole()
+  const page = role === 'dev' ? ['anagrafiche', 'Anagrafiche', ANAGRAFICHE_ICON] : role === 'admin' ? ['impostazioni', 'Impostazioni', SETTINGS_ICON] : null
+  if (!page) return
+  const [key, label, icon] = page
+  const current = window.location.pathname.includes(key)
   nav.insertAdjacentHTML('beforeend', `
-    <a href="/anagrafiche.html" class="nav-item${current ? ' active' : ''}" ${current ? 'aria-current="page"' : ''} title="Anagrafiche">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M20.6 13.4l-7.2 7.2a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="8" cy="8" r="1.2"/></svg>
-      <span class="nav-item-label">Anagrafiche</span>
+    <a href="/${key}.html" class="nav-item${current ? ' active' : ''}" ${current ? 'aria-current="page"' : ''} title="${label}">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">${icon}</svg>
+      <span class="nav-item-label">${label}</span>
     </a>`)
 }
-addDevMenuItem().catch(console.error)
+addRoleMenuItem().catch(console.error)
 
 // ─── Barra in basso sul telefono e sul tablet (≤ 768 px) ──────────
 // Sostituisce la barra laterale, che lì è nascosta: deve avere le stesse pagine (Montato, Semilavorato, Movimenti,
 // Giacenze, Registro) e l'uscita dall'account. Il "+" per un elemento nuovo galleggia sopra, solo dove c'è
 // (Montato, Semilavorato, Anagrafiche); collezioni, categorie ed elenchi si aprono dal menu ☰ in alto (initHamburger).
-// Con l'account dev c'è anche Anagrafiche (AN-02), come nella barra laterale (addDevMenuItem).
+// Con l'account dev c'è anche Anagrafiche (AN-02), con l'amministrazione Impostazioni, come nella barra laterale.
 
 const ICONS = {
   montato: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
@@ -52,7 +59,8 @@ const ICONS = {
   movimenti: '<polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>',
   giacenze: '<path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/>',
   registro: '<line x1="9" y1="6" x2="20" y2="6"/><line x1="9" y1="12" x2="20" y2="12"/><line x1="9" y1="18" x2="20" y2="18"/><circle cx="5" cy="6" r="1"/><circle cx="5" cy="12" r="1"/><circle cx="5" cy="18" r="1"/>',
-  anagrafiche: '<path d="M20.6 13.4l-7.2 7.2a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="8" cy="8" r="1.2"/>',
+  anagrafiche: ANAGRAFICHE_ICON,
+  impostazioni: SETTINGS_ICON,
   esci: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>',
 }
 const PAGES = [
@@ -63,6 +71,7 @@ const PAGES = [
   ['registro', 'Registro', '/registro.html'],
 ]
 const DEV_PAGE = ['anagrafiche', 'Anagr.', '/anagrafiche.html', 'Anagrafiche']
+const ADMIN_PAGE = ['impostazioni', 'Impost.', '/impostazioni.html', 'Impostazioni']
 const svg = name => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">${ICONS[name]}</svg>`
 
 export function initMobileNav({ onNewArticle, onOpenDrawer } = {}) {
@@ -70,7 +79,7 @@ export function initMobileNav({ onNewArticle, onOpenDrawer } = {}) {
 
   // La pagina aperta, anche senza .html (/movimenti) o dalla radice (/ = Montato)
   const path = window.location.pathname
-  const current = path === '/' ? 'montato' : ([...PAGES, DEV_PAGE].find(([key, , href]) => path.startsWith(href.replace('.html', '')))?.[0]
+  const current = path === '/' ? 'montato' : ([...PAGES, DEV_PAGE, ADMIN_PAGE].find(([key, , href]) => path.startsWith(href.replace('.html', '')))?.[0]
     ?? (path.includes('catalog') ? 'montato' : null))
   const item = ([key, label, href, full]) => `
     <a href="${href}" class="mobile-nav-item${key === current ? ' active' : ''}"${key === current ? ' aria-current="page"' : ''}
@@ -91,10 +100,12 @@ export function initMobileNav({ onNewArticle, onOpenDrawer } = {}) {
   // Tornando indietro il browser può rimostrare la pagina com'era: la voce non deve restare scura
   window.addEventListener('pageshow', () => nav.querySelectorAll('.pressed').forEach(a => a.classList.remove('pressed')))
 
-  // Anagrafiche solo con l'account dev, prima di Esci
+  // Anagrafiche solo con l'account dev, Impostazioni solo con l'amministrazione, prima di Esci
   getMyRole().then(role => {
-    if (role !== 'dev') return
-    document.getElementById('mobileSignOutBtn').insertAdjacentHTML('beforebegin', item(DEV_PAGE))
+    const page = role === 'dev' ? DEV_PAGE : role === 'admin' ? ADMIN_PAGE : null
+    if (!page) return
+    document.getElementById('mobileSignOutBtn').insertAdjacentHTML('beforebegin', item(page))
+    nav.classList.add('mobile-nav-seven')
   }).catch(console.error)
 
   // "+" solo dove si crea qualcosa

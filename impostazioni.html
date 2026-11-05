@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>De Simone OS — Impostazioni</title>
+
+  <!-- PWA -->
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#1A1814">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="De Simone">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
+
+  <meta name="description" content="Atelier Antonino De Simone — Impostazioni">
+
+  <link rel="stylesheet" href="css/variables.css">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/layout.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/mobile.css">
+  <link rel="stylesheet" href="css/movimenti.css">
+  <link rel="stylesheet" href="css/giacenze.css">
+</head>
+<body>
+<a href="#impostazioni-main" class="skip-link">Vai al contenuto principale</a>
+<div id="toast" role="status" aria-live="polite"></div>
+<div class="app-shell">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar" aria-label="Navigazione principale">
+    <div class="sidebar-logo" aria-hidden="true">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+    </div>
+    <nav class="sidebar-nav" aria-label="Menu">
+      <a href="/catalog.html" class="nav-item" title="Montato">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        <span class="nav-item-label">Montato</span>
+      </a>
+      <a href="/semilavorato.html" class="nav-item" title="Semilavorato">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+        <span class="nav-item-label">Semilavorato</span>
+      </a>
+      <a href="/movimenti.html" class="nav-item" title="Movimenti">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+        <span class="nav-item-label">Movimenti</span>
+      </a>
+      <a href="/giacenze.html" class="nav-item" title="Giacenze">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg>
+        <span class="nav-item-label">Giacenze</span>
+      </a>
+      <a href="/registro.html" class="nav-item" title="Registro">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><line x1="9" y1="6" x2="20" y2="6"/><line x1="9" y1="12" x2="20" y2="12"/><line x1="9" y1="18" x2="20" y2="18"/><circle cx="5" cy="6" r="1"/><circle cx="5" cy="12" r="1"/><circle cx="5" cy="18" r="1"/></svg>
+        <span class="nav-item-label">Registro</span>
+      </a>
+    </nav>
+    <div class="sidebar-bottom">
+      <button class="sidebar-account" onclick="window.signOutUser()" aria-label="Esci dall'account">ADS</button>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main" id="impostazioni-main">
+    <div class="topbar" role="toolbar" aria-label="Impostazioni">
+      <div class="mov-topbar-title">Impostazioni</div>
+      <div class="mov-topbar-meta">
+        <span class="mov-chip" id="operatorChip" aria-live="polite"></span>
+      </div>
+    </div>
+
+    <div class="catalog-area">
+      <div class="mov-blocked" id="blocked" hidden></div>
+
+      <div id="page" hidden>
+        <!-- La copia di sicurezza solo nella sede (7.2) -->
+        <div class="gia-tabs" role="tablist" aria-label="Sezioni">
+          <button type="button" role="tab" class="gia-tab" id="tab-company" aria-controls="panel-company" aria-selected="true">Azienda</button>
+          <button type="button" role="tab" class="gia-tab" id="tab-vat" aria-controls="panel-vat" aria-selected="false">IVA</button>
+          <button type="button" role="tab" class="gia-tab" id="tab-counters" aria-controls="panel-counters" aria-selected="false">Numerazione</button>
+          <button type="button" role="tab" class="gia-tab" id="tab-users" aria-controls="panel-users" aria-selected="false">Utenti</button>
+          <button type="button" role="tab" class="gia-tab" id="tab-locations" aria-controls="panel-locations" aria-selected="false">Luoghi</button>
+          <button type="button" role="tab" class="gia-tab" id="tab-devices" aria-controls="panel-devices" aria-selected="false">Dispositivi</button>
+          <button type="button" role="tab" class="gia-tab" id="tab-backup" aria-controls="panel-backup" aria-selected="false" hidden>Copia di sicurezza</button>
+        </div>
+        <div class="gia-alert" id="backupAlert" role="alert" hidden></div>
+
+        <!-- Dati dell'azienda (B7, IM-01, IM-02) -->
+        <section role="tabpanel" id="panel-company" aria-labelledby="tab-company">
+          <div class="mov-card imp-card">
+            <h2 class="mov-card-title">Azienda</h2>
+            <p class="field-hint gia-hint">Compariranno su bolle, DDT e ordini quando arriveranno. Per ora nessun documento li usa.</p>
+            <p class="gia-alert" id="companyEmpty" hidden>Ancora da compilare.</p>
+            <form id="companyForm" novalidate>
+              <div class="form-row full"><div class="form-field">
+                <label class="field-label" for="f_legal_name">Ragione sociale <span class="field-required">*</span></label>
+                <input class="field-input" id="f_legal_name" maxlength="160" autocomplete="off">
+              </div></div>
+              <div class="form-row full"><div class="form-field">
+                <label class="field-label" for="f_address">Indirizzo <span class="field-required">*</span></label>
+                <input class="field-input" id="f_address" maxlength="160" autocomplete="off">
+              </div></div>
+              <div class="form-row imp-city"><div class="form-field">
+                <label class="field-label" for="f_postal_code">CAP <span class="field-required">*</span></label>
+                <input class="field-input" id="f_postal_code" maxlength="5" inputmode="numeric" autocomplete="off">
+              </div><div class="form-field">
+                <label class="field-label" for="f_city">Città <span class="field-required">*</span></label>
+                <input class="field-input" id="f_city" maxlength="80" autocomplete="off">
+              </div><div class="form-field">
+                <label class="field-label" for="f_province">Provincia <span class="field-required">*</span></label>
+                <input class="field-input" id="f_province" maxlength="2" style="text-transform:uppercase;" autocomplete="off">
+              </div></div>
+              <div class="form-row"><div class="form-field">
+                <label class="field-label" for="f_vat_number">Partita IVA <span class="field-required">*</span></label>
+                <input class="field-input" id="f_vat_number" maxlength="16" autocomplete="off">
+              </div><div class="form-field">
+                <label class="field-label" for="f_tax_code">Codice fiscale</label>
+                <input class="field-input" id="f_tax_code" maxlength="16" style="text-transform:uppercase;" autocomplete="off">
+              </div></div>
+              <div class="form-row"><div class="form-field">
+                <label class="field-label" for="f_rea_number">Numero REA</label>
+                <input class="field-input" id="f_rea_number" maxlength="30" autocomplete="off">
+              </div><div class="form-field">
+                <label class="field-label" for="f_phone">Telefono</label>
+                <input class="field-input" id="f_phone" maxlength="40" inputmode="tel" autocomplete="off">
+              </div></div>
+              <div class="form-row"><div class="form-field">
+                <label class="field-label" for="f_email">Email</label>
+                <input class="field-input" id="f_email" maxlength="160" inputmode="email" autocomplete="off">
+              </div><div class="form-field">
+                <label class="field-label" for="f_pec">PEC</label>
+                <input class="field-input" id="f_pec" maxlength="160" inputmode="email" autocomplete="off">
+              </div></div>
+              <div class="form-row full"><div class="form-field">
+                <label class="field-label" for="f_website">Sito</label>
+                <input class="field-input" id="f_website" maxlength="160" autocomplete="off">
+              </div></div>
+              <div class="field-error" id="companyError" role="alert"></div>
+              <div class="mov-actions"><button type="submit" class="btn-primary" id="btnCompany" disabled>Salva</button></div>
+            </form>
+          </div>
+        </section>
+
+        <!-- Aliquote IVA (B6, IM-03…IM-06) -->
+        <section role="tabpanel" id="panel-vat" aria-labelledby="tab-vat" hidden>
+          <div class="mov-card">
+            <div class="gia-card-head">
+              <h2 class="mov-card-title">Aliquote IVA</h2>
+              <button type="button" class="btn-primary" id="btnNewVat">Nuova aliquota</button>
+            </div>
+            <p class="field-hint gia-hint">La predefinita si proporrà sulle righe dei documenti. I documenti copieranno nome e percentuale, così quelli già fatti non cambiano. Dopo il primo uso, per una percentuale diversa si crea un'aliquota nuova.</p>
+            <ul class="gia-list gia-users" id="vatList" aria-live="polite"></ul>
+          </div>
+        </section>
+
+        <!-- Numeri dei documenti (B7, IM-11) -->
+        <section role="tabpanel" id="panel-counters" aria-labelledby="tab-counters" hidden>
+          <div class="mov-card">
+            <h2 class="mov-card-title">Numerazione</h2>
+            <p class="field-hint gia-hint">I numeri li assegna il database, senza doppioni. Ogni anno ripartono da 1. Si usano con bolle, ritorni e ordini, quando arriveranno: per ora nessun documento li consuma.</p>
+            <ul class="gia-list gia-users" id="counterList" aria-live="polite"></ul>
+          </div>
+        </section>
+
+        <!-- Luoghi (UC-11, REQ-M-07) -->
+        <section role="tabpanel" id="panel-locations" aria-labelledby="tab-locations" hidden>
+          <div class="gia-admin">
+            <div class="mov-card">
+              <h2 class="mov-card-title">Luoghi</h2>
+              <ul class="gia-list" id="locationList"></ul>
+            </div>
+            <div class="mov-card">
+              <h2 class="mov-card-title">Nuovo luogo</h2>
+              <form id="locationForm" class="gia-form" novalidate>
+                <div class="form-field">
+                  <label class="field-label" for="locationName">Nome <span class="field-required">*</span></label>
+                  <input class="field-input" id="locationName" autocomplete="off" maxlength="60" placeholder="es. Magazzino">
+                </div>
+                <div class="field-hint">Un luogo della sede. Le fiere si creano con il loro ciclo (partenza, rientro, chiusura).</div>
+                <div class="mov-actions"><button type="submit" class="btn-primary" id="btnLocation">Crea luogo</button></div>
+              </form>
+            </div>
+          </div>
+        </section>
+
+        <!-- Dispositivi (UC-13, REQ-S-01…S-03) -->
+        <section role="tabpanel" id="panel-devices" aria-labelledby="tab-devices" hidden>
+          <div class="mov-card">
+            <h2 class="mov-card-title">Dispositivi</h2>
+            <p class="field-hint gia-hint">Un dispositivo revocato non può più registrare movimenti, neanche quelli fatti senza collegamento e inviati dopo. La revoca non si annulla dall'app.</p>
+            <ul class="gia-list" id="deviceList"></ul>
+          </div>
+        </section>
+
+        <!-- Utenti (REQ-P-08, P-09, scheda 1.4) -->
+        <section role="tabpanel" id="panel-users" aria-labelledby="tab-users" hidden>
+          <div class="mov-card">
+            <div class="gia-card-head">
+              <h2 class="mov-card-title">Utenti</h2>
+              <button type="button" class="btn-primary" id="btnNewUser" hidden>Nuovo utente</button>
+            </div>
+            <p class="field-hint gia-hint" id="usersHint"></p>
+            <ul class="gia-list" id="userList" aria-live="polite"></ul>
+          </div>
+        </section>
+
+        <!-- Copia di sicurezza (7.2, REQ-I-02, architettura-locale §8): solo nella sede -->
+        <section role="tabpanel" id="panel-backup" aria-labelledby="tab-backup" hidden>
+          <div class="mov-card">
+            <h2 class="mov-card-title">Copia di sicurezza</h2>
+            <p class="field-hint gia-hint">Ogni notte il PC server copia database e foto su un disco a parte. Si tengono le copie degli ultimi 30 giorni e una al mese per un anno. Prima di un aggiornamento conviene farne una subito.</p>
+            <ul class="gia-list" id="backupList" aria-live="polite"></ul>
+            <div class="mov-actions"><button type="button" class="btn-primary" id="btnBackup">Copia adesso</button></div>
+          </div>
+        </section>
+      </div>
+    </div>
+  </main>
+</div>
+
+<div class="modal-overlay" id="userModal" role="dialog" aria-modal="true" aria-labelledby="userModalTitle">
+  <div class="modal modal-compact">
+    <div class="modal-header">
+      <div>
+        <div class="modal-eyebrow">Utenti</div>
+        <div class="modal-title" id="userModalTitle">Nuovo utente</div>
+      </div>
+      <button type="button" id="btnCloseUser" aria-label="Chiudi" style="background:none;border:none;cursor:pointer;color:var(--text-muted);padding:4px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <form id="userForm" novalidate>
+      <div class="modal-body">
+        <div class="form-row full" id="fieldUserName"><div class="form-field">
+          <label class="field-label" for="f_user_name">Nome <span class="field-required">*</span></label>
+          <input type="text" class="field-input" id="f_user_name" maxlength="80" autocomplete="off">
+          <span class="field-hint">Come compare nei movimenti.</span>
+        </div></div>
+        <div class="form-row full" id="fieldUserUsername"><div class="form-field">
+          <label class="field-label" for="f_user_username">Nome utente <span class="field-required">*</span></label>
+          <input type="text" class="field-input" id="f_user_username" maxlength="40" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="es. gioia">
+          <span class="field-hint">Serve per entrare. Lettere, numeri, punti e trattini, senza spazi. Non si cambia più.</span>
+        </div></div>
+        <div class="form-row full" id="fieldUserRole"><div class="form-field">
+          <label class="field-label" for="f_user_role">Ruolo <span class="field-required">*</span></label>
+          <select class="field-input field-select" id="f_user_role">
+            <option value="">Scegli…</option>
+            <option value="admin">Amministrazione</option>
+            <option value="fiere">Fiere</option>
+            <option value="laboratorio">Laboratorio</option>
+            <option value="negozio">Negozio</option>
+          </select>
+          <span class="field-hint" id="userRoleHint"></span>
+        </div></div>
+        <div class="form-row full" id="fieldUserPassword"><div class="form-field">
+          <label class="field-label" for="f_user_password">Password provvisoria <span class="field-required">*</span></label>
+          <input type="text" class="field-input" id="f_user_password" autocomplete="off" autocapitalize="none" spellcheck="false">
+          <span class="field-hint">Almeno 8 caratteri. Dilla alla persona: al primo accesso dovrà sceglierne una sua. Qui non si rivede più.</span>
+        </div></div>
+        <div class="field-error" id="userError" role="alert"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-ghost" id="btnCancelUser">Annulla</button>
+        <button type="submit" class="btn-primary" id="btnSaveUser">Salva</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-overlay" id="vatModal" role="dialog" aria-modal="true" aria-labelledby="vatModalTitle">
+  <div class="modal modal-compact">
+    <div class="modal-header">
+      <div>
+        <div class="modal-eyebrow">IVA</div>
+        <div class="modal-title" id="vatModalTitle">Nuova aliquota</div>
+      </div>
+      <button type="button" id="btnCloseVat" aria-label="Chiudi" style="background:none;border:none;cursor:pointer;color:var(--text-muted);padding:4px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <form id="vatForm" novalidate>
+      <div class="modal-body">
+        <div class="form-row full"><div class="form-field">
+          <label class="field-label" for="f_vat_name">Nome <span class="field-required">*</span></label>
+          <input type="text" class="field-input" id="f_vat_name" maxlength="60" autocomplete="off" placeholder="es. IVA 22%">
+          <span class="field-hint">Si stamperà così sui documenti.</span>
+        </div></div>
+        <div class="form-row full"><div class="form-field">
+          <label class="field-label" for="f_vat_rate">Percentuale <span class="field-required">*</span></label>
+          <input type="text" class="field-input" id="f_vat_rate" inputmode="decimal" maxlength="6" autocomplete="off" placeholder="es. 22">
+          <span class="field-hint">Da 0 a 100, con al massimo due decimali.</span>
+        </div></div>
+        <div class="field-error" id="vatError" role="alert"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-ghost" id="btnCancelVat">Annulla</button>
+        <button type="submit" class="btn-primary" id="btnSaveVat">Salva</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<div class="modal-overlay" id="counterModal" role="dialog" aria-modal="true" aria-labelledby="counterModalTitle">
+  <div class="modal modal-compact">
+    <div class="modal-header">
+      <div>
+        <div class="modal-eyebrow">Numerazione</div>
+        <div class="modal-title" id="counterModalTitle">Alza il prossimo numero</div>
+      </div>
+      <button type="button" id="btnCloseCounter" aria-label="Chiudi" style="background:none;border:none;cursor:pointer;color:var(--text-muted);padding:4px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <form id="counterForm" novalidate>
+      <div class="modal-body">
+        <div class="form-row full"><div class="form-field">
+          <label class="field-label" for="f_counter">Prossimo numero <span class="field-required">*</span></label>
+          <input type="number" class="field-input" id="f_counter" step="1" max="999999" autocomplete="off">
+          <span class="field-hint" id="counterHint"></span>
+        </div></div>
+        <div class="field-error" id="counterError" role="alert"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-ghost" id="btnCancelCounter">Annulla</button>
+        <button type="submit" class="btn-primary" id="btnSaveCounter">Alza</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script src="config.js"></script>
+<script type="module" src="js/impostazioni.js"></script>
+<script type="module" src="js/pwa.js"></script>
+</body>
+</html>

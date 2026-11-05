@@ -65,6 +65,12 @@
   }
   .mobile-nav-item span { overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
   .mobile-nav-exit { flex: 0 0 48px; border-left: 1px solid rgba(255,255,255,0.08); border-radius: 0; }
+  /* Sette voci, con Anagrafiche o Impostazioni: sul telefono le scritte si stringono per non tagliarsi */
+  @media (max-width: 480px) {
+    .mobile-nav-seven { padding: 0 4px; padding-bottom: env(safe-area-inset-bottom); }
+    .mobile-nav-seven .mobile-nav-item { font-size: 8px; letter-spacing: 0; padding-left: 0; padding-right: 0; }
+    .mobile-nav-seven .mobile-nav-exit { flex-basis: 40px; }
+  }
   .mobile-nav-item:focus-visible { outline: 2px solid var(--coral-pink); outline-offset: -2px; }
 
   .mobile-nav-item.active {

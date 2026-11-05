@@ -1,4 +1,4 @@
-const CACHE_NAME = 'desimone-os-v45'
+const CACHE_NAME = 'desimone-os-v46'
 
 const SHELL_ASSETS = [
   '/catalog.html',
@@ -8,6 +8,7 @@ const SHELL_ASSETS = [
   '/giacenze.html',
   '/registro.html',
   '/anagrafiche.html',
+  '/impostazioni.html',
   '/login.html',
   '/config.js',
   '/css/variables.css',
@@ -48,6 +49,7 @@ const SHELL_ASSETS = [
   '/js/giacenze.js',
   '/js/registro.js',
   '/js/anagrafiche.js',
+  '/js/impostazioni.js',
   '/js/bilancia/bilancia.js',
   '/js/bilancia/pesi.js',
   '/js/bilancia/sics.js',
