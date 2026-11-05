@@ -1,7 +1,7 @@
 // js/article.js
 import { requireAuth, getCollections, getMaterials, getMetals, getProductTypes, getArticleById, getItemStock, updateArticle, setArticleMaterials, retirePreview, retireItem, signOut } from './supabase.js'
 import { showToast, isAppSku, confirmRetire } from './utils.js'
-import { initMaterialPicker } from './material-picker.js'
+import { initMaterialPicker, initMetalWeight } from './material-picker.js'
 
 window.signOutUser = signOut
 
@@ -9,6 +9,7 @@ let articleId = null
 let currentArticle = null
 let collections = []
 let materialPicker = null
+let metalWeight = null
 let isAdmin = false
 
 async function init() {
@@ -50,10 +51,16 @@ async function init() {
     document.getElementById('f_sku').value = currentArticle.sku
     document.getElementById('f_notes').value = currentArticle.notes || ''
     
-    const articleMaterialIds = (currentArticle.article_materials || [])
-      .slice().sort((a, b) => a.sort_order - b.sort_order).map(am => am.material_id)
-    materialPicker = initMaterialPicker(document.getElementById('f_materials'), materials, articleMaterialIds)
+    const articleRows = (currentArticle.article_materials || []).slice().sort((a, b) => a.sort_order - b.sort_order)
+    materialPicker = initMaterialPicker(document.getElementById('f_materials'), materials, articleRows)
     document.getElementById('f_metal').value = currentArticle.metal_id || ''
+    metalWeight = initMetalWeight({
+      select: document.getElementById('f_metal'),
+      field: document.getElementById('f_metal_grams_field'),
+      input: document.getElementById('f_metal_grams'),
+      metals,
+      value: currentArticle.metal_grams
+    })
     document.getElementById('f_price_retail').value = currentArticle.price_retail || ''
     document.getElementById('f_price_wholesale').value = currentArticle.price_wholesale || ''
 
@@ -133,6 +140,15 @@ function setupListeners() {
     if (appSku && !document.getElementById('f_price_retail').value) return showToast('Inserisci il prezzo retail')
     // Il peso del modello serve a ogni movimento (028): obbligatorio per tutti, anche per gli articoli del sito
     if (!(Number(document.getElementById('f_weight').value) > 0)) return showToast('Inserisci il peso di un pezzo (g)')
+    const materialCheck = materialPicker.read()
+    const metalCheck = metalWeight.read()
+    for (const check of [materialCheck, metalCheck]) {
+      if (check.error) {
+        showToast(check.error, 5000)
+        check.element.focus()
+        return
+      }
+    }
 
     if (!confirm('ATTENZIONE: Stai per sovrascrivere in modo permanente i dati di questo articolo. Il codice resta invariato. Vuoi procedere?')) {
       return
@@ -144,6 +160,7 @@ function setupListeners() {
 
     try {
       const typeSel = document.getElementById('f_type')
+      const metalId = document.getElementById('f_metal').value || null
       const l = document.getElementById('f_length').value
 
       const measurements = {}
@@ -160,15 +177,19 @@ function setupListeners() {
         name: title,
         product_type_id: typeSel.value,
         collection_id: document.getElementById('f_collection').value,
-        metal_id: document.getElementById('f_metal').value || null,
+        metal_id: metalId,
+        metal_grams: metalCheck.value,
         notes: document.getElementById('f_notes').value.trim() || null,
         price_retail: Number(document.getElementById('f_price_retail').value) || null,
         price_wholesale: Number(document.getElementById('f_price_wholesale').value) || null,
         measurements: Object.keys(measurements).length ? measurements : null
       }
 
+      // Il testo di STEP parlava del metallo di prima (CO-10)
+      if (metalId !== currentArticle.metal_id) updates.metal_step_text = null
+
       await updateArticle(articleId, updates)
-      await setArticleMaterials(articleId, materialIds)
+      await setArticleMaterials(articleId, materialCheck.rows)
       showToast('Articolo aggiornato con successo!')
       
       setTimeout(() => {

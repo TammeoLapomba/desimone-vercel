@@ -1,6 +1,6 @@
 // js/catalog.js
 import { supabase, requireAuth, getCollections, getArticles, insertCollection, retirePreview, retireItem, deleteCollection, signOut } from './supabase.js'
-import { formatPrice, getCoverPhoto, showToast, isAppSku, articleMaterials, validateCollection, confirmRetire } from './utils.js'
+import { formatPrice, getCoverPhoto, showToast, isAppSku, articleMaterials, articleMaterialLines, articleMetalLine, validateCollection, confirmRetire } from './utils.js'
 import { initColorSelect } from './color-select.js'
 import { initFilters } from './filters.js'
 import { openArticleModal } from './article-form.js'
@@ -460,8 +460,8 @@ function openDetail(articleId) {
       <div style="font-family:var(--editorial);font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--coral);margin-bottom:4px;">${a.collections?.name || ''}</div>
       <div style="font-family:var(--editorial);font-size:20px;font-weight:400;line-height:1.3;margin-bottom:4px;">${dispName}</div>
       <div style="font-family:var(--mono);font-size:10px;color:var(--text-muted);margin-bottom:16px;">${a.sku}</div>
-      ${detailRow('Materiali', articleMaterials(a).map(m => m.name).join(', ') || '—')}
-      ${detailRow('Metallo', a.metal?.name || '—')}
+      ${detailRow('Materiali', articleMaterialLines(a).map(esc).join('<br>') || '—')}
+      ${detailRow('Metallo', esc(articleMetalLine(a)) || '—')}
       ${detailRow('Prezzo retail', formatPrice(a.price_retail))}
       ${a.price_wholesale ? detailRow('Prezzo ingrosso', formatPrice(a.price_wholesale)) : ''}
       ${detailRow('Giacenza', stockOf(a) + ' pz')}

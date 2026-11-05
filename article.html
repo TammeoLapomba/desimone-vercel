@@ -139,6 +139,11 @@
             <label class="field-label">Metallo <span class="field-required">*</span></label>
             <select class="field-select" id="f_metal"></select>
           </div>
+          <div class="form-field" id="f_metal_grams_field" hidden>
+            <label class="field-label" for="f_metal_grams">Peso del metallo (g)</label>
+            <input type="text" class="field-input" id="f_metal_grams" inputmode="decimal" autocomplete="off">
+            <span class="field-hint">Per il cartellino. Non cambia il peso totale.</span>
+          </div>
         </div>
         <div class="form-row" style="margin-top:16px;">
           <div class="form-field">
@@ -162,9 +167,9 @@
             <a class="field-hint" id="f_stock_link" href="/movimenti.html">Movimenta →</a>
           </div>
           <div class="form-field">
-            <label class="field-label">Peso (g) <span class="field-required">*</span></label>
+            <label class="field-label">Peso totale di un pezzo (g) <span class="field-required">*</span></label>
             <input type="number" class="field-input" id="f_weight" min="0" step="0.1">
-            <div class="field-hint">Peso di un pezzo: i movimenti pesano pezzi × questo peso. Senza, non si carica.</div>
+            <div class="field-hint">I movimenti pesano pezzi × questo peso. Senza, non si carica.</div>
           </div>
           <div class="form-field"></div>
         </div>

@@ -108,7 +108,7 @@ function normalizeItems({ articles, raw }) {
     weight: modelWeight(a.measurements), // peso del modello: i movimenti pesano pezzi × questo (028)
     group: `Gioiello · ${a.product_type?.name || '—'}`,
     collection: a.collections?.name || null,
-    materials: (a.article_materials || []).map(m => m.material?.name).filter(Boolean),
+    materials: [...new Set((a.article_materials || []).map(m => m.material?.name).filter(Boolean))],
   }))
   const semi = raw.map(r => ({
     kind: 'semilavorato',

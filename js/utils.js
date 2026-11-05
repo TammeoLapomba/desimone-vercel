@@ -73,12 +73,56 @@ export function buildSkuPreview(collectionSlug, materialCode, metalCode) {
   return `${coll}-${material}-${metal}-###`
 }
 
-// Materiali di un articolo (da getArticles) nell'ordine scelto: [{ id, name, code }]
+const materialRows = article => (article.article_materials || []).slice().sort((a, b) => a.sort_order - b.sort_order)
+
+// Materiali di un articolo (da getArticles) nell'ordine scelto, ognuno una volta sola anche se sta su più righe: [{ id, name, code }]
 export function articleMaterials(article) {
-  return (article.article_materials || [])
-    .slice()
-    .sort((a, b) => a.sort_order - b.sort_order)
+  const seen = new Set()
+  return materialRows(article)
+    .filter(am => !seen.has(am.material_id) && seen.add(am.material_id))
     .map(am => ({ id: am.material_id, ...am.material }))
+}
+
+// ── Composizione: numeri con la virgola, con le regole del database (035, CO-01) ──
+
+// "0,03" o "0.03": maggiore di zero, sotto max, con al massimo decimals decimali. Vuoto vale null. { ok, value } oppure { ok: false }
+export function parseDecimal(text, decimals, max) {
+  const t = String(text ?? '').trim()
+  if (!t) return { ok: true, value: null }
+  if (!new RegExp(`^\\d+${decimals ? `([.,]\\d{1,${decimals}})?` : ''}$`).test(t)) return { ok: false }
+  const value = Number(t.replace(',', '.'))
+  return value > 0 && value < max ? { ok: true, value } : { ok: false }
+}
+
+// 0.035 → "0,035"; vuoto se non c'è
+export function formatDecimal(value) {
+  return value == null ? '' : Number(value).toLocaleString('it-IT', { maximumFractionDigits: 3, useGrouping: false })
+}
+
+// Valori di una riga dei materiali: "5 pz, ct 0,03", "mm 15 × 20, 0,6 g", "da mm 3 a 5"
+function materialValues({ pieces, carats, size_mm: size, size2_mm: size2, size_mode: mode, grams }) {
+  const n = formatDecimal
+  const sizeText = size == null ? null
+    : mode === 'to' ? `da mm ${n(size)} a ${n(size2)}`
+    : mode === 'by' ? `mm ${n(size)} × ${n(size2)}`
+    : `mm ${n(size)}`
+  return [
+    pieces != null && `${n(pieces)} pz`,
+    carats != null && `ct ${n(carats)}`,
+    sizeText,
+    grams != null && `${n(grams)} g`,
+  ].filter(Boolean).join(', ')
+}
+
+// Una riga per materiale, come nel pannello del catalogo: "Diamante: 5 pz, ct 0,03" (CO-09)
+export function articleMaterialLines(article) {
+  return materialRows(article).map(am => [am.material?.name, materialValues(am)].filter(Boolean).join(': '))
+}
+
+// Il metallo con il suo peso: "Oro Giallo 18k: 1,7 g"
+export function articleMetalLine(article) {
+  if (!article.metal?.name) return ''
+  return article.metal_grams == null ? article.metal.name : `${article.metal.name}: ${formatDecimal(article.metal_grams)} g`
 }
 
 // ── Collezioni: regole uguali nella finestra "Nuova collezione" e nell'inserimento articolo ──

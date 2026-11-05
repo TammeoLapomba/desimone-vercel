@@ -51,7 +51,7 @@ function NuovoGioiello($nome, $material) {
   $a = @(Api POST '/rest/v1/articles' @{
     collection_id = $coll.id; name = $nome; product_type_id = $type.id; metal_id = $metal.id; sku = $sku
     price_retail = 100; channel = 'both'; measurements = @{ weight_g = 5 } })[0]
-  Api POST '/rest/v1/rpc/set_article_materials' @{ p_article_id = $a.id; p_material_ids = @($material.id) } | Out-Null
+  Api POST '/rest/v1/rpc/set_article_materials' @{ p_article_id = $a.id; p_rows = @(@{ material_id = $material.id }) } | Out-Null
   $a
 }
 # Carico come in movimenti.js: il codice del movimento nasce qui, con articolo, tipo, momento e dispositivo

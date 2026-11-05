@@ -3,7 +3,7 @@ import { supabase, getCollections, insertCollection, getMaterials, getMetals, ge
 import { buildSkuPreview, showToast, validateCollection } from './utils.js'
 import { initColorSelect } from './color-select.js'
 import { initPhotoUpload } from './photo-upload.js'
-import { initMaterialPicker } from './material-picker.js'
+import { initMaterialPicker, initMetalWeight } from './material-picker.js'
 
 let collections = []
 let productTypes = []
@@ -11,6 +11,7 @@ let materials = []
 let metals = []
 let photoUploader = null
 let materialPicker = null
+let metalWeight = null
 let onSuccessCallback = null
 let onCollectionCreatedCallback = null
 let canCreateCollection = false
@@ -146,6 +147,11 @@ function renderModal() {
               </select>
               <span class="field-hint">${MISSING_HINT}</span>
             </div>
+            <div class="form-field" id="f_metal_grams_field" hidden>
+              <label class="field-label" for="f_metal_grams">Peso del metallo (g)</label>
+              <input type="text" class="field-input" id="f_metal_grams" inputmode="decimal" autocomplete="off">
+              <span class="field-hint">Per il cartellino. Non cambia il peso totale.</span>
+            </div>
           </div>
           <div class="form-row">
             <div class="form-field">
@@ -159,9 +165,9 @@ function renderModal() {
           </div>
           <div class="form-row">
             <div class="form-field">
-              <label class="field-label">Peso (g) <span class="field-required">*</span></label>
+              <label class="field-label">Peso totale di un pezzo (g) <span class="field-required">*</span></label>
               <input type="number" class="field-input" id="f_weight" placeholder="0.0" step="0.1" min="0">
-              <div class="field-hint">Peso di un pezzo: i movimenti pesano pezzi × questo peso.</div>
+              <div class="field-hint">I movimenti pesano pezzi × questo peso.</div>
             </div>
           </div>
           <div class="form-row triple">
@@ -242,6 +248,12 @@ function setupFormListeners() {
   }
 
   materialPicker = initMaterialPicker(document.getElementById('f_materials'), materials, [], updateSkuPreview)
+  metalWeight = initMetalWeight({
+    select: document.getElementById('f_metal'),
+    field: document.getElementById('f_metal_grams_field'),
+    input: document.getElementById('f_metal_grams'),
+    metals
+  })
   document.getElementById('f_collection').addEventListener('change', updateSkuPreview)
   document.getElementById('f_metal')?.addEventListener('change', updateSkuPreview)
 
@@ -346,6 +358,9 @@ function setupFormListeners() {
     }
     if (s === 2) {
       if (!materialPicker.getIds().length) { showToast('Aggiungi almeno un materiale'); return false }
+      for (const check of [materialPicker.read(), metalWeight.read()]) {
+        if (check.error) { showToast(check.error, 5000); check.element.focus(); return false }
+      }
       if (!document.getElementById('f_metal').value) { showToast('Seleziona il tipo di metallo'); return false }
       if (!document.getElementById('f_price_retail').value) { showToast('Inserisci il prezzo retail'); return false }
       if (!(Number(document.getElementById('f_weight').value) > 0)) { showToast('Inserisci il peso di un pezzo (g)'); return false }
@@ -361,12 +376,12 @@ function setupFormListeners() {
     try {
       // 1. Genera SKU server-side via Supabase RPC
       const collId = document.getElementById('f_collection').value
-      const materialIds = materialPicker.getIds()
+      const { rows: materialRows } = materialPicker.read()
       const metalId = document.getElementById('f_metal').value
 
       const { data: skuData, error: skuError } = await supabase.rpc('generate_sku', {
         p_collection_id: collId,
-        p_material_id: materialIds[0],
+        p_material_id: materialRows[0].material_id,
         p_metal_id: metalId
       })
       if (skuError) throw skuError
@@ -389,6 +404,7 @@ function setupFormListeners() {
         name: titleInput.value.trim(),
         product_type_id: typeSel.value,
         metal_id: metalId,
+        metal_grams: metalWeight.read().value,
         sku: skuData,
         price_retail: Number(document.getElementById('f_price_retail').value) || null,
         price_wholesale: Number(document.getElementById('f_price_wholesale').value) || null,
@@ -396,7 +412,7 @@ function setupFormListeners() {
         notes: document.getElementById('f_notes').value.trim() || null,
         measurements: Object.keys(measurements).length ? measurements : null
       })
-      await setArticleMaterials(article.id, materialIds)
+      await setArticleMaterials(article.id, materialRows)
 
       // 3. Upload photos
       const files = photoUploader.getFiles()

@@ -11,17 +11,20 @@ const esc = v => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').re
 const slugify = name => name.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
 
 // hasCode: sigla degli SKU di oggi e posizione nel codice. preview: dove finisce la lettera nel codice di 14 caratteri (AC-04).
+// fields: i campi che la voce fa comparire sugli articoli (035, CO-04).
 const LISTS = {
   product_types: {
-    label: 'Tipi', one: 'tipo', article: 'il tipo', newLabel: 'Nuovo tipo', hasCode: false, hasColor: false,
+    label: 'Tipi', one: 'tipo', article: 'il tipo', newLabel: 'Nuovo tipo', hasCode: false, hasColor: false, fields: [],
     preview: f => [f.letter || 'T', 'MMMM', 'C', 'LLL', '#####'],
   },
   materials: {
     label: 'Materiali', one: 'materiale', article: 'il materiale', newLabel: 'Nuovo materiale', hasCode: true, hasColor: true,
+    fields: [['has_pieces', 'Numero'], ['has_carats', 'Carati'], ['has_size', 'Misura'], ['has_grams', 'Peso']],
     preview: f => ['T', `${f.letter || 'M'}MMM`, f.colorLetter || 'C', 'LLL', '#####'],
   },
   metals: {
     label: 'Metalli', one: 'metallo', article: 'il metallo', newLabel: 'Nuovo metallo', hasCode: true, hasColor: false,
+    fields: [['has_weight', 'Peso del metallo']],
     preview: f => ['T', `${f.letter || 'M'}MMM`, 'C', 'LLL', '#####'],
   },
 }
@@ -82,6 +85,7 @@ function render() {
           <th scope="col" class="col-short">Lettera</th>
           ${list.hasColor ? '<th scope="col" class="col-short">Colore</th>' : ''}
           ${list.hasCode ? '<th scope="col" class="col-short">Sigla</th><th scope="col" class="col-short num">Posizione</th>' : ''}
+          ${list.fields.length ? '<th scope="col">Campi</th>' : ''}
           <th scope="col" class="col-short num">Articoli</th>
           <th scope="col" class="col-actions" aria-label="Azioni"></th>
         </tr></thead>
@@ -92,13 +96,14 @@ function render() {
               <td class="cell-code">${esc(v.letter || '—')}</td>
               ${list.hasColor ? `<td class="cell-code">${esc(v.color_letter || '—')}</td>` : ''}
               ${list.hasCode ? `<td>${esc(v.code)}</td><td class="num">${esc(v.code_position)}</td>` : ''}
+              ${list.fields.length ? `<td>${list.fields.filter(([key]) => v[key]).map(([, label]) => label).join(', ') || '—'}</td>` : ''}
               <td class="num">${usedBy(state.list, v.id)}</td>
               <td class="col-actions">
                 <button type="button" class="row-action" data-menu="${v.id}" aria-label="Azioni per ${esc(v.name)}" aria-haspopup="menu" aria-expanded="false">
                   <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="5" r="1.8"/><circle cx="12" cy="12" r="1.8"/><circle cx="12" cy="19" r="1.8"/></svg>
                 </button>
               </td>
-            </tr>`).join('') || `<tr><td colspan="7" class="table-empty">Nessuna voce</td></tr>`}
+            </tr>`).join('') || `<tr><td colspan="8" class="table-empty">Nessuna voce</td></tr>`}
         </tbody>
       </table>
     </div></div>`
@@ -153,6 +158,9 @@ function openEditor(voice = null) {
   $('fieldColor').hidden = !list.hasColor
   $('fieldCode').hidden = !list.hasCode
   $('fieldPosition').hidden = !list.hasCode
+  $('fieldFields').hidden = !list.fields.length
+  $('voiceFields').innerHTML = list.fields.map(([key, label]) => `
+    <label><input type="checkbox" data-field="${key}" ${voice?.[key] ? 'checked' : ''}> ${label}</label>`).join('')
   $('btnRetireVoice').hidden = !voice?.active
   $('voiceModal').classList.add('open')
   updateEditorNotes()
@@ -216,6 +224,7 @@ async function saveVoice() {
     // Vuota: la successiva libera, la sceglie il database (033)
     if (form.position) fields.code_position = Number(form.position)
   }
+  for (const [key] of list.fields) fields[key] = $('voiceFields').querySelector(`[data-field="${key}"]`).checked
   if (state.list === 'product_types' && !state.editing) fields.slug = slugify(form.name)
 
   const btn = $('btnSaveVoice')

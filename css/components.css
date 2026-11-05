@@ -501,9 +501,19 @@
 
 /* ── Materiali articolo (material-picker.js) ─────────────────── */
 .material-picker { display: flex; flex-direction: column; }
-.material-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 8px; }
-.material-row { display: flex; gap: 8px; align-items: center; }
-.material-row .field-select { flex: 1; min-width: 0; }
+.material-list { display: flex; flex-direction: column; gap: 12px; margin-bottom: 8px; }
+.material-row { display: flex; flex-direction: column; gap: 8px; }
+.material-row-main { display: flex; gap: 8px; align-items: center; }
+.material-row-main .field-select { flex: 1; min-width: 0; }
+/* I campi del materiale scelto, sotto il suo menu (035, CO-05) */
+.material-fields { display: flex; flex-wrap: wrap; gap: 8px 12px; padding-left: 12px; border-left: 2px solid var(--ivory-dark); }
+.material-fields[hidden], .material-field[hidden], .material-size input[hidden] { display: none; }
+.material-field { display: flex; flex-direction: column; gap: 4px; flex: 0 1 112px; min-width: 0; }
+.material-field .field-input { width: 100%; min-width: 0; }
+.material-field-size { flex: 0 1 288px; }
+.material-size { display: flex; gap: 6px; align-items: center; }
+.material-size .field-input { flex: 1 1 72px; }
+.material-size .field-select { flex: 0 0 auto; width: auto; }
 .material-remove {
   flex-shrink: 0;
   width: 36px; height: 36px;
@@ -779,4 +789,8 @@
 }
 .anag-warning { color: var(--coral); }
 .anag-block { padding: 48px; text-align: center; font-family: var(--editorial); font-size: 16px; color: var(--text-muted); }
-.modal-overlay .form-field[hidden], .modal-footer .btn-danger[hidden], .context-menu button[hidden] { display: none; }
+.form-field[hidden], .modal-footer .btn-danger[hidden], .context-menu button[hidden] { display: none; }
+/* Caselle dei campi di una voce (anagrafiche.js) */
+.anag-fields { display: flex; flex-wrap: wrap; gap: 8px 16px; }
+.anag-fields label { display: inline-flex; align-items: center; gap: 6px; font-family: var(--editorial); font-size: 13px; color: var(--text-primary); cursor: pointer; }
+.anag-fields input { width: 16px; height: 16px; accent-color: var(--ebony); cursor: pointer; }

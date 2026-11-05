@@ -58,7 +58,7 @@ const activeOr = keepIds => keepIds.length ? `active.eq.true,id.in.(${keepIds.jo
 export async function getMaterials(keepIds = []) {
   const { data, error } = await supabase
     .from('materials')
-    .select('id, name, code')
+    .select('id, name, code, has_pieces, has_carats, has_size, has_grams')
     .or(activeOr(keepIds))
     .order('name')
   if (error) throw error
@@ -68,7 +68,7 @@ export async function getMaterials(keepIds = []) {
 export async function getMetals(keepIds = []) {
   const { data, error } = await supabase
     .from('metals')
-    .select('id, name, code')
+    .select('id, name, code, has_weight')
     .or(activeOr(keepIds))
     .order('name')
   if (error) throw error
@@ -120,11 +120,11 @@ export async function getArticles(collectionId = null) {
       .select(`
         id, name, sku, product_type_id, channel,
         price_retail, price_wholesale,
-        collection_id, metal_id, created_at,
+        collection_id, metal_id, metal_grams, created_at,
         collections(name, slug),
         product_type:product_types(name),
         metal:metals(name, code),
-        article_materials(material_id, sort_order, material:materials(name, code)),
+        article_materials(material_id, sort_order, pieces, carats, size_mm, size2_mm, size_mode, grams, material:materials(name, code)),
         photos(id, public_url, is_cover, photo_type, sort_order),
         measurements
       `)
@@ -166,7 +166,7 @@ export async function getArticleById(id) {
     .select(`
       *,
       collections(name, slug),
-      article_materials(material_id, sort_order)
+      article_materials(id, material_id, sort_order, pieces, carats, size_mm, size2_mm, size_mode, grams)
     `)
     .eq('id', id)
     .is('deleted_at', null)
@@ -175,11 +175,11 @@ export async function getArticleById(id) {
   return data
 }
 
-// Elenco completo dei materiali dell'articolo, nell'ordine dato (il primo entra nello SKU dell'app)
-export async function setArticleMaterials(articleId, materialIds) {
+// Righe dei materiali dell'articolo con i loro valori (035), nell'ordine dato: il primo materiale entra nello SKU dell'app
+export async function setArticleMaterials(articleId, rows) {
   const { error } = await supabase.rpc('set_article_materials', {
     p_article_id: articleId,
-    p_material_ids: materialIds
+    p_rows: rows
   })
   if (error) throw error
 }
