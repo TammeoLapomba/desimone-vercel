@@ -1,7 +1,8 @@
 // js/article.js
-import { requireAuth, getMyRole, getCollections, getMaterials, getMetals, getProductTypes, getArticleById, getItemStock, updateArticle, setArticleMaterials, retirePreview, retireItem, signOut } from './supabase.js'
+import { requireAuth, getMyRole, getCollections, getMaterials, getMetals, getProductTypes, getArticleById, getArticlePhotos, getItemStock, updateArticle, setArticleMaterials, retirePreview, retireItem, signOut } from './supabase.js'
 import { showToast, confirmRetire } from './utils.js'
 import { initMaterialPicker, initMetalWeight } from './material-picker.js'
+import { createGallery } from './gallery.js'
 
 window.signOutUser = signOut
 
@@ -68,6 +69,11 @@ async function init() {
     document.getElementById('f_type').value = currentArticle.product_type_id
     document.getElementById('f_sku').value = currentArticle.sku
     renderCodeStatus()
+
+    // Le foto si salvano subito, senza "Salva Modifiche" (scheda 1.6)
+    getArticlePhotos(articleId)
+      .then(photos => createGallery(document.getElementById('f_gallery'), { kind: 'article', owner: articleId, photos, large: true }))
+      .catch(err => { document.getElementById('f_gallery').textContent = `Foto non disponibili: ${err.message}` })
     document.getElementById('f_notes').value = currentArticle.notes || ''
     
     const articleRows = (currentArticle.article_materials || []).slice().sort((a, b) => a.sort_order - b.sort_order)

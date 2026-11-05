@@ -1,8 +1,8 @@
 // js/article-form.js
-import { getCollections, insertCollection, getMaterials, getMetals, getProductTypes, createArticle, articleCodePreview, uploadPhoto } from './supabase.js'
+import { getCollections, insertCollection, getMaterials, getMetals, getProductTypes, createArticle, articleCodePreview } from './supabase.js'
 import { debounce, showToast, validateCollection } from './utils.js'
 import { initColorSelect } from './color-select.js'
-import { initPhotoUpload } from './photo-upload.js'
+import { createGallery } from './gallery.js'
 import { initMaterialPicker, initMetalWeight } from './material-picker.js'
 
 let collections = []
@@ -33,7 +33,7 @@ export async function openArticleModal({ onSuccess, onCollectionCreated, canCrea
 
   renderModal()
   document.getElementById('articleModal').classList.add('open')
-  photoUploader = initPhotoUpload(document.getElementById('step3Content'))
+  photoUploader = createGallery(document.getElementById('articleGallery'), { kind: 'article' })
   setupFormListeners()
 }
 
@@ -191,23 +191,7 @@ function renderModal() {
         </div>
 
         <div id="step3Content" style="display:none;">
-          <!-- Pulsante fotocamera — visibile solo su mobile via CSS -->
-          <label id="btnCameraMobile" class="btn-camera-mobile" style="display:none;">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-              <circle cx="12" cy="13" r="4"/>
-            </svg>
-            Scatta Foto
-            <input type="file" accept="image/*" capture="environment" multiple
-                   style="position:absolute;opacity:0;width:0;height:0;" id="cameraInput">
-          </label>
-
-          <div class="upload-zone">
-            <svg style="width:40px;height:40px;margin:0 auto 12px;display:block;color:var(--text-muted);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-            <div style="font-family:var(--editorial);font-size:14px;color:var(--text-secondary);margin-bottom:4px;">Trascina le foto qui o clicca per sfogliare</div>
-            <div style="font-family:var(--editorial);font-size:12px;color:var(--text-muted);font-style:italic;">JPG, PNG, HEIC — fino a 20MB per foto</div>
-          </div>
-          <div id="photoThumbs" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;"></div>
+          <div id="articleGallery"></div>
         </div>
       </div>
 
@@ -428,11 +412,10 @@ function setupFormListeners() {
         measurements: Object.keys(measurements).length ? measurements : null
       }, materialRows)
 
-      // 2. Upload photos
-      const files = photoUploader.getFiles()
-      for (const file of files) {
-        await uploadPhoto(file, article.id)
-      }
+      // 2. Le foto, una alla volta: se una non si carica l'articolo resta, e la si aggiunge dalla scheda (FO-13)
+      btn.textContent = 'Foto…'
+      const failed = await photoUploader.uploadAll(article.id)
+      if (failed.length) showToast(`Articolo creato, ma ${failed.length === 1 ? 'una foto non si è caricata' : `${failed.length} foto non si sono caricate`}: ${failed.join(', ')}. Aggiungile dalla scheda dell'articolo`)
 
       // 3. Close + callback
       document.getElementById('articleModal').classList.remove('open')

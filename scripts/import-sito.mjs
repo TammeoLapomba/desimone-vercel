@@ -385,11 +385,8 @@ async function uploadImage(article) {
     article_id: article.id,
     storage_path: path,
     public_url: `${SUPABASE_URL}/storage/v1/object/public/photos/${path}`,
-    photo_type: 'processed',
     is_cover: true,
     sort_order: 0,
-    processing_status: 'done',
-    processed_at: new Date().toISOString(),
   })
 }
 

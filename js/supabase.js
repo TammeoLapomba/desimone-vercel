@@ -243,7 +243,7 @@ export async function getArticles(collectionId = null) {
         product_type:product_types(name),
         metal:metals(name, code),
         article_materials(material_id, sort_order, pieces, carats, size_mm, size2_mm, size_mode, grams, material:materials(name, code)),
-        photos(id, public_url, is_cover, photo_type, sort_order),
+        photos(id, public_url, is_cover, sort_order),
         measurements
       `)
       .is('deleted_at', null)
@@ -296,7 +296,7 @@ export async function getCodeCheck({ kind, id }) {
       : supabase.rpc('raw_code_explain', { p_raw_item_id: id }),
     isJewel
       ? supabase.from('articles')
-        .select('name, price_retail, metal_grams, measurements, metal:metals(name), article_materials(material_id, sort_order, pieces, carats, size_mm, size2_mm, size_mode, grams, material:materials(name)), photos(public_url, is_cover, photo_type)')
+        .select('name, price_retail, metal_grams, measurements, metal:metals(name), article_materials(material_id, sort_order, pieces, carats, size_mm, size2_mm, size_mode, grams, material:materials(name)), photos(public_url, is_cover)')
         .eq('id', id).single()
       : supabase.from('raw_items').select('description, size, unit, raw_photos(public_url, is_cover)').eq('id', id).single()
   ])
@@ -416,8 +416,6 @@ export async function uploadPhoto(file, articleId) {
       article_id: articleId,
       storage_path: path,
       public_url: publicUrl,
-      photo_type: 'raw',
-      processing_status: 'pending'
     })
     .select()
     .single()
@@ -519,7 +517,8 @@ export async function updateRawItem(id, fields) {
   return data
 }
 
-export async function uploadRawPhoto(file, rawItemId, setCover = false) {
+// Copertina e posto le assegna il database (039): la prima foto è la copertina, le altre vanno in fondo
+export async function uploadRawPhoto(file, rawItemId) {
   const ext = file.name.split('.').pop()
   const path = `raw-items/${rawItemId}/${newId()}.${ext}`
 
@@ -532,16 +531,10 @@ export async function uploadRawPhoto(file, rawItemId, setCover = false) {
 
   const { data, error } = await supabase
     .from('raw_photos')
-    .insert({ raw_item_id: rawItemId, storage_path: path, public_url: publicUrl, is_cover: setCover })
+    .insert({ raw_item_id: rawItemId, storage_path: path, public_url: publicUrl })
     .select()
     .single()
   if (error) throw error
-
-  // Aggiorna cover_url sul raw_item se è la prima foto / cover
-  if (setCover) {
-    await supabase.from('raw_items').update({ cover_url: publicUrl }).eq('id', rawItemId)
-  }
-
   return data
 }
 
@@ -553,6 +546,35 @@ export async function getRawItemPhotos(rawItemId) {
     .order('sort_order')
   if (error) throw error
   return data
+}
+
+// Galleria (scheda 1.6): kind è 'article' o 'raw'
+export async function getArticlePhotos(articleId) {
+  const { data, error } = await supabase
+    .from('photos')
+    .select('*')
+    .eq('article_id', articleId)
+    .order('sort_order')
+  if (error) throw error
+  return data
+}
+
+export async function setPhotoCover(kind, id) {
+  const { error } = await supabase.rpc('photo_set_cover', { p_kind: kind, p_id: id })
+  if (error) throw error
+}
+
+export async function reorderPhotos(kind, ownerId, ids) {
+  const { error } = await supabase.rpc('photos_reorder', { p_kind: kind, p_owner: ownerId, p_ids: ids })
+  if (error) throw error
+}
+
+// Prima la riga, poi il file: se il file resta, non lo vede nessuno. La copertina la sposta il database
+export async function removePhoto(kind, photo) {
+  const { data, error } = await supabase.from(kind === 'raw' ? 'raw_photos' : 'photos').delete().eq('id', photo.id).select('id')
+  if (error) throw error
+  if (!data.length) throw new Error('Solo l\'amministrazione toglie le foto')
+  await removePhotoFiles([photo.storage_path])
 }
 
 // ── Movimenti (migrazioni 022–023) ────────────────────────────────

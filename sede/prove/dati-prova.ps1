@@ -108,8 +108,7 @@ $g.Dispose(); $bmp.Dispose()
 $photoPath = "raw/$($nuovo.id)/$([guid]::NewGuid()).png"
 Invoke-RestMethod -Method PUT -Uri "$Base/foto/$photoPath" -Headers @{ Authorization = $script:headers.Authorization } `
   -ContentType 'image/png' -Body $ms.ToArray() | Out-Null
-Api POST '/rest/v1/photos' @{ article_id = $nuovo.id; storage_path = $photoPath; public_url = "$Base/foto/$photoPath"
-  photo_type = 'raw'; processing_status = 'pending' } | Out-Null
+Api POST '/rest/v1/photos' @{ article_id = $nuovo.id; storage_path = $photoPath; public_url = "$Base/foto/$photoPath" } | Out-Null
 $photoPath
 
 Passo 'Dal sito (SITOPROVA1)'

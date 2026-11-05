@@ -305,7 +305,10 @@ async function photos(req, res, rel) {
     return serveFile(req, res, file, 'private, no-cache')
   }
   if (req.method === 'PUT' || req.method === 'POST') {
-    if (!await currentAccount(bearerToken(req))) return send(res, 401, { error: 'Accesso richiesto' })
+    const account = await currentAccount(bearerToken(req))
+    if (!account) return send(res, 401, { error: 'Accesso richiesto' })
+    // Il dev vede le foto ma non le aggiunge (scheda 1.6): il database rifiuterebbe la riga, e il file resterebbe orfano
+    if (!account.role || account.role === 'dev') return send(res, 403, { error: 'Questo account non aggiunge foto' })
     if (fs.existsSync(file)) return send(res, 409, { error: 'La foto esiste già' })
     const data = await readBody(req, MAX_PHOTO_BYTES)
     fs.mkdirSync(path.dirname(file), { recursive: true })

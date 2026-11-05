@@ -23,13 +23,11 @@ export function parseEuro(text) {
   return { ok: true, value }
 }
 
+// La copertina: il database ne garantisce una per articolo (039). Senza, la prima nell'ordine
 export function getCoverPhoto(photos) {
-  if (!photos || photos.length === 0) return null
-  const processed = photos.filter(p => p.photo_type === 'processed')
-  const cover = processed.find(p => p.is_cover) || processed[0]
-  if (cover) return cover.public_url
-  const raw = photos.find(p => p.is_cover && p.photo_type === 'raw') || photos[0]
-  return raw?.public_url || null
+  if (!photos?.length) return null
+  const cover = photos.find(p => p.is_cover) || [...photos].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0))[0]
+  return cover?.public_url || null
 }
 
 export function showToast(message, duration = 3000) {

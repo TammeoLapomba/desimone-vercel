@@ -1,7 +1,8 @@
 // js/raw-form.js — Modale inserimento/modifica semilavorato (pallini, spole)
 // Il codice non si scrive: si sceglie tipo, forma, qualità, finitura, misura e varianti, e il database
 // lo compone con lo standard del cliente (raw_item_preview, vedi 019_semilavorato_codici.sql).
-import { insertRawItem, updateRawItem, uploadRawPhoto, previewRawItem, retirePreview, retireItem } from './supabase.js'
+import { insertRawItem, updateRawItem, getRawItemPhotos, previewRawItem, retirePreview, retireItem } from './supabase.js'
+import { createGallery } from './gallery.js'
 import { showToast, debounce, stockLabel, confirmRetire } from './utils.js'
 
 let onSuccessCallback = null
@@ -146,29 +147,7 @@ export function openRawItemModal({ item = null, categories = [], rules, defaultC
 
         <!-- Step 3 — Foto -->
         <div id="rstep3Content" style="display:none;">
-          <p style="font-family:var(--editorial);font-style:italic;font-size:13px;color:var(--text-muted);margin-bottom:16px;">
-            Le foto vengono salvate così come sono — nessuna elaborazione automatica.
-          </p>
-
-          <!-- Pulsante fotocamera mobile -->
-          <label id="btnCameraMobileRaw" class="btn-camera-mobile" style="display:none;position:relative;">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true">
-              <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-              <circle cx="12" cy="13" r="4"/>
-            </svg>
-            Scatta Foto
-            <input type="file" accept="image/*" capture="environment" multiple
-                   style="position:absolute;opacity:0;width:0;height:0;" id="rawCameraInput">
-          </label>
-
-          <div class="upload-zone" id="rawUploadZone">
-            <svg style="width:40px;height:40px;margin:0 auto 12px;display:block;color:var(--text-muted);" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
-              <rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>
-            </svg>
-            <div style="font-family:var(--editorial);font-size:14px;color:var(--text-secondary);margin-bottom:4px;">Trascina le foto qui o clicca per sfogliare</div>
-            <div style="font-family:var(--editorial);font-size:12px;color:var(--text-muted);font-style:italic;">JPG, PNG, HEIC — fino a 20MB per foto</div>
-          </div>
-          <div id="rawPhotoThumbs" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;"></div>
+          <div id="rawGallery"></div>
         </div>
 
       </div>
@@ -191,9 +170,15 @@ export function openRawItemModal({ item = null, categories = [], rules, defaultC
   const stepLabels = ['Articolo', 'Dettagli & Stock', 'Foto prodotto']
   const $ = id => document.getElementById(id)
 
-  // Inizializza photo uploader allo step 3
-  const step3El = $('rstep3Content')
-  photoUploader = initRawPhotoUpload(step3El)
+  // Foto allo step 3: in modifica la galleria salva subito, per un pezzo nuovo si caricano dopo il salvataggio (scheda 1.6)
+  if (isEdit) {
+    photoUploader = null
+    getRawItemPhotos(item.id)
+      .then(photos => createGallery($('rawGallery'), { kind: 'raw', owner: item.id, photos, onChange: () => onSuccessCallback?.() }))
+      .catch(err => { $('rawGallery').textContent = `Foto non disponibili: ${err.message}` })
+  } else {
+    photoUploader = createGallery($('rawGallery'), { kind: 'raw' })
+  }
 
   // ─── Step 1 (nuovo articolo): campi del codice ───────────────
 
@@ -490,59 +475,6 @@ function renderReadOnlyIdentity(item, shape) {
     </p>`
 }
 
-// ─── Photo upload per semilavorato ─────
-
-function initRawPhotoUpload(containerEl) {
-  const files = []
-  const zone  = containerEl.querySelector('#rawUploadZone')
-  const thumbs = containerEl.querySelector('#rawPhotoThumbs')
-
-  zone?.addEventListener('dragover', e => { e.preventDefault(); zone.classList.add('drag-over') })
-  zone?.addEventListener('dragleave', () => zone.classList.remove('drag-over'))
-  zone?.addEventListener('drop', e => {
-    e.preventDefault(); zone.classList.remove('drag-over')
-    handleFiles([...e.dataTransfer.files])
-  })
-  zone?.addEventListener('click', () => {
-    const input = document.createElement('input')
-    input.type = 'file'; input.multiple = true; input.accept = 'image/*'
-    input.onchange = e => handleFiles([...e.target.files])
-    input.click()
-  })
-
-  // Fotocamera mobile
-  const camInput = document.getElementById('rawCameraInput')
-  camInput?.addEventListener('change', e => { handleFiles([...e.target.files]); camInput.value = '' })
-
-  const isMobile = window.matchMedia('(max-width: 768px)').matches
-  const camBtn = document.getElementById('btnCameraMobileRaw')
-  if (camBtn && isMobile) camBtn.style.display = 'flex'
-
-  function handleFiles(newFiles) {
-    newFiles.filter(f => f.type.startsWith('image/')).forEach(f => {
-      files.push(f)
-      const reader = new FileReader()
-      reader.onload = e => {
-        const isFirst = files.length === 1
-        const wrap = document.createElement('div')
-        wrap.style.cssText = 'position:relative;display:inline-block;'
-        wrap.innerHTML = `
-          <img src="${e.target.result}" style="width:80px;height:80px;border-radius:3px;object-fit:cover;border:1.5px solid var(--ivory-dark);">
-          ${isFirst ? '<span style="position:absolute;bottom:3px;left:3px;background:rgba(26,24,20,0.7);color:white;font-family:var(--mono);font-size:7px;padding:1px 4px;border-radius:1px;text-transform:uppercase;">Cover</span>' : ''}
-          <button onclick="this.parentElement.remove()" style="position:absolute;top:-5px;right:-5px;width:20px;height:20px;background:var(--coral);border-radius:50%;border:none;color:white;font-size:12px;cursor:pointer;display:flex;align-items:center;justify-content:center;">×</button>`
-        wrap.setAttribute('data-idx', files.length - 1)
-        thumbs?.appendChild(wrap)
-      }
-      reader.readAsDataURL(f)
-    })
-  }
-
-  return {
-    getFiles: () => files,
-    clear: () => { files.length = 0; if (thumbs) thumbs.innerHTML = '' }
-  }
-}
-
 // ─── Submit ───────────────────────────────────────────────────
 
 async function submitRawItem(isEdit, existingId, codeFields) {
@@ -567,12 +499,9 @@ async function submitRawItem(isEdit, existingId, codeFields) {
       showToast(`Inserito ${savedItem.sku}`)
     }
 
-    // Upload foto (storage + DB)
-    const photos = photoUploader?.getFiles() || []
-    for (let i = 0; i < photos.length; i++) {
-      const isCover = i === 0  // La prima foto diventa automaticamente la cover
-      await uploadRawPhoto(photos[i], savedItem.id, isCover)
-    }
+    // Le foto di un pezzo nuovo, una alla volta: se una non si carica il pezzo resta, e la si aggiunge modificandolo (FO-13)
+    const failed = isEdit || !photoUploader ? [] : await photoUploader.uploadAll(savedItem.id)
+    if (failed.length) showToast(`Salvato, ma ${failed.length === 1 ? 'una foto non si è caricata' : `${failed.length} foto non si sono caricate`}: ${failed.join(', ')}. Aggiungile modificandolo`)
 
     document.getElementById('rawItemModal').classList.remove('open')
     onSuccessCallback?.()

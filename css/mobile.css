@@ -393,32 +393,8 @@
     padding: 24px 16px;
   }
 
-  /* Camera button visibile solo su mobile */
-  .btn-camera-mobile {
-    display: flex !important;
-    width: 100%;
-    justify-content: center;
-    align-items: center;
-    gap: 8px;
-    padding: 14px;
-    background: var(--coral);
-    color: white;
-    border: none;
-    border-radius: 4px;
-    font-family: var(--editorial);
-    font-size: 13px;
-    letter-spacing: 1px;
-    text-transform: uppercase;
-    cursor: pointer;
-    margin-bottom: 12px;
-    -webkit-tap-highlight-color: transparent;
-  }
-  .btn-camera-mobile svg { width: 18px; height: 18px; }
 }
 
-@media (min-width: 769px) {
-  .btn-camera-mobile { display: none !important; }
-}
 
 /* ─── Article Editor Page (article.html) ─────────────────────── */
 @media (max-width: 768px) {
