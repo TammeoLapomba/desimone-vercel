@@ -78,6 +78,7 @@
           <button type="button" role="tab" class="gia-tab" id="tab-stock" aria-controls="panel-stock" aria-selected="true">Giacenze</button>
           <button type="button" role="tab" class="gia-tab" id="tab-locations" aria-controls="panel-locations" aria-selected="false" hidden>Luoghi</button>
           <button type="button" role="tab" class="gia-tab" id="tab-devices" aria-controls="panel-devices" aria-selected="false" hidden>Dispositivi</button>
+          <button type="button" role="tab" class="gia-tab" id="tab-users" aria-controls="panel-users" aria-selected="false" hidden>Utenti</button>
           <button type="button" role="tab" class="gia-tab" id="tab-backup" aria-controls="panel-backup" aria-selected="false" hidden>Copia di sicurezza</button>
         </div>
         <div class="gia-alert" id="backupAlert" role="alert" hidden></div>
@@ -140,6 +141,18 @@
           </div>
         </section>
 
+        <!-- Utenti (REQ-P-08, P-09, scheda 1.4) -->
+        <section role="tabpanel" id="panel-users" aria-labelledby="tab-users" hidden>
+          <div class="mov-card">
+            <div class="gia-card-head">
+              <h2 class="mov-card-title">Utenti</h2>
+              <button type="button" class="btn-primary" id="btnNewUser" hidden>Nuovo utente</button>
+            </div>
+            <p class="field-hint gia-hint" id="usersHint"></p>
+            <ul class="gia-list" id="userList" aria-live="polite"></ul>
+          </div>
+        </section>
+
         <!-- Copia di sicurezza (7.2, REQ-I-02, architettura-locale §8): solo nella sede -->
         <section role="tabpanel" id="panel-backup" aria-labelledby="tab-backup" hidden>
           <div class="mov-card">
@@ -152,6 +165,55 @@
       </div>
     </div>
   </main>
+</div>
+
+<div class="modal-overlay" id="userModal" role="dialog" aria-modal="true" aria-labelledby="userModalTitle">
+  <div class="modal modal-compact">
+    <div class="modal-header">
+      <div>
+        <div class="modal-eyebrow">Utenti</div>
+        <div class="modal-title" id="userModalTitle">Nuovo utente</div>
+      </div>
+      <button type="button" id="btnCloseUser" aria-label="Chiudi" style="background:none;border:none;cursor:pointer;color:var(--text-muted);padding:4px;">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <form id="userForm" novalidate>
+      <div class="modal-body">
+        <div class="form-row full" id="fieldUserName"><div class="form-field">
+          <label class="field-label" for="f_user_name">Nome <span class="field-required">*</span></label>
+          <input type="text" class="field-input" id="f_user_name" maxlength="80" autocomplete="off">
+          <span class="field-hint">Come compare nei movimenti.</span>
+        </div></div>
+        <div class="form-row full" id="fieldUserUsername"><div class="form-field">
+          <label class="field-label" for="f_user_username">Nome utente <span class="field-required">*</span></label>
+          <input type="text" class="field-input" id="f_user_username" maxlength="40" autocomplete="off" autocapitalize="none" spellcheck="false" placeholder="es. gioia">
+          <span class="field-hint">Serve per entrare. Lettere, numeri, punti e trattini, senza spazi. Non si cambia più.</span>
+        </div></div>
+        <div class="form-row full" id="fieldUserRole"><div class="form-field">
+          <label class="field-label" for="f_user_role">Ruolo <span class="field-required">*</span></label>
+          <select class="field-input field-select" id="f_user_role">
+            <option value="">Scegli…</option>
+            <option value="admin">Amministrazione</option>
+            <option value="fiere">Fiere</option>
+            <option value="laboratorio">Laboratorio</option>
+            <option value="negozio">Negozio</option>
+          </select>
+          <span class="field-hint" id="userRoleHint"></span>
+        </div></div>
+        <div class="form-row full" id="fieldUserPassword"><div class="form-field">
+          <label class="field-label" for="f_user_password">Password provvisoria <span class="field-required">*</span></label>
+          <input type="text" class="field-input" id="f_user_password" autocomplete="off" autocapitalize="none" spellcheck="false">
+          <span class="field-hint">Almeno 8 caratteri. Dilla alla persona: al primo accesso dovrà sceglierne una sua. Qui non si rivede più.</span>
+        </div></div>
+        <div class="field-error" id="userError" role="alert"></div>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn-ghost" id="btnCancelUser">Annulla</button>
+        <button type="submit" class="btn-primary" id="btnSaveUser">Salva</button>
+      </div>
+    </form>
+  </div>
 </div>
 
 <script src="config.js"></script>

@@ -15,7 +15,40 @@ export async function requireAuth() {
     // Blocca l'init della pagina finché avviene il redirect
     return new Promise(() => {})
   }
+  // Un account disattivato torna all'accesso subito, anche con una sessione aperta (REQ-P-09).
+  // Se il database non risponde la pagina si apre comunque, e mostra il suo errore quando chiede i dati.
+  await getMyAccount().catch(async err => {
+    if (err.code !== ACCOUNT_DISABLED) return
+    await supabase.auth.signOut()
+    window.location.replace('/login.html?motivo=disattivato')
+    return new Promise(() => {})
+  })
   return session
+}
+
+// Chi sono adesso: ruolo e stato li dice il database, perché il token resta vecchio per ore (scheda 1.4, decisione 7).
+// Una volta per pagina. role: admin, laboratorio, negozio, fiere, dev, o null senza permessi.
+export const ACCOUNT_DISABLED = 'PT401'
+let myAccount = null
+export function getMyAccount() {
+  myAccount ??= supabase.rpc('my_account').then(({ data, error }) => {
+    if (error) throw error
+    return data
+  }).catch(err => {
+    myAccount = null
+    throw err
+  })
+  return myAccount
+}
+
+// Solo per mostrare o nascondere i comandi: le regole vere stanno nel database
+export async function getMyRole() {
+  try {
+    return (await getMyAccount())?.role ?? null
+  } catch (err) {
+    console.warn('Ruolo non disponibile', err)
+    return null
+  }
 }
 
 export async function signIn(email, password) {
@@ -27,6 +60,39 @@ export async function signIn(email, password) {
 export async function signOut() {
   await supabase.auth.signOut()
   window.location.href = '/login.html'
+}
+
+// Solo nella sede: su Supabase la password si cambia dal pannello (scheda 1.4, decisione 9)
+export async function changeMyPassword(login, password, newPassword) {
+  const { error } = await supabase.auth.changePassword({ email: login, password, newPassword })
+  if (error) throw error
+}
+
+// Account (scheda 1.4): l'elenco, il ruolo e lo stato in entrambi gli ambienti; creazione e reset solo nella sede
+export async function getAccounts() {
+  const { data, error } = await supabase.rpc('accounts_list')
+  if (error) throw error
+  return data
+}
+
+export async function saveAccount(id, name, role) {
+  const { error } = await supabase.rpc('account_save', { p_id: id, p_name: name, p_role: role })
+  if (error) throw error
+}
+
+export async function setAccountActive(id, active) {
+  const { error } = await supabase.rpc('account_set_active', { p_id: id, p_active: active })
+  if (error) throw error
+}
+
+export async function createAccount({ name, username, role, password }) {
+  const { error } = await supabase.rpc('account_create', { p_name: name, p_username: username, p_role: role, p_password: password })
+  if (error) throw error
+}
+
+export async function resetAccountPassword(id, password) {
+  const { error } = await supabase.rpc('account_reset_password', { p_id: id, p_password: password })
+  if (error) throw error
 }
 
 // Query helpers
@@ -279,9 +345,19 @@ async function removePhotoFiles(paths) {
   if (error) console.warn('File delle foto non rimossi dallo Storage:', error.message, paths)
 }
 
+// crypto.randomUUID esiste solo in HTTPS o su localhost: dai tablet della sede (http://192.168.…:8080) manca
+function newId() {
+  if (crypto.randomUUID) return crypto.randomUUID()
+  const b = crypto.getRandomValues(new Uint8Array(16))
+  b[6] = (b[6] & 0x0f) | 0x40   // UUID v4, come randomUUID
+  b[8] = (b[8] & 0x3f) | 0x80
+  const h = Array.from(b, x => x.toString(16).padStart(2, '0')).join('')
+  return `${h.slice(0, 8)}-${h.slice(8, 12)}-${h.slice(12, 16)}-${h.slice(16, 20)}-${h.slice(20)}`
+}
+
 export async function uploadPhoto(file, articleId) {
   const ext = file.name.split('.').pop()
-  const path = `raw/${articleId}/${crypto.randomUUID()}.${ext}`
+  const path = `raw/${articleId}/${newId()}.${ext}`
   const { error: uploadError } = await supabase.storage
     .from('photos')
     .upload(path, file, { contentType: file.type })
@@ -400,7 +476,7 @@ export async function updateRawItem(id, fields) {
 
 export async function uploadRawPhoto(file, rawItemId, setCover = false) {
   const ext = file.name.split('.').pop()
-  const path = `raw-items/${rawItemId}/${crypto.randomUUID()}.${ext}`
+  const path = `raw-items/${rawItemId}/${newId()}.${ext}`
 
   const { error: uploadError } = await supabase.storage
     .from('photos')
@@ -450,7 +526,7 @@ export async function getMovementSetup() {
   const [locations, reasons, devices, scales, operators] = await Promise.all([
     supabase.from('locations').select('id, name, kind, active'),
     supabase.from('movement_reasons').select('id, code, name, movement_type, category, allowed_roles, system, active, sort_order'),
-    supabase.from('devices').select('id, code, name, revoked_at'),
+    supabase.from('devices').select('id, code, name, kind, revoked_at'),
     supabase.from('scales').select('id, name, model, serial_number, device_id, active'),
     supabase.from('operators').select('id, name, role'),
   ])
@@ -669,9 +745,16 @@ export async function cancelMovement(id, reason) {
   return data
 }
 
-// Nuovo dispositivo, solo l'amministrazione (REQ-D-04)
-export async function insertDevice({ code, name }) {
-  const { data, error } = await supabase.from('devices').insert({ code, name }).select().single()
+// Nuovo dispositivo, solo l'amministrazione (REQ-D-04). kind: 'pc' (pistola) o 'mobile' (tablet o telefono, 034)
+export async function insertDevice({ code, name, kind = 'pc' }) {
+  const { data, error } = await supabase.from('devices').insert({ code, name, kind }).select().single()
+  if (error) throw error
+  return data
+}
+
+// Tipo di un dispositivo già registrato, solo l'amministrazione (034)
+export async function setDeviceKind(id, kind) {
+  const { data, error } = await supabase.from('devices').update({ kind }).eq('id', id).select().single()
   if (error) throw error
   return data
 }

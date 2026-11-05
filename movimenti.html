@@ -21,6 +21,7 @@
   <link rel="stylesheet" href="css/components.css">
   <link rel="stylesheet" href="css/mobile.css">
   <link rel="stylesheet" href="css/movimenti.css">
+  <link rel="stylesheet" href="css/scanner.css">
 </head>
 <body>
 <a href="#movimenti-main" class="skip-link">Vai al contenuto principale</a>
@@ -86,6 +87,12 @@
               <div class="mov-code-row">
                 <input class="field-input mov-code-input" id="codeInput" autocomplete="off" spellcheck="false"
                        placeholder="Codice dell'articolo, poi Invio" aria-describedby="codeHint">
+                <!-- Solo sui dispositivi registrati come tablet o telefono (034): sul PC si legge con la pistola -->
+                <button type="button" class="btn-ghost mov-camera-btn" id="btnCamera" hidden>
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true">
+                    <path d="M4 8h3l2-3h6l2 3h3v11H4z"/><circle cx="12" cy="13" r="3.5"/></svg>
+                  Fotocamera
+                </button>
                 <button type="button" class="btn-ghost" id="btnSearch">Cerca</button>
               </div>
               <div class="field-hint" id="codeHint">Ogni lettura dello stesso codice aggiunge un pezzo.</div>

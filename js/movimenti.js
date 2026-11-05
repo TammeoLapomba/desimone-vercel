@@ -8,8 +8,9 @@
 // SD-04 trasferimento.
 import {
   requireAuth, signOut, getMyOperator, getMovementSetup, getMovableItems, getItemStock, getItemHistory,
-  registerMovement, cancelMovement, insertDevice, setDeviceScale, findItemByCode, getCodeCheck,
+  registerMovement, cancelMovement, insertDevice, setDeviceScale, setDeviceKind, findItemByCode, getCodeCheck,
 } from './supabase.js'
+import { scanQr, cameraSupport } from './scanner.js'
 import { showToast, formatEuro, parseEuro, getCoverPhoto, articleMaterialLines, articleMetalLine } from './utils.js'
 import { initFilters } from './filters.js'
 import { initMobileNav } from './pwa.js'
@@ -22,6 +23,7 @@ const TYPES = { C: 'Carico', S: 'Scarico', T: 'Trasferimento' }
 const ROLE_LABELS = { admin: 'Amministrazione', laboratorio: 'Laboratorio', negozio: 'Negozio', fiere: 'Fiere' }
 const UNIT_LABELS = { pezzi: 'a pezzi', grammi: 'a grammi', pezzi_grammi: 'a pezzi e grammi' }
 const SOURCE_LABELS = { cavo: 'via cavo', simulata: 'simulata', sede: 'della sede' }
+const KIND_LABELS = { pc: 'PC: lettore a pistola', mobile: 'Tablet o telefono: anche la fotocamera' }
 const DEVICE_KEY = 'desimone-os:dispositivo'
 const LAST_CODE_KEY = 'desimone-os:ultimo-codice'
 const DRAFT_KEY = 'desimone-os:bozza-carico'
@@ -58,7 +60,7 @@ const storage = {
 
 async function init() {
   await requireAuth()
-  initMobileNav({ onNewArticle: () => $('codeInput')?.focus() })
+  initMobileNav()
 
   state.operator = await getMyOperator()
   if (!state.operator) {
@@ -87,7 +89,7 @@ async function init() {
   // Di ritorno da "Correggi i dati": il carico riprende da ciò che era già scritto (CR11)
   if (preset && query.has('bozza')) restoreDraft()
   if (!state.device) openModal('deviceModal')
-  else if (!preset) $('codeInput').focus()
+  else if (!preset) focusCode()
 }
 
 function block(message) {
@@ -155,6 +157,8 @@ function useDevice(device) {
   state.device = device
   $('btnDevice').textContent = device ? `Dispositivo ${device.code}` : 'Scegli il dispositivo'
   if (device) storage.set(DEVICE_KEY, { id: device.id })
+  // La fotocamera solo sui tablet e sui telefoni (034); sul PC si legge con la pistola e non si accende mai
+  $('btnCamera').hidden = device?.kind !== 'mobile' || cameraSupport() === 'none'
   state.driver?.close()
   state.driver = null
   state.scale = device ? sourceFor(device, state.setup.scales) : null
@@ -195,6 +199,22 @@ function renderScale() {
 }
 
 // ─── Articolo ────────────────────────────────────────────────
+
+// Pronti per la prossima lettura: sul PC il cursore nel codice, per la pistola. Sul tablet no, altrimenti a ogni
+// movimento si aprirebbe la tastiera sopra la pagina
+function focusCode() {
+  if (state.device?.kind !== 'mobile') $('codeInput').focus()
+}
+
+// Lettura con la fotocamera (tablet e telefoni): il testo del QR va dove andrebbe quello della pistola (AC-05)
+async function scanWithCamera() {
+  if (cameraSupport() === 'https') {
+    return showResult(`La fotocamera funziona solo in https. Apri https://${location.hostname}:8443 (la prima volta, ` +
+      `per il certificato: http://${location.hostname}:8080/certificato).`, 'error')
+  }
+  const text = await scanQr()
+  if (text) await identify(text)
+}
 
 // Lettura dal lettore di codici o codice scritto (F-02): stesso codice = un pezzo in più (REQ-B-03)
 async function identify(raw) {
@@ -572,7 +592,7 @@ function afterSuccess() {
   state.priceTouched = false
   state.scaleWeight = null
   changed(false)
-  $('codeInput').focus()
+  focusCode()
 }
 
 function showResult(message, kind, html = false) {
@@ -821,6 +841,10 @@ function renderSearch() {
 
 // ─── Finestra del dispositivo (REQ-D-04) e della sua bilancia (CR7) ─
 
+// Per un dispositivo nuovo si propone il tipo dalla forma: schermo tattile senza mouse = tablet o telefono.
+// Lo conferma l'amministrazione, e poi vale il tipo registrato
+const suggestedKind = () => window.matchMedia('(pointer: coarse)').matches ? 'mobile' : 'pc'
+
 function renderDeviceModal() {
   const isAdmin = state.operator.role === 'admin'
   const devices = state.setup.devices.filter(d => !d.revoked_at)
@@ -850,7 +874,19 @@ function renderDeviceModal() {
       </div>
     </div>
     <div class="field-hint" id="newDeviceHint">Da 2 a 6 lettere maiuscole o cifre, unica: entra nel codice di ogni movimento.</div>
+    <div class="form-field">
+      <label class="field-label" for="newDeviceKind">Tipo</label>
+      <select class="field-input field-select" id="newDeviceKind">
+        ${Object.entries(KIND_LABELS).map(([k, label]) => `<option value="${k}"${k === suggestedKind() ? ' selected' : ''}>${label}</option>`).join('')}
+      </select>
+    </div>
     <div class="mov-actions"><button type="button" class="btn-ghost" id="btnNewDevice">Registra</button></div>
+    ${state.device ? `
+    <h3 class="mov-panel-title">Tipo di ${esc(state.device.code)}</h3>
+    <div class="mov-radio-list" role="radiogroup" aria-label="Tipo del dispositivo">
+      ${Object.entries(KIND_LABELS).map(([k, label]) => `<label><input type="radio" name="deviceKind" value="${k}"${k === (state.device.kind || 'pc') ? ' checked' : ''}> ${label}</label>`).join('')}
+    </div>
+    <div class="mov-actions"><button type="button" class="btn-ghost" id="btnSaveKind">Salva</button></div>` : ''}
     ${state.device ? `
     <h3 class="mov-panel-title">Bilancia collegata a ${esc(state.device.code)}</h3>
     <div class="mov-radio-list" role="radiogroup" aria-label="Bilancia del dispositivo">
@@ -866,17 +902,24 @@ async function deviceModalClick(e) {
     if (e.target.id === 'btnUseDevice') {
       useDevice(state.setup.devices.find(d => d.id === $('deviceSelect').value))
       closeModal('deviceModal')
-      $('codeInput').focus()
+      focusCode()
     } else if (e.target.id === 'btnNewDevice') {
       const code = $('newDeviceCode').value.trim().toUpperCase()
       const name = $('newDeviceName').value.trim()
       if (!/^[A-Z0-9]{2,6}$/.test(code)) return showToast('La sigla va da 2 a 6 lettere maiuscole o cifre')
       if (!name) return showToast('Scrivi il nome del dispositivo')
-      const device = await insertDevice({ code, name })
+      const device = await insertDevice({ code, name, kind: $('newDeviceKind').value })
       state.setup.devices.push(device)
       useDevice(device)
       renderDeviceModal()
       showToast(`Dispositivo ${code} registrato e in uso`)
+    } else if (e.target.id === 'btnSaveKind') {
+      const kind = document.querySelector('input[name="deviceKind"]:checked')?.value || 'pc'
+      const updated = await setDeviceKind(state.device.id, kind)
+      state.setup.devices = state.setup.devices.map(d => d.id === updated.id ? { ...d, ...updated } : d)
+      useDevice(state.setup.devices.find(d => d.id === updated.id))
+      renderDeviceModal()
+      showToast(`${updated.code}: ${kind === 'mobile' ? 'tablet o telefono, con la fotocamera' : 'PC, con la pistola'}`)
     } else if (e.target.id === 'btnSaveScale') {
       const kind = document.querySelector('input[name="scaleKind"]:checked')?.value || 'nessuna'
       await setDeviceScale(state.device, kind, SIMULATED_MODEL)
@@ -928,6 +971,7 @@ function setupListeners() {
   })
 
   $('btnSearch').addEventListener('click', () => openModal('searchModal'))
+  $('btnCamera').addEventListener('click', () => scanWithCamera().catch(err => showToast(err.message, 5000)))
   $('searchResults').addEventListener('click', e => {
     const btn = e.target.closest('[data-id]')
     if (!btn) return
@@ -1007,7 +1051,7 @@ function setupListeners() {
     $('itemPanel').textContent = 'Scegli un articolo per vedere dove si trova e come è cambiata la sua quantità.'
     $('btnSubmit').textContent = 'Registra'
     hideResult()
-    $('codeInput').focus()
+    focusCode()
   })
 
   $('itemPanel').addEventListener('click', e => {

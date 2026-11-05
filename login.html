@@ -18,6 +18,8 @@
     .login-title { font-family:var(--editorial); font-size:22px; text-align:center; margin-bottom:4px; }
     .login-sub { font-family:var(--editorial); font-style:italic; font-size:13px; color:var(--text-muted); text-align:center; margin-bottom:28px; }
     .login-error { color:var(--coral); font-size:13px; font-family:var(--editorial); margin-bottom:12px; display:none; }
+    .login-note { font-size:13px; font-family:var(--editorial); color:var(--text-secondary); margin-bottom:16px; }
+    form[hidden] { display:none; }
   </style>
 </head>
 <body>
@@ -27,47 +29,112 @@
   </div>
   <div class="login-title">De Simone OS</div>
   <div class="login-sub">Torre del Greco · Dal 1830</div>
-  <div class="login-error" id="loginError"></div>
-  <div class="form-field" style="margin-bottom:16px;">
-    <label class="field-label">Email</label>
-    <input type="email" id="emailInput" class="field-input" placeholder="nome@desimone.it">
-  </div>
-  <div class="form-field" style="margin-bottom:24px;">
-    <label class="field-label">Password</label>
-    <input type="password" id="passwordInput" class="field-input" placeholder="••••••••">
-  </div>
-  <button class="btn-primary" id="loginBtn" style="width:100%;justify-content:center;" onclick="doLogin()">
-    Accedi
-  </button>
+  <div class="login-error" id="loginError" role="alert"></div>
+  <form id="loginForm" novalidate>
+    <div class="form-field" style="margin-bottom:16px;">
+      <label class="field-label" for="emailInput" id="loginLabel">Email</label>
+      <input type="email" id="emailInput" class="field-input" placeholder="nome@desimone.it" autocomplete="username">
+    </div>
+    <div class="form-field" style="margin-bottom:24px;">
+      <label class="field-label" for="passwordInput">Password</label>
+      <input type="password" id="passwordInput" class="field-input" placeholder="••••••••" autocomplete="current-password">
+    </div>
+    <button type="submit" class="btn-primary" id="loginBtn" style="width:100%;justify-content:center;">Accedi</button>
+  </form>
+  <!-- Con una password provvisoria non si entra: si sceglie la propria (scheda 1.4, decisione 4) -->
+  <form id="newPasswordForm" novalidate hidden>
+    <p class="login-note">Questa password è provvisoria. Scegline una tua per entrare: almeno 8 caratteri.</p>
+    <div class="form-field" style="margin-bottom:16px;">
+      <label class="field-label" for="newPassword">Password nuova</label>
+      <input type="password" id="newPassword" class="field-input" autocomplete="new-password">
+    </div>
+    <div class="form-field" style="margin-bottom:24px;">
+      <label class="field-label" for="newPasswordRepeat">Ripeti la password nuova</label>
+      <input type="password" id="newPasswordRepeat" class="field-input" autocomplete="new-password">
+    </div>
+    <button type="submit" class="btn-primary" id="newPasswordBtn" style="width:100%;justify-content:center;">Salva e accedi</button>
+  </form>
 </div>
 
 <script src="config.js"></script>
 <script type="module">
-  import { signIn } from './js/supabase.js'
+  import { IN_SEDE, ACCOUNT_DISABLED, signIn, getMyAccount, changeMyPassword, supabase } from './js/supabase.js'
 
-  window.doLogin = async () => {
-    const email = document.getElementById('emailInput').value
-    const password = document.getElementById('passwordInput').value
-    const errEl = document.getElementById('loginError')
-    const btn = document.getElementById('loginBtn')
+  const $ = id => document.getElementById(id)
+  const DISABLED_MESSAGE = 'Account disattivato: chiedi all\'amministrazione.'
 
-    btn.textContent = 'Accesso...'
-    btn.disabled = true
-    errEl.style.display = 'none'
-
-    try {
-      const { user } = await signIn(email, password)
-      window.location.href = user?.app_metadata?.role === 'dev' ? '/anagrafiche.html' : '/catalog.html'
-    } catch(e) {
-      errEl.textContent = 'Email o password non validi.'
-      errEl.style.display = 'block'
-      btn.textContent = 'Accedi'
-      btn.disabled = false
-    }
+  function showError(message) {
+    $('loginError').textContent = message
+    $('loginError').style.display = message ? 'block' : 'none'
   }
 
-  document.addEventListener('keydown', e => {
-    if (e.key === 'Enter') window.doLogin()
+  // Nella sede si entra con un nome utente, come in STEP (decisione 3). Su Supabase, solo per lo sviluppo, resta l'email
+  if (IN_SEDE) {
+    $('loginLabel').textContent = 'Nome utente'
+    $('emailInput').type = 'text'
+    $('emailInput').placeholder = 'nome'
+    $('emailInput').autocapitalize = 'none'
+    $('emailInput').spellcheck = false
+  }
+  if (new URLSearchParams(location.search).get('motivo') === 'disattivato') showError(DISABLED_MESSAGE)
+
+  // Dopo l'accesso: il dev va alle anagrafiche. Su Supabase un account disattivato si scopre solo qui
+  async function enter(login, password) {
+    await signIn(login, password)
+    let role = null
+    try {
+      role = (await getMyAccount())?.role
+    } catch (err) {
+      if (err.code === ACCOUNT_DISABLED) {
+        await supabase.auth.signOut()
+        throw Object.assign(new Error(DISABLED_MESSAGE), { code: 'account_disattivato' })
+      }
+    }
+    window.location.href = role === 'dev' ? '/anagrafiche.html' : '/catalog.html'
+  }
+
+  function loginMessage(err) {
+    if (err.code === 'account_disattivato') return DISABLED_MESSAGE
+    if (!IN_SEDE) return 'Email o password non validi.'
+    return err instanceof TypeError ? 'Il servizio della sede non risponde.' : `${err.message}.`
+  }
+
+  $('loginForm').addEventListener('submit', async e => {
+    e.preventDefault()
+    const btn = $('loginBtn')
+    btn.textContent = 'Accesso...'
+    btn.disabled = true
+    showError('')
+    try {
+      await enter($('emailInput').value, $('passwordInput').value)
+    } catch (err) {
+      btn.textContent = 'Accedi'
+      btn.disabled = false
+      if (err.code === 'password_provvisoria') {
+        $('loginForm').hidden = true
+        $('newPasswordForm').hidden = false
+        $('newPassword').focus()
+      } else {
+        showError(loginMessage(err))
+      }
+    }
+  })
+
+  $('newPasswordForm').addEventListener('submit', async e => {
+    e.preventDefault()
+    const next = $('newPassword').value
+    showError('')
+    if (next.length < 8) return showError('La password deve avere almeno 8 caratteri.')
+    if (next !== $('newPasswordRepeat').value) return showError('Le due password non coincidono.')
+    const btn = $('newPasswordBtn')
+    btn.disabled = true
+    try {
+      await changeMyPassword($('emailInput').value, $('passwordInput').value, next)
+      await enter($('emailInput').value, next)
+    } catch (err) {
+      btn.disabled = false
+      showError(err instanceof TypeError ? 'Il servizio della sede non risponde.' : `${err.message}.`)
+    }
   })
 </script>
 </body>

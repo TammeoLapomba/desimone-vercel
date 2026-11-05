@@ -1,0 +1,48 @@
+/* ============================================================
+   css/scanner.css — Lettura dei QR con la fotocamera (js/scanner.js), a tutto schermo
+   ============================================================ */
+
+.qr-overlay {
+  position: fixed; inset: 0; z-index: var(--z-top);
+  background: #000; color: #fff;
+  font-family: var(--editorial);
+}
+.qr-video { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; }
+
+/* Riquadro di mira: il resto dell'immagine un po' scuro */
+.qr-frame {
+  position: absolute; left: 50%; top: 45%;
+  width: min(70vw, 70vh, 320px); aspect-ratio: 1;
+  transform: translate(-50%, -50%);
+  border: 3px solid var(--coral-pink); border-radius: 16px;
+  box-shadow: 0 0 0 100vmax rgba(0, 0, 0, 0.45);
+}
+
+.qr-top, .qr-bottom { position: absolute; left: 0; right: 0; padding: 16px; text-align: center; }
+.qr-top { top: 0; padding-top: max(16px, env(safe-area-inset-top)); }
+.qr-bottom { bottom: 0; padding-bottom: max(20px, env(safe-area-inset-bottom)); }
+.qr-title { font-size: 17px; font-weight: 600; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6); }
+.qr-status { margin: 0 auto 14px; max-width: 420px; font-size: 15px; line-height: 1.4; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6); }
+.qr-error .qr-status { background: rgba(201, 64, 48, 0.92); border-radius: 8px; padding: 10px 12px; text-shadow: none; }
+.qr-error .qr-frame { display: none; }
+
+.qr-buttons { display: flex; gap: 12px; justify-content: center; }
+.qr-btn {
+  min-width: 120px; min-height: 48px; padding: 0 20px;
+  border-radius: 999px; border: 1px solid rgba(255, 255, 255, 0.7);
+  background: rgba(0, 0, 0, 0.45); color: #fff;
+  font: 600 16px var(--editorial); cursor: pointer;
+}
+.qr-btn-main { background: var(--ivory); color: var(--ebony); border-color: var(--ivory); }
+.qr-btn-on { background: var(--gold); color: var(--ebony); border-color: var(--gold); }
+.qr-btn:focus-visible { outline: 3px solid var(--coral-pink); outline-offset: 2px; }
+
+/* Bottone "Fotocamera" accanto al codice in Movimenti */
+.mov-camera-btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; white-space: nowrap; }
+.mov-camera-btn svg { width: 18px; height: 18px; flex: none; }
+/* Sul telefono il codice prende tutta la riga e i due bottoni vanno sotto, larghi da toccare */
+@media (max-width: 560px) {
+  .mov-code-row:has(.mov-camera-btn:not([hidden])) { flex-wrap: wrap; }
+  .mov-code-row:has(.mov-camera-btn:not([hidden])) .field-input { flex-basis: 100%; }
+  .mov-code-row:has(.mov-camera-btn:not([hidden])) .btn-ghost { flex: 1; min-height: 44px; }
+}

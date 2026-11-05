@@ -12,6 +12,9 @@
 #   sede-locale.ps1 avvia | ferma       dopo un riavvio del PC, o quando non serve
 #   sede-locale.ps1 stato               cosa e' acceso e quale branch serve
 #   sede-locale.ps1 dati [-Pallino]     dati di prova (dati-prova.ps1)
+#   -Rete si | no                       con installa o aggiorna: l'app anche dai tablet della rete locale, oppure
+#                                       solo da qui (resta per i giri successivi). Il firewall lo apre sede\rete.ps1
+#   -Https si | no                      con installa o aggiorna: HTTPS col certificato di casa (sede\certificato.ps1)
 #
 # Windows blocca gli script: si lanciano con powershell -ExecutionPolicy Bypass -File sede\prove\sede-locale.ps1 ...
 #
@@ -24,6 +27,8 @@
 param([ValidateSet('installa', 'aggiorna', 'avvia', 'ferma', 'stato', 'dati')][string]$Comando = 'stato',
       [switch]$Azzera,
       [switch]$Pallino,
+      [ValidateSet('', 'si', 'no')][string]$Rete = '',
+      [ValidateSet('', 'si', 'no')][string]$Https = '',
       [string]$Cartella = (Join-Path $env:USERPROFILE 'DeSimoneSede'),
       [string]$Installer = (Join-Path $env:USERPROFILE 'DeSimoneSandbox\installer'),
       [string]$Credenziali = '')
@@ -38,6 +43,7 @@ $Log = Join-Path $Home_ 'log'
 $Esito = Join-Path $Home_ 'esito'
 if (-not $Credenziali) { $Credenziali = Join-Path $Home_ 'credenziali.txt' }
 $Node = 'C:\Program Files\nodejs\node.exe'
+$NodeSede = Join-Path $Dati 'bin\node-sede.exe'   # il Node.js del servizio, copiato da installa.js (firewall: sede\rete.ps1)
 if (-not (Test-Path $Credenziali)) {
   throw "Manca $Credenziali, con le righe PostgresPassword=..., AdminNome=..., AdminEmail=..., AdminPassword=..."
 }
@@ -77,13 +83,15 @@ function AvviaPostgrest {
     -RedirectStandardOutput "$Log\postgrest.log" -RedirectStandardError "$Log\postgrest.err" | Out-Null
   'PostgREST acceso sulla porta 3000'
 }
+# Il servizio gira con node-sede.exe; una sede installata prima di questa versione lo aveva avviato con node.exe
+function ProcessiServizio { @(Processi 'node-sede.exe') + @(Processi 'node.exe') }
 function AvviaServizio {
-  if (@(Processi 'node.exe').Count) { 'servizio della sede gia'' acceso'; return }
-  Start-Process $Node -ArgumentList "`"$Repo\sede\servizio\servizio.js`"", "`"$Dati\sede.json`"" -WindowStyle Hidden `
+  if (@(ProcessiServizio).Count) { 'servizio della sede gia'' acceso'; return }
+  Start-Process $NodeSede -ArgumentList "`"$Repo\sede\servizio\servizio.js`"", "`"$Dati\sede.json`"" -WindowStyle Hidden `
     -RedirectStandardOutput "$Log\servizio.log" -RedirectStandardError "$Log\servizio.err" | Out-Null
   'servizio della sede acceso sulla porta 8080'
 }
-function FermaServizio { Processi 'node.exe' | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }; 'servizio della sede spento' }
+function FermaServizio { ProcessiServizio | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }; 'servizio della sede spento' }
 function Salute {
   for ($i = 0; $i -lt 20; $i++) {
     # Il servizio ascolta su 127.0.0.1; la prima richiesta di PowerShell puo' metterci qualche secondo
@@ -100,8 +108,11 @@ function Ferma {
 function Installa {
   Push-Location $Repo
   try {
+    $opzioni = @('--dati', $Dati, '--psql', "$Pg\bin\psql.exe")
+    if ($Rete) { $opzioni += @('--rete', $Rete) }
+    if ($Https) { $opzioni += @('--https', $Https) }
     "$($cred.AdminNome)`n$($cred.AdminEmail)`n$($cred.AdminPassword)`n" |
-      & $Node sede\installa.js --dati $Dati --psql "$Pg\bin\psql.exe"
+      & $Node sede\installa.js @opzioni
     if ($LASTEXITCODE -ne 0) { throw "installa.js: codice $LASTEXITCODE" }
   } finally { Pop-Location }
 }
@@ -178,7 +189,12 @@ switch ($Comando) {
     "Cartella della sede: $Home_"
     'PostgreSQL: ' + $(if (PgAcceso) { 'acceso' } else { 'spento' })
     'PostgREST: ' + $(if (@(Processi 'postgrest.exe').Count) { 'acceso' } else { 'spento' })
-    'Servizio della sede: ' + $(if (@(Processi 'node.exe').Count) { 'acceso' } else { 'spento' })
+    'Servizio della sede: ' + $(if (@(ProcessiServizio).Count) { 'acceso' } else { 'spento' })
+    if (Test-Path "$Dati\sede.json") {
+      $sede = Get-Content "$Dati\sede.json" -Raw | ConvertFrom-Json
+      'Dalla rete locale: ' + $(if ($sede.indirizzo -eq '0.0.0.0') { 'si (firewall: sede\rete.ps1 stato)' } else { 'no, solo da questo PC' })
+      'HTTPS: ' + $(if ($sede.https) { "si, porta $($sede.https.porta) (certificato per i tablet: /certificato)" } else { 'no' })
+    }
   }
   'dati' {
     & (Join-Path $PSScriptRoot 'dati-prova.ps1') -Credenziali $Credenziali -Esito $Esito -Foto "$Dati\foto" -Psql "$Pg\bin\psql.exe" -Pallino:$Pallino

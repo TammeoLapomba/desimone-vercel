@@ -1,5 +1,6 @@
 // js/pwa.js — Registrazione Service Worker + utils PWA
-import { supabase } from './supabase.js'
+import { supabase, getMyRole } from './supabase.js'
+import './account-menu.js'
 
 // Registra il service worker
 if ('serviceWorker' in navigator) {
@@ -29,7 +30,7 @@ async function addDevMenuItem() {
   const nav = document.querySelector('.sidebar-nav')
   if (!nav) return
   const { data: { session } } = await supabase.auth.getSession()
-  if (session?.user?.app_metadata?.role !== 'dev') return
+  if (!session || (await getMyRole()) !== 'dev') return
   const current = window.location.pathname.includes('anagrafiche')
   nav.insertAdjacentHTML('beforeend', `
     <a href="/anagrafiche.html" class="nav-item${current ? ' active' : ''}" ${current ? 'aria-current="page"' : ''} title="Anagrafiche">
@@ -39,69 +40,82 @@ async function addDevMenuItem() {
 }
 addDevMenuItem().catch(console.error)
 
-// ─── Bottom Nav / Drawer mobile ──────────────────────────────────
+// ─── Barra in basso sul telefono e sul tablet (≤ 768 px) ──────────
+// Sostituisce la barra laterale, che lì è nascosta: deve avere le stesse pagine (Montato, Semilavorato, Movimenti,
+// Giacenze, Registro) e l'uscita dall'account. Il "+" per un elemento nuovo galleggia sopra, solo dove c'è
+// (Montato, Semilavorato, Anagrafiche); collezioni, categorie ed elenchi si aprono dal menu ☰ in alto (initHamburger).
+// Con l'account dev c'è anche Anagrafiche (AN-02), come nella barra laterale (addDevMenuItem).
+
+const ICONS = {
+  montato: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>',
+  semilavorato: '<path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>',
+  movimenti: '<polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/>',
+  giacenze: '<path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/>',
+  registro: '<line x1="9" y1="6" x2="20" y2="6"/><line x1="9" y1="12" x2="20" y2="12"/><line x1="9" y1="18" x2="20" y2="18"/><circle cx="5" cy="6" r="1"/><circle cx="5" cy="12" r="1"/><circle cx="5" cy="18" r="1"/>',
+  anagrafiche: '<path d="M20.6 13.4l-7.2 7.2a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="8" cy="8" r="1.2"/>',
+  esci: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>',
+}
+const PAGES = [
+  ['montato', 'Montato', '/catalog.html'],
+  ['semilavorato', 'Semilav.', '/semilavorato.html', 'Semilavorato'],
+  ['movimenti', 'Movimenti', '/movimenti.html'],
+  ['giacenze', 'Giacenze', '/giacenze.html'],
+  ['registro', 'Registro', '/registro.html'],
+]
+const DEV_PAGE = ['anagrafiche', 'Anagr.', '/anagrafiche.html', 'Anagrafiche']
+const svg = name => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">${ICONS[name]}</svg>`
 
 export function initMobileNav({ onNewArticle, onOpenDrawer } = {}) {
-  // Inietta bottom nav se non presente
   if (document.querySelector('.mobile-nav')) return
 
-  const isCatalog = window.location.pathname.includes('catalog') || window.location.pathname === '/'
-  const isSemilavorato = window.location.pathname.includes('semilavorato')
-  const isAnagrafiche = window.location.pathname.includes('anagrafiche')
+  // La pagina aperta, anche senza .html (/movimenti) o dalla radice (/ = Montato)
+  const path = window.location.pathname
+  const current = path === '/' ? 'montato' : ([...PAGES, DEV_PAGE].find(([key, , href]) => path.startsWith(href.replace('.html', '')))?.[0]
+    ?? (path.includes('catalog') ? 'montato' : null))
+  const item = ([key, label, href, full]) => `
+    <a href="${href}" class="mobile-nav-item${key === current ? ' active' : ''}"${key === current ? ' aria-current="page"' : ''}
+       aria-label="${full || label}">${svg(key)}<span>${label}</span></a>`
 
   const nav = document.createElement('nav')
   nav.className = 'mobile-nav'
-  nav.setAttribute('aria-label', 'Navigazione mobile')
-  nav.innerHTML = `
-    <a href="catalog.html" class="mobile-nav-item ${isCatalog ? 'active' : ''}" aria-label="Montato">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-        <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
-        <rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/>
-      </svg>
-      Montato
-    </a>
-
-    <a href="semilavorato.html" class="mobile-nav-item ${isSemilavorato ? 'active' : ''}" aria-label="Semilavorato">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-        <path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/>
-      </svg>
-      Semilavorato
-    </a>
-
-    <button class="mobile-fab" id="mobileNewArticleBtn" aria-label="Nuovo elemento">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true">
-        <line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/>
-      </svg>
-    </button>
-
-    <button class="mobile-nav-item" id="mobileCollectionsBtn">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">
-        <path d="M3 7l9-4 9 4v10l-9 4-9-4V7z"/><path d="M12 3v18"/>
-      </svg>
-      ${isAnagrafiche ? 'Elenchi' : isSemilavorato ? 'Categorie' : 'Collezioni'}
-    </button>
-  `
+  nav.setAttribute('aria-label', 'Navigazione')
+  nav.innerHTML = PAGES.map(item).join('') + `
+    <button type="button" class="mobile-nav-item mobile-nav-exit" id="mobileSignOutBtn" aria-label="Esci dall'account">${svg('esci')}<span>Esci</span></button>`
   document.body.appendChild(nav)
+  document.getElementById('mobileSignOutBtn').addEventListener('click', () => window.signOutUser?.())
 
-  // Overlay per il drawer
+  // Segno del tocco: la voce toccata resta scura finché non si apre la pagina, così si vede che il tocco è arrivato
+  // anche se la pagina ci mette un attimo. Su iOS :active vale solo se la pagina ascolta touchstart
+  document.addEventListener('touchstart', () => {}, { passive: true })
+  nav.addEventListener('click', e => e.target.closest('a.mobile-nav-item')?.classList.add('pressed'))
+  // Tornando indietro il browser può rimostrare la pagina com'era: la voce non deve restare scura
+  window.addEventListener('pageshow', () => nav.querySelectorAll('.pressed').forEach(a => a.classList.remove('pressed')))
+
+  // Anagrafiche solo con l'account dev, prima di Esci
+  getMyRole().then(role => {
+    if (role !== 'dev') return
+    document.getElementById('mobileSignOutBtn').insertAdjacentHTML('beforebegin', item(DEV_PAGE))
+  }).catch(console.error)
+
+  // "+" solo dove si crea qualcosa
+  if (onNewArticle) {
+    const fab = document.createElement('button')
+    fab.type = 'button'
+    fab.className = 'mobile-fab'
+    fab.id = 'mobileNewArticleBtn'
+    fab.setAttribute('aria-label', current === 'semilavorato' ? 'Nuovo semilavorato' : current === 'anagrafiche' ? 'Nuova voce' : 'Nuovo articolo')
+    fab.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>'
+    fab.addEventListener('click', () => onNewArticle())
+    document.body.appendChild(fab)
+  }
+
+  // Cassetto di collezioni, categorie ed elenchi (Montato, Semilavorato, Anagrafiche): si apre dal ☰, si chiude toccando fuori
   const overlay = document.createElement('div')
   overlay.className = 'drawer-overlay'
   overlay.id = 'drawerOverlay'
   document.body.appendChild(overlay)
-
-  // FAB → nuovo articolo
-  document.getElementById('mobileNewArticleBtn')?.addEventListener('click', () => {
-    onNewArticle?.()
-  })
-
-  // Bottone collezioni → apre drawer
-  document.getElementById('mobileCollectionsBtn')?.addEventListener('click', () => {
-    openDrawer()
-    onOpenDrawer?.()
-  })
-
-  // Chiude drawer cliccando overlay
   overlay.addEventListener('click', closeDrawer)
+  document.getElementById('hamburgerBtn')?.addEventListener('click', () => onOpenDrawer?.())
 }
 
 export function openDrawer() {

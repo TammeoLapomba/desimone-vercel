@@ -1,5 +1,5 @@
 // js/catalog.js
-import { supabase, requireAuth, getCollections, getArticles, insertCollection, retirePreview, retireItem, deleteCollection, signOut } from './supabase.js'
+import { supabase, requireAuth, getMyRole, getCollections, getArticles, insertCollection, retirePreview, retireItem, deleteCollection, signOut } from './supabase.js'
 import { formatPrice, getCoverPhoto, showToast, articleMaterials, articleMaterialLines, articleMetalLine, validateCollection, confirmRetire } from './utils.js'
 import { initColorSelect } from './color-select.js'
 import { initFilters } from './filters.js'
@@ -49,27 +49,30 @@ let filters = null
 
 async function init() {
   initPanelToggle()
-  const session = await requireAuth()
+  await requireAuth()
+  const role = await getMyRole()
   // Modifica/eliminazione di collezioni e articoli: solo admin (lo impone anche il database)
-  isAdmin = session.user.app_metadata?.role === 'admin'
-  isDev = session.user.app_metadata?.role === 'dev'
+  isAdmin = role === 'admin'
+  isDev = role === 'dev'
   filters = initFilters({
     fields: FILTER_FIELDS,
     // Ricerca libera: titolo, codice, collezione, tipo e materiali
     text: a => [a.name, a.sku, a.collections?.name, a.product_type?.name, ...articleMaterials(a).map(m => m.name)].join('\n'),
     onChange: () => renderCurrent(),
   })
-  await loadCollections()
-  await loadArticles()
-  setupListeners()
 
-  // Mobile PWA
+  // Barra in basso, ☰ e pulsanti prima di caricare gli articoli: da telefono e tablet si tocca subito, anche mentre
+  // il catalogo arriva dal server (prima comparivano dopo, e un tocco in quel momento andava perso)
   initHamburger()
   addDetailPanelCloseBtn()
   initMobileNav({
     onNewArticle: () => document.getElementById('btnNewArticleTop')?.click(),
     onOpenDrawer: () => {} // già gestito da initMobileNav
   })
+  setupListeners()
+
+  await loadCollections()
+  await loadArticles()
 }
 
 async function loadCollections() {
@@ -162,6 +165,8 @@ function renderArticles(articles) {
   else renderGrid(articles)
 }
 
+const CARD_ANIMATED = 12   // schede con l'entrata a cascata (al massimo 0,33 s), le altre compaiono subito
+
 function renderGrid(articles) {
   const grid = document.getElementById('articlesGrid')
   if (articles.length === 0) {
@@ -169,14 +174,18 @@ function renderGrid(articles) {
     return
   }
 
+  // L'entrata a cascata solo per le prime schede, quelle che si vedono. Prima ogni scheda partiva 0,05 s dopo la
+  // precedente: con 385 articoli l'ultima arrivava dopo 19 s, e per tutto quel tempo telefono e tablet erano
+  // occupati ad animare (tocchi persi, ricerca lenta, ogni ricerca ripartiva da capo)
   grid.innerHTML = articles.map((a, i) => {
+    const entry = i < CARD_ANIMATED ? `animation-delay:${i * 0.03}s` : 'animation:none'
     const cover = getCoverPhoto(a.photos)
     const collName = a.collections?.name || ''
     // Il titolo dell'articolo, modificabile in inserimento e in modifica
     const dispName = esc(a.name)
 
     return `
-      <div class="article-card" data-article-id="${a.id}" role="listitem" tabindex="0" aria-label="${dispName} — ${collName}" style="animation-delay:${i * 0.05}s">
+      <div class="article-card" data-article-id="${a.id}" role="listitem" tabindex="0" aria-label="${dispName} — ${collName}" style="${entry}">
         <div class="card-photo">
           ${cover
             ? `<img src="${cover}" alt="${dispName}" loading="lazy">`

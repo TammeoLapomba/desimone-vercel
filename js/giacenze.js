@@ -5,9 +5,11 @@
 // i luoghi (REQ-M-07), UC-13 revocare un dispositivo (REQ-S-01…S-03). Nella WBA: L-01 interfaccia, F-13 mostrare le
 // giacenze, F-15 produrre l'elenco (L-11), F-23 luoghi, F-24 revoca. La giacenza è la somma dei movimenti
 // (stock_levels, REQ-C-01) e i permessi li decide il database: qui si mostra solo ciò che il ruolo può fare.
+// Nella scheda Utenti l'amministrazione gestisce gli account (REQ-P-08, P-09, scheda 1.4).
 import {
   requireAuth, signOut, getMyOperator, getMovementSetup, getStockOverview, insertLocation, revokeDevice,
   IN_SEDE, getBackupStatus, startBackup,
+  getAccounts, saveAccount, setAccountActive, createAccount, resetAccountPassword,
 } from './supabase.js'
 import { showToast } from './utils.js'
 import { initMobileNav } from './pwa.js'
@@ -30,6 +32,9 @@ const state = {
   devices: [],
   items: [],       // { kind, id, code, name, group, unit, priceRetail, priceWholesale, at: Map location_id → { pieces, grams } }
   backup: null,    // stato della copia di sicurezza (sede/servizio/copia.js), solo nella sede e per l'amministrazione
+  users: [],       // accounts_list: solo per l'amministrazione
+  editingUser: null,
+  userMode: null,  // create, edit, reset
 }
 const isAdmin = () => state.operator?.role === 'admin'
 
@@ -50,11 +55,13 @@ async function init() {
   if (isAdmin()) {
     $('tab-locations').hidden = false
     $('tab-devices').hidden = false
+    $('tab-users').hidden = false
     $('btnPrint').hidden = false
     $('valueNote').hidden = false
   }
   setupListeners()
   renderAll()
+  if (isAdmin()) loadUsers()
   if (isAdmin() && IN_SEDE) {
     $('tab-backup').hidden = false
     loadBackup()
@@ -256,7 +263,7 @@ function renderDevices() {
     <li class="gia-row">
       <div>
         <div class="gia-row-title"><span class="gia-code">${esc(d.code)}</span> ${esc(d.name)}${d.id === mine ? ' <span class="gia-off">(questo dispositivo)</span>' : ''}</div>
-        <div class="gia-row-sub">${d.revoked_at ? `Revocato il ${date(d.revoked_at)}` : 'Attivo'}</div>
+        <div class="gia-row-sub">${d.revoked_at ? `Revocato il ${date(d.revoked_at)}` : 'Attivo'} · ${d.kind === 'mobile' ? 'Tablet o telefono, con la fotocamera' : 'PC, con la pistola'}</div>
       </div>
       ${d.revoked_at ? '' : `<button type="button" class="btn-danger" data-revoke="${d.id}">Revoca</button>`}
     </li>`).join('') || '<li class="mov-empty">Nessun dispositivo registrato</li>'
@@ -275,6 +282,136 @@ async function revoke(id, btn) {
   } catch (err) {
     btn.disabled = false
     showToast(err.message || 'Revoca non riuscita')
+  }
+}
+
+// ─── Utenti (REQ-P-08, P-09, scheda 1.4) ──────────────────────
+
+async function loadUsers() {
+  try {
+    state.users = await getAccounts()
+    renderUsers()
+  } catch (err) {
+    $('userList').innerHTML = `<li class="mov-empty">Elenco non disponibile: ${esc(err.message)}</li>`
+  }
+}
+
+// Alfabetici, con i disattivati in fondo e poi gli account di Dedalo
+function userGroups() {
+  const byName = (a, b) => a.name.localeCompare(b.name, 'it')
+  const company = state.users.filter(u => !u.is_dev).sort(byName)
+  return {
+    active: company.filter(u => u.active !== false),
+    off: company.filter(u => u.active === false),
+    dev: state.users.filter(u => u.is_dev).sort(byName),
+  }
+}
+
+function userRow(u) {
+  const when = d => new Date(d).toLocaleString('it-IT', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+  const me = u.id === state.operator.id
+  const tags = [
+    me ? 'Sei tu' : '',
+    u.active === false ? 'Disattivato' : '',
+    u.provisional_password ? 'Password provvisoria' : '',
+  ].filter(Boolean).map(t => `<span class="gia-tag">${t}</span>`).join('')
+  const role = u.is_dev ? 'Dedalo' : ROLE_LABELS[u.role] || 'Senza ruolo'
+  const actions = u.is_dev ? '' : `
+    <div class="gia-row-actions">
+      <button type="button" class="btn-ghost" data-user-edit="${u.id}">${u.role ? 'Modifica' : 'Assegna un ruolo'}</button>
+      ${IN_SEDE && !me ? `<button type="button" class="btn-ghost" data-user-reset="${u.id}">Reimposta password</button>` : ''}
+      ${me || !u.role ? '' : u.active
+        ? `<button type="button" class="btn-danger" data-user-active="${u.id}" data-to="false">Disattiva</button>`
+        : `<button type="button" class="btn-ghost" data-user-active="${u.id}" data-to="true">Riattiva</button>`}
+    </div>`
+  return `
+    <li class="gia-row${u.active === false ? ' gia-row-off' : ''}">
+      <div>
+        <div class="gia-row-title">${esc(u.name)}${tags}</div>
+        <div class="gia-row-sub"><span class="gia-code">${esc(u.username)}</span> · ${role} · ${u.last_sign_in_at ? `ultimo accesso ${when(u.last_sign_in_at)}` : 'nessun accesso'}</div>
+      </div>
+      ${actions}
+    </li>`
+}
+
+function renderUsers() {
+  const { active, off, dev } = userGroups()
+  const section = (title, list) => list.length ? `<li class="gia-section">${title}</li>${list.map(userRow).join('')}` : ''
+  $('userList').className = 'gia-list gia-users'
+  $('userList').innerHTML = active.map(userRow).join('')
+    + section('Disattivati', off)
+    + section('Account di Dedalo, solo da leggere', dev)
+    || '<li class="mov-empty">Nessun account</li>'
+}
+
+function openUserModal(mode, user = null) {
+  state.userMode = mode
+  state.editingUser = user
+  const me = user?.id === state.operator.id
+  $('userModalTitle').textContent = mode === 'create' ? 'Nuovo utente'
+    : mode === 'reset' ? `Reimposta la password di ${user.name}` : user.role ? `Modifica ${user.name}` : `Assegna un ruolo a ${user.name}`
+  $('fieldUserName').hidden = mode === 'reset'
+  $('fieldUserUsername').hidden = mode !== 'create'
+  $('fieldUserRole').hidden = mode === 'reset'
+  $('fieldUserPassword').hidden = mode === 'edit'
+  $('f_user_name').value = user?.name || ''
+  $('f_user_username').value = ''
+  $('f_user_role').value = user?.role || ''
+  $('f_user_role').disabled = me
+  $('userRoleHint').textContent = me ? 'Il tuo ruolo lo cambia un altro amministratore.' : 'Vale subito. Chi ha già una pagina aperta la vede aggiornata al prossimo caricamento.'
+  $('f_user_password').value = ''
+  $('userError').textContent = ''
+  $('userModal').classList.add('open')
+  $(mode === 'reset' ? 'f_user_password' : 'f_user_name').focus()
+}
+
+const closeUserModal = () => $('userModal').classList.remove('open')
+
+async function saveUser(e) {
+  e.preventDefault()
+  const mode = state.userMode
+  const user = state.editingUser
+  const name = $('f_user_name').value.trim()
+  const username = $('f_user_username').value.trim()
+  const role = $('f_user_role').value
+  const password = $('f_user_password').value
+  const fail = message => { $('userError').textContent = message }
+  if (mode !== 'reset' && !name) return fail('Scrivi il nome')
+  if (mode === 'create' && !username) return fail('Scrivi il nome utente')
+  if (mode !== 'reset' && !role) return fail('Scegli il ruolo')
+  if (mode !== 'edit' && password.length < 8) return fail('La password provvisoria deve avere almeno 8 caratteri')
+  const button = $('btnSaveUser')
+  button.disabled = true
+  fail('')
+  try {
+    if (mode === 'create') await createAccount({ name, username, role, password })
+    else if (mode === 'reset') await resetAccountPassword(user.id, password)
+    else await saveAccount(user.id, name, role)
+    closeUserModal()
+    await loadUsers()
+    showToast(mode === 'create' ? `Account di ${name} creato` : mode === 'reset' ? `Password di ${user.name} reimpostata` : `Dati di ${name} aggiornati`)
+  } catch (err) {
+    fail(err.message || 'Non salvato')
+  } finally {
+    button.disabled = false
+  }
+}
+
+async function toggleUser(id, active, button) {
+  const user = state.users.find(u => u.id === id)
+  if (!user) return
+  const question = active
+    ? `Riattivare ${user.name}?\n\nPotrà entrare di nuovo con la sua password.`
+    : `Disattivare ${user.name}?\n\nDa ora non potrà più entrare, e si fermano anche le sessioni già aperte. I suoi movimenti restano con il suo nome.`
+  if (!confirm(question)) return
+  button.disabled = true
+  try {
+    await setAccountActive(id, active)
+    await loadUsers()
+    showToast(`Account di ${user.name} ${active ? 'riattivato' : 'disattivato'}`)
+  } catch (err) {
+    button.disabled = false
+    showToast(err.message || 'Non riuscito')
   }
 }
 
@@ -340,6 +477,23 @@ function setupListeners() {
   $('btnPrint').addEventListener('click', printList)
   $('locationForm').addEventListener('submit', createLocation)
   $('btnBackup').addEventListener('click', backupNow)
+  $('btnNewUser').hidden = !IN_SEDE
+  $('usersHint').textContent = IN_SEDE
+    ? 'Un account per persona: i movimenti dicono chi li ha fatti. Chi lascia l\'azienda si disattiva, e i suoi movimenti restano con il suo nome.'
+    : 'Su questo sito di prova gli account si creano e le password si cambiano dal pannello di Supabase. Qui si assegnano ruolo e stato.'
+  $('btnNewUser').addEventListener('click', () => openUserModal('create'))
+  $('userForm').addEventListener('submit', saveUser)
+  $('btnCloseUser').addEventListener('click', closeUserModal)
+  $('btnCancelUser').addEventListener('click', closeUserModal)
+  $('userModal').addEventListener('keydown', e => { if (e.key === 'Escape') closeUserModal() })
+  $('userList').addEventListener('click', e => {
+    const edit = e.target.closest('[data-user-edit]')
+    const reset = e.target.closest('[data-user-reset]')
+    const toggle = e.target.closest('[data-user-active]')
+    if (edit) openUserModal('edit', state.users.find(u => u.id === edit.dataset.userEdit))
+    if (reset) openUserModal('reset', state.users.find(u => u.id === reset.dataset.userReset))
+    if (toggle) toggleUser(toggle.dataset.userActive, toggle.dataset.to === 'true', toggle)
+  })
   $('deviceList').addEventListener('click', e => {
     const btn = e.target.closest('[data-revoke]')
     if (btn) revoke(btn.dataset.revoke, btn)

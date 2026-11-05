@@ -1,5 +1,5 @@
 // js/article.js
-import { requireAuth, getCollections, getMaterials, getMetals, getProductTypes, getArticleById, getItemStock, updateArticle, setArticleMaterials, retirePreview, retireItem, signOut } from './supabase.js'
+import { requireAuth, getMyRole, getCollections, getMaterials, getMetals, getProductTypes, getArticleById, getItemStock, updateArticle, setArticleMaterials, retirePreview, retireItem, signOut } from './supabase.js'
 import { showToast, confirmRetire } from './utils.js'
 import { initMaterialPicker, initMetalWeight } from './material-picker.js'
 
@@ -30,9 +30,9 @@ function renderCodeStatus() {
 }
 
 async function init() {
-  const session = await requireAuth()
+  await requireAuth()
   // Solo l'admin può archiviare o eliminare (lo impone anche il database)
-  isAdmin = session.user.app_metadata?.role === 'admin'
+  isAdmin = (await getMyRole()) === 'admin'
 
   const params = new URLSearchParams(window.location.search)
   articleId = params.get('id')

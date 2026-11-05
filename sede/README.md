@@ -4,11 +4,11 @@ Come la **WBA v0.5** (D-1, Step 5 e 6): niente Supabase, tutto sul PC Windows.
 
 | Pezzo | Cosa è | Dove |
 |---|---|---|
-| P-05 | PostgreSQL 17, servizio di Windows | installer EDB |
+| P-05 | PostgreSQL 17, servizio di Windows, solo su `localhost` | installer EDB |
 | P-06 | PostgREST, le API dei dati, solo su `127.0.0.1:3000` | `C:\DeSimone\dati\bin\postgrest.exe` |
-| P-07 | Servizio della sede (Node.js): accesso e token, inoltro a PostgREST, foto, pagine dell'app | `sede/servizio/servizio.js` |
+| P-07 | Servizio della sede (Node.js): accesso e token, inoltro a PostgREST, foto, pagine dell'app. Gira con una copia di Node.js tutta sua, `node-sede.exe`, che il firewall riconosce | `sede/servizio/servizio.js`, `C:\DeSimone\dati\bin\node-sede.exe` |
 | P-09 | WinSW: avvia P-06 e P-07 all'accensione e li riavvia se si fermano | `C:\DeSimone\dati\servizio-*.exe` |
-| P-01 | L'app, la stessa di Vercel: dal servizio sa di essere nella sede | `http://localhost:8080` |
+| P-01 | L'app, la stessa di Vercel: dal servizio sa di essere nella sede | `http://localhost:8080`, e dai tablet della rete locale (sotto) |
 
 Il mini PC è il **banco di prova** della WBA: Windows 10 con la RAM limitata a **4 GB**, come il PC server (i5-2400).
 Qui si misura se ci stiamo con la memoria.
@@ -53,7 +53,7 @@ $env:PGPASSWORD = "la password di postgres del passo 2"
 node sede\installa.js --dati C:\DeSimone\dati
 ```
 
-Lo script crea il database `desimone`, applica tutte le migrazioni (le stesse di Supabase, più le due di
+Lo script crea il database `desimone`, applica tutte le migrazioni (le stesse di Supabase, più quelle di
 `sede/database/`), imposta PostgreSQL per 4 GB, genera password e segreti in `C:\DeSimone\dati\segreti\` e scrive
 le configurazioni. Alla fine chiede **nome, email e password del primo amministratore**.
 
@@ -80,13 +80,105 @@ Start-Service desimone-sede
    1,2–1,8 GB liberi su 4.
 6. **Riavvio**: riavvia il PC e controlla che `http://localhost:8080` torni da solo, senza fare niente (D-4).
 
-## Altri account
+## Tablet e altri dispositivi della rete locale
 
-Si creano dal PC, non dall'app. Il ruolo dei movimenti è uno tra `admin`, `laboratorio`, `negozio` e `fiere`:
+Di partenza l'app si apre solo dal PC server. Per aprirla anche dai tablet e dai PC collegati alla stessa rete (Wi-Fi o
+cavo dell'azienda), in **PowerShell come amministratore**:
 
 ```powershell
-& "C:\Program Files\PostgreSQL\17\bin\psql.exe" -U postgres -d desimone -c "SELECT auth.crea_utente('negozio@desimone.it', 'una-password', 'Negozio', 'negozio')"
-& "C:\Program Files\PostgreSQL\17\bin\psql.exe" -U postgres -d desimone -c "SELECT auth.cambia_password('negozio@desimone.it', 'nuova-password')"
+cd C:\DeSimone\desimone-os
+$env:PGPASSWORD = "..."
+node sede\installa.js --dati C:\DeSimone\dati --rete si
+powershell -ExecutionPolicy Bypass -File sede\rete.ps1 apri
+Restart-Service desimone-sede
+```
+
+`rete.ps1 apri` scrive alla fine gli indirizzi da aprire sul tablet, per esempio `http://192.168.1.20:8080`. Conviene
+dare al PC server un indirizzo fisso nel router, così non cambia. La scelta resta per gli aggiornamenti; per tornare
+solo al PC server: `installa.js … --rete no`, `rete.ps1 chiudi`, `Restart-Service desimone-sede`.
+
+**Solo rete locale, mai internet.** Tre barriere, ognuna basta da sola:
+
+1. **Il servizio della sede** chiude subito ogni connessione che non arriva dal PC stesso o da un indirizzo privato
+   (`10.…`, `172.16–31.…`, `192.168.…`, link-local), e non si collega a niente fuori da questo PC: solo PostgREST e il
+   database su `localhost`. Se `sede.json` indicasse un altro indirizzo, il servizio non parte.
+2. **Il firewall di Windows** (`rete.ps1 apri`, gruppo di regole "De Simone gestionale"): la porta 8080 è aperta solo
+   per `node-sede.exe`, solo dalla sottorete del PC e solo su una rete **Privata** o di Dominio. Per `node-sede.exe`,
+   `postgrest.exe`, `postgres.exe`, `pg_dump.exe` e `pg_restore.exe` tutti gli indirizzi di internet sono bloccati, in
+   uscita e in entrata, anche se un'altra regola li permettesse. `rete.ps1 stato` mostra regole, reti e indirizzi.
+3. **PostgreSQL e PostgREST** ascoltano solo su `localhost`: dalla rete si passa sempre dal servizio della sede.
+
+Se la rete del PC è **Pubblica** i tablet non entrano: `rete.ps1` lo segnala. Va impostata come Privata in
+Impostazioni → Rete e Internet → Wi-Fi o Ethernet → la rete → Tipo di profilo di rete: **Privato**.
+
+**Senza HTTPS** dal tablet l'app è in `http://`: funziona tutto quello che c'è oggi, ma il browser non la installa come
+app, non la tiene per lavorare senza collegamento e non dà la fotocamera; la password passa in chiaro nel Wi-Fi. Per
+i tablet si accende l'HTTPS (sotto).
+
+## HTTPS col certificato di casa (architettura-locale §4)
+
+Il PC della sede non ha internet, quindi niente certificati pubblici: `installa.js` crea una piccola **autorità di
+casa** (dura 10 anni) e con quella firma il certificato del server, per `gestionale.desimone.lan`, il nome del PC e i
+suoi indirizzi della rete. Su ogni tablet si installa **una volta** il certificato dell'autorità; dopo, il tablet si
+fida del server anche quando il certificato del server si rinnova. Tutto con Windows (`sede/certificato.ps1`), senza
+scaricare niente. In **PowerShell come amministratore**:
+
+```powershell
+cd C:\DeSimone\desimone-os
+$env:PGPASSWORD = "..."
+node sede\installa.js --dati C:\DeSimone\dati --rete si --https si
+powershell -ExecutionPolicy Bypass -File sede\rete.ps1 apri
+Restart-Service desimone-sede
+```
+
+`installa.js` scrive l'**impronta SHA-256** dell'autorità: annotala. L'HTTPS è sulla porta **8443** (`--porta-https`
+per cambiarla); `rete.ps1 apri` va rilanciato perché il firewall apra anche quella.
+
+**Su ogni tablet, una volta sola:**
+
+1. Apri `http://<indirizzo del PC>:8080/certificato` (gli indirizzi li scrive `rete.ps1 stato`) e tocca
+   **Scarica il certificato**.
+2. Impostazioni → Sicurezza → Altre impostazioni di sicurezza → Crittografia e credenziali → **Installa un
+   certificato** → **Certificato CA** → Installa comunque → `ca-desimone.crt` in Download. Il tablet deve avere un
+   blocco schermo (PIN). I nomi dei menu cambiano un po' da un Android all'altro: cerca "certificato" nelle Impostazioni.
+3. Chiudi e riapri il browser, poi **Apri il gestionale (https)** dalla stessa pagina: `https://<indirizzo>:8443`.
+   Conviene aggiungerlo alla schermata Home.
+
+**Su iPhone e iPad, una volta sola** (la pagina `/certificato` mostra da sola le istruzioni giuste):
+
+1. Apri `http://<indirizzo del PC>:8080/certificato` con **Safari**, tocca **Scarica il certificato** e **Consenti**.
+2. Impostazioni → **Profilo scaricato** (in alto; oppure Generali → VPN e gestione dispositivi) → **Installa**.
+3. Impostazioni → Generali → Info → **Impostazioni certificati attendibili** → accendi "De Simone - autorita di
+   casa". Senza questo passo iOS installa il profilo ma Safari non si fida del server.
+4. Apri `https://<indirizzo>:8443`. Su iOS tutti i browser usano gli stessi certificati: dopo il passo 3 vale
+   anche per Chrome.
+
+La pagina mostra anche l'impronta: deve essere la stessa scritta da `installa.js`.
+
+**Cosa cambia.** Dalla rete in `http://` restano solo `/certificato` e `/salute`: le pagine passano da sole a
+`https://`, l'accesso e i dati in `http://` si rifiutano, così la password non passa mai in chiaro. Sul PC server
+`http://localhost:8080` resta com'è (per il browser `localhost` è già sicuro, e la bilancia via cavo lo vuole).
+
+**Quando si rifà il certificato del server.** A ogni `installa.js` si controlla: si rifà se scade entro 30 giorni (dura
+825 giorni, il massimo che i browser accettano) o se il PC ha un indirizzo che il certificato non contiene, per
+esempio dopo aver cambiato rete. Poi `Restart-Service desimone-sede`. I tablet non devono fare niente. Se si cancella
+`C:\DeSimone\dati\segreti\ca-desimone.pfx` si crea un'autorità nuova, e il certificato va reinstallato su tutti i
+tablet: quel file va nella copia dei segreti, non va dato a nessuno.
+
+Se sul tablet compare "La connessione non è privata": il certificato dell'autorità non è installato, oppure l'indirizzo
+aperto non è nel certificato (rilancia `installa.js` con il PC collegato a quella rete e riavvia il servizio).
+
+## Altri account
+
+Li gestisce l'amministrazione, nell'app: Giacenze → **Utenti**. Crea un account per persona con nome, nome utente, ruolo
+e password provvisoria, e la persona sceglie la sua al primo accesso. Da lì si cambia il ruolo, si disattiva e si reimposta
+una password. Ognuno cambia la propria da **Esci**. Si entra con il nome utente, per esempio `gioia`; chi ha un'email
+intera, come il primo amministratore se ne ha scritta una in `installa.js`, entra con quella.
+
+**Se la password la dimentica l'unico amministratore**, serve il PC. La nuova è provvisoria: al primo accesso va cambiata.
+
+```powershell
+& "C:\Program Files\PostgreSQL\17\bin\psql.exe" -U postgres -d desimone -c "SELECT auth.cambia_password('gioia', 'nuova-password')"
 ```
 
 Chi lavora in Dedalo ha un account dev personale. Gestisce tipi, materiali e metalli nella pagina Anagrafiche e non è un
@@ -187,7 +279,20 @@ powershell -ExecutionPolicy Bypass -File sede\prove\sede-locale.ps1 aggiorna
 ```
 
 Poi in Edge si ricarica con Ctrl + Shift + R. Gli altri comandi: `stato`, `ferma`, `avvia` (dopo un riavvio del
-PC). `dati` scrive i codici da annotare anche in `%USERPROFILE%\DeSimoneSede\esito\dati-prova.txt`. Le prove SQL:
+PC). `dati` scrive i codici da annotare anche in `%USERPROFILE%\DeSimoneSede\esito\dati-prova.txt`.
+
+Per provare dai tablet (sezione "Tablet e altri dispositivi della rete locale"): **prima** il firewall, da PowerShell
+come amministratore, poi `aggiorna -Rete si`. In quest'ordine Windows non chiede niente; al contrario potrebbe
+chiedere se consentire `node-sede.exe` (se compare, scegli **Consenti**: le regole di `rete.ps1` restano più forti).
+
+```powershell
+powershell -ExecutionPolicy Bypass -File sede\rete.ps1 apri -Dati $env:USERPROFILE\DeSimoneSede\dati
+powershell -ExecutionPolicy Bypass -File sede\prove\sede-locale.ps1 aggiorna -Rete si
+```
+
+Con l'HTTPS: `aggiorna -Rete si -Https si`, poi di nuovo `rete.ps1 apri` da amministratore (apre la porta 8443).
+
+Le prove SQL:
 
 ```powershell
 $env:PGPASSWORD = (Get-Content $env:USERPROFILE\DeSimoneSede\credenziali.txt | ConvertFrom-StringData).PostgresPassword
@@ -232,8 +337,8 @@ tranne il peso se manca (uno scritto nella scheda resta). Alla fine elenca gli a
 
 ## Cosa non c'è ancora (WBA v0.5, Step 6 "da scrivere")
 
-- **HTTPS col certificato di casa** per i tablet (`gestionale.desimone.lan`, architettura-locale §4). Oggi il
-  servizio ascolta solo su `127.0.0.1`. `sede.json` ha già il campo `https` per certificato e chiave.
+- **Il nome `gestionale.desimone.lan`** è nel certificato, ma perché i tablet lo trovino serve una voce nel router
+  dell'azienda (DNS locale). Finché non c'è, si usa l'indirizzo del PC.
 - **Programma per Windows** (P-04, Electron) e **APK** (P-03, Capacitor), in attesa del parere di Lorenzo e
   Giorgio. Per ora l'app si apre nel browser.
 - **Bilancia della sede letta dal servizio** sulla porta COM (L-09). Per ora si legge via cavo dal browser.

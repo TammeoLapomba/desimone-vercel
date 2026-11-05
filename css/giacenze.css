@@ -57,6 +57,23 @@
 .gia-row-sub, .gia-row-meta { font-family: var(--editorial); font-size: 12px; color: var(--text-muted); }
 .gia-code { font-family: var(--mono); font-size: 12px; font-weight: 600; }
 
+/* ─── Utenti ────────────────────────────────────────────────── */
+.gia-card-head { display: flex; justify-content: space-between; align-items: center; gap: 12px; margin-bottom: 8px; }
+.gia-card-head .mov-card-title { margin-bottom: 0; }
+.gia-card-head [hidden] { display: none; }
+.gia-row-actions { display: flex; gap: 8px; flex-wrap: wrap; justify-content: flex-end; }
+.gia-row-off .gia-row-title { color: var(--text-muted); }
+.gia-tag {
+  display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 10px; background: var(--ivory-dark);
+  font-family: var(--editorial); font-size: 10px; color: var(--text-secondary); white-space: nowrap;
+}
+.gia-section { padding: 16px 0 4px; font-family: var(--editorial); font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: var(--text-muted); }
+#userModal .form-row[hidden] { display: none; }
+@media (max-width: 600px) {
+  .gia-users .gia-row { flex-direction: column; align-items: stretch; gap: 8px; }
+  .gia-users .gia-row-actions { justify-content: flex-start; }
+}
+
 /* ─── Copia di sicurezza ────────────────────────────────────── */
 .gia-alert {
   margin: 0 0 16px; padding: 10px 14px; border-left: 3px solid var(--coral);

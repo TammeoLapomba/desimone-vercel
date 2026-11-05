@@ -33,27 +33,39 @@
     height: calc(64px + env(safe-area-inset-bottom));
   }
 
+  /* Sei voci della stessa larghezza: cinque pagine e Esci. Stanno anche su un telefono da 320 px */
   .mobile-nav-item {
+    flex: 1 1 0;
+    min-width: 0;
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     gap: 4px;
-    padding: 8px 16px;
+    padding: 8px 2px;
     border-radius: 8px;
     color: var(--silver);
     font-family: var(--editorial);
     font-size: 9px;
-    letter-spacing: 1px;
+    letter-spacing: 0.4px;
     text-transform: uppercase;
     text-decoration: none;
+    white-space: nowrap;
     cursor: pointer;
     background: none;
     border: none;
-    transition: color 0.15s;
-    min-width: 64px;
+    transition: color 0.15s, background 0.15s;
     -webkit-tap-highlight-color: transparent;
   }
+  /* Il tocco si vede subito; .pressed resta finché non si apre la pagina (initMobileNav) */
+  .mobile-nav-item:active,
+  .mobile-nav-item.pressed {
+    background: rgba(255,255,255,0.10);
+    color: var(--ivory);
+  }
+  .mobile-nav-item span { overflow: hidden; text-overflow: ellipsis; max-width: 100%; }
+  .mobile-nav-exit { flex: 0 0 48px; border-left: 1px solid rgba(255,255,255,0.08); border-radius: 0; }
+  .mobile-nav-item:focus-visible { outline: 2px solid var(--coral-pink); outline-offset: -2px; }
 
   .mobile-nav-item.active {
     color: var(--coral);
@@ -64,8 +76,12 @@
     height: 20px;
   }
 
-  /* FAB — pulsante "+  Articolo" centrale */
+  /* "+" per un elemento nuovo: galleggia sopra la barra, solo in Montato e Semilavorato */
   .mobile-fab {
+    position: fixed;
+    right: 16px;
+    bottom: calc(64px + env(safe-area-inset-bottom) + 16px);
+    z-index: var(--z-panel);
     display: flex;
     width: 52px;
     height: 52px;
@@ -79,7 +95,6 @@
     box-shadow: 0 4px 16px rgba(201,64,48,0.4);
     transition: transform 0.15s, background 0.15s;
     -webkit-tap-highlight-color: transparent;
-    margin-bottom: 8px;
   }
   .mobile-fab:active {
     transform: scale(0.93);
@@ -89,6 +104,17 @@
     width: 22px;
     height: 22px;
   }
+}
+
+@media (min-width: 769px) {
+  .mobile-fab { display: none; }
+}
+
+/* Telefoni stretti (320–360 px): un po' più di spazio per le scritte, così "Movimenti" non si taglia */
+@media (max-width: 360px) {
+  .mobile-nav { padding-left: 2px; padding-right: 2px; }
+  .mobile-nav-item { font-size: 8px; letter-spacing: 0; }
+  .mobile-nav-exit { flex-basis: 40px; }
 }
 
 /* ─── App Shell ──────────────────────────────────────────────── */

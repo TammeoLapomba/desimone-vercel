@@ -2,7 +2,7 @@
 //
 // Stessa forma del client di Supabase per la parte che l'app usa (from, rpc, auth, storage), così le pagine
 // non cambiano: i dati passano da PostgREST tramite il servizio della sede (/rest/v1), l'accesso e le foto dal
-// servizio stesso (/auth/login, /foto). Il token firmato dal servizio vale per PostgREST (D-1).
+// servizio stesso (/auth/login, /auth/password, /foto). Il token firmato dal servizio vale per PostgREST (D-1).
 import { PostgrestClient } from './vendor/supabase-2.117.3.mjs'
 
 // Nuovo nome con la 032: l'accesso dà anche il cookie delle foto, quindi chi era già dentro rientra una volta
@@ -36,7 +36,9 @@ export function createSedeClient(baseUrl = '') {
     const res = await fetch(input, { ...init, headers })
     if (res.status === 401 && session) {
       storage.clear()
-      window.location.replace('/login.html')
+      // PT401: l'account è stato disattivato con la sessione aperta (037), e la pagina di accesso lo dice
+      const { code } = await res.clone().json().catch(() => ({}))
+      window.location.replace(code === 'PT401' ? '/login.html?motivo=disattivato' : '/login.html')
     }
     return res
   }
@@ -52,10 +54,18 @@ export function createSedeClient(baseUrl = '') {
         method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password }),
       })
       const body = await res.json().catch(() => ({}))
-      if (!res.ok) return { data: null, error: new Error(body.error || 'Accesso non riuscito') }
+      if (!res.ok) return { data: null, error: Object.assign(new Error(body.error || 'Accesso non riuscito'), { code: body.code }) }
       const session = { access_token: body.access_token, expires_at: body.expires_at, user: body.user }
       storage.set(session)
       return { data: { session, user: body.user }, error: null }
+    },
+    // Non è in supabase-js: su Supabase la password si cambia dal pannello (scheda 1.4, decisione 9)
+    async changePassword({ email, password, newPassword }) {
+      const res = await fetch(`${base}/auth/password`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password, new_password: newPassword }),
+      })
+      const body = await res.json().catch(() => ({}))
+      return { error: res.ok ? null : new Error(body.error || 'Password non cambiata') }
     },
     async signOut() {
       storage.clear()
@@ -79,8 +89,12 @@ export function createSedeClient(baseUrl = '') {
       const body = await res.json().catch(() => ({}))
       return res.ok ? { data: body, error: null } : { data: null, error: new Error(body.error || 'Foto non eliminate') }
     },
+    // L'indirizzo finisce nel database (photos.public_url, raw_items.cover_url) e lo leggono tutti i dispositivi:
+    // nella sede è relativo (/foto/…), così vale dal PC (localhost), dai tablet (192.168.…) e in http o https.
+    // Con un indirizzo pieno, una foto caricata dal PC puntava a "localhost" anche sul tablet
     getPublicUrl(path) {
-      return { data: { publicUrl: `${base}/foto/${path.split('/').map(encodeURIComponent).join('/')}` } }
+      const rel = `/foto/${path.split('/').map(encodeURIComponent).join('/')}`
+      return { data: { publicUrl: baseUrl ? `${base}${rel}` : rel } }
     },
   }
 

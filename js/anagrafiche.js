@@ -1,6 +1,6 @@
 // js/anagrafiche.js — Tipi, materiali e metalli con le lettere del codice (pacchetto 1.1, AN-01…AN-09).
 // Li gestisce solo l'account dev di Dedalo: lo impone il database (033), la pagina lo dice e basta.
-import { requireAuth, signOut, getAnagrafica, getAnagraficaUsage, getAnagraficaLocked, saveAnagrafica, retireAnagrafica } from './supabase.js'
+import { requireAuth, getMyRole, signOut, getAnagrafica, getAnagraficaUsage, getAnagraficaLocked, saveAnagrafica, retireAnagrafica } from './supabase.js'
 import { showToast, isCodeLetter, validateAnagrafica } from './utils.js'
 import { initMobileNav, initHamburger, initPanelToggle, closeDrawer } from './pwa.js'
 
@@ -36,11 +36,11 @@ const articlesLabel = n => `${n} ${n === 1 ? 'articolo' : 'articoli'}`
 
 async function init() {
   initPanelToggle()
-  const session = await requireAuth()
+  await requireAuth()
   initHamburger()
   initMobileNav({ onNewArticle: () => openEditor() })
 
-  if (session.user.app_metadata?.role !== 'dev') {
+  if ((await getMyRole()) !== 'dev') {
     $('btnNewVoice').style.display = 'none'
     $('voicesBox').innerHTML = '<p class="anag-block">Questa pagina è per gli account dev di Dedalo.</p>'
     return

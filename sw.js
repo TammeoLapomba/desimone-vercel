@@ -1,4 +1,4 @@
-const CACHE_NAME = 'desimone-os-v36'
+const CACHE_NAME = 'desimone-os-v44'
 
 const SHELL_ASSETS = [
   '/catalog.html',
@@ -16,6 +16,7 @@ const SHELL_ASSETS = [
   '/css/components.css',
   '/css/mobile.css',
   '/css/movimenti.css',
+  '/css/scanner.css',
   '/css/giacenze.css',
   '/css/registro.css',
   '/js/catalog.js',
@@ -32,7 +33,10 @@ const SHELL_ASSETS = [
   '/js/utils.js',
   '/js/pwa.js',
   '/js/movimenti.js',
+  '/js/scanner.js',
+  '/js/vendor/jsQR-1.4.0.js',
   '/js/sede-client.js',
+  '/js/account-menu.js',
   '/js/vendor/supabase-2.117.3.mjs',
   '/css/fonts.css',
   '/fonts/work-sans/work-sans-latin-300-normal.woff2',
@@ -81,9 +85,9 @@ self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url)
 
   // Dati e accessi: sempre dalla rete, mai dalla cache. Su Supabase (sviluppo) e nella sede, dove il servizio
-  // (P-07) li serve dallo stesso indirizzo dell'app: /rest/v1 (PostgREST), /auth, /foto, /foto-elimina, /salute, /copia
+  // (P-07) li serve dallo stesso indirizzo dell'app: /rest/v1 (PostgREST), /auth, /foto, /foto-elimina, /salute, /copia, /certificato
   if (url.hostname.includes('supabase.co') || event.request.method !== 'GET' ||
-      /^\/(rest|auth|salute|foto|foto-elimina|copia)(\/|$)/.test(url.pathname)) {
+      /^\/(rest|auth|salute|foto|foto-elimina|copia|certificato)(\/|$)/.test(url.pathname)) {
     return // lascia passare senza intercettare
   }
 

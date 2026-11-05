@@ -1,6 +1,6 @@
 // js/semilavorato.js
-import { requireAuth, getRawCategories, getRawItems, getRawCodeRules, signOut } from './supabase.js'
-import { stockLabel } from './utils.js'
+import { requireAuth, getMyRole, getRawCategories, getRawItems, getRawCodeRules, signOut } from './supabase.js'
+import { stockLabel, showToast } from './utils.js'
 import { initFilters } from './filters.js'
 import { openRawItemModal } from './raw-form.js'
 import { openArchiveModal } from './archivio.js'
@@ -11,6 +11,7 @@ window.signOutUser = signOut
 let allItems      = []
 let allCategories = []
 let rules = { shapes: [], groups: [], variants: [] }   // regole dei codici (raw_shapes, raw_code_groups, raw_variants)
+let loaded = false   // regole e categorie arrivate: prima "Nuovo pezzo" non apre la finestra
 let currentCategoryId  = null
 let isAdmin = false
 
@@ -31,23 +32,25 @@ let filters = null
 
 async function init() {
   initPanelToggle()
-  const session = await requireAuth()
+  await requireAuth()
   // Archiviare o eliminare: solo admin (lo impone anche il database)
-  isAdmin = session.user.app_metadata?.role === 'admin'
+  isAdmin = (await getMyRole()) === 'admin'
   filters = initFilters({
     fields: FILTER_FIELDS,
     text: i => [i.sku, i.description, i.size, i.color, i.quality, i.finish, (i.variants || []).join(' '), i.raw_shapes?.name, i.raw_categories?.name, i.notes].join('\n'),
     onChange: () => renderCurrent(),
   })
-  rules = await getRawCodeRules()
-  await refresh()
-  setupListeners()
 
-  // Mobile PWA
+  // Barra in basso, ☰ e pulsanti prima di caricare i dati: da telefono e tablet si tocca subito (vedi catalog.js)
   initHamburger()
   initMobileNav({
     onNewArticle: () => document.getElementById('btnNewItem')?.click(),
   })
+  setupListeners()
+
+  rules = await getRawCodeRules()
+  await refresh()
+  loaded = true
 }
 
 // ─── Categorie ────────────────────────────────────────────────
@@ -248,6 +251,8 @@ async function refresh() {
 function setupListeners() {
   // Nuovo pezzo
   document.getElementById('btnNewItem').addEventListener('click', () => {
+    // La finestra ha bisogno delle regole del codice e delle categorie: finché non sono arrivate, lo si dice
+    if (!loaded) return showToast('Un attimo: sto caricando i semilavorati')
     openRawItemModal({ categories: allCategories, rules, defaultCategoryId: currentCategoryId, onSuccess: refresh })
   })
 
