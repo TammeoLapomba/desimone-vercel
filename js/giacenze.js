@@ -310,9 +310,11 @@ function userGroups() {
 function userRow(u) {
   const when = d => new Date(d).toLocaleString('it-IT', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
   const me = u.id === state.operator.id
+  // Un dev può avere un vecchio operatore disattivato: ferma i movimenti, non l'account
+  const off = u.active === false && !u.is_dev
   const tags = [
     me ? 'Sei tu' : '',
-    u.active === false ? 'Disattivato' : '',
+    off ? 'Disattivato' : '',
     u.provisional_password ? 'Password provvisoria' : '',
   ].filter(Boolean).map(t => `<span class="gia-tag">${t}</span>`).join('')
   const role = u.is_dev ? 'Dedalo' : ROLE_LABELS[u.role] || 'Senza ruolo'
@@ -325,7 +327,7 @@ function userRow(u) {
         : `<button type="button" class="btn-ghost" data-user-active="${u.id}" data-to="true">Riattiva</button>`}
     </div>`
   return `
-    <li class="gia-row${u.active === false ? ' gia-row-off' : ''}">
+    <li class="gia-row${off ? ' gia-row-off' : ''}">
       <div>
         <div class="gia-row-title">${esc(u.name)}${tags}</div>
         <div class="gia-row-sub"><span class="gia-code">${esc(u.username)}</span> · ${role} · ${u.last_sign_in_at ? `ultimo accesso ${when(u.last_sign_in_at)}` : 'nessun accesso'}</div>
