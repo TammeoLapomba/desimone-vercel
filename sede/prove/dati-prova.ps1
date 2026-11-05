@@ -14,6 +14,7 @@ param([string]$Base = 'http://localhost:8080',
       [Parameter(Mandatory)][string]$Credenziali,   # file con AdminEmail e AdminPassword (vedi sede-locale.ps1)
       [string]$Esito = '.',
       [string]$Foto = 'C:\DeSimone\dati\foto',      # cartella delle foto della sede, solo per il riepilogo
+      [string]$Psql = 'C:\Program Files\PostgreSQL\17\bin\psql.exe',   # per l'articolo del sito: l'app non lo può creare
       [switch]$Pallino)
 
 $ErrorActionPreference = 'Stop'
@@ -45,14 +46,11 @@ function Una($path) {
   $r[0]
 }
 
-# Gioiello creato come in article-form.js: codice da generate_sku, poi articolo e materiale
+# Gioiello creato come in article-form.js: il codice lo assegna il server, provvisorio fino al primo carico
 function NuovoGioiello($nome, $material) {
-  $sku = Api POST '/rest/v1/rpc/generate_sku' @{ p_collection_id = $coll.id; p_material_id = $material.id; p_metal_id = $metal.id }
-  $a = @(Api POST '/rest/v1/articles' @{
-    collection_id = $coll.id; name = $nome; product_type_id = $type.id; metal_id = $metal.id; sku = $sku
-    price_retail = 100; channel = 'both'; measurements = @{ weight_g = 5 } })[0]
-  Api POST '/rest/v1/rpc/set_article_materials' @{ p_article_id = $a.id; p_rows = @(@{ material_id = $material.id }) } | Out-Null
-  $a
+  Api POST '/rest/v1/rpc/create_article' @{
+    p_collection_id = $coll.id; p_product_type_id = $type.id; p_name = $nome; p_metal_id = $metal.id
+    p_price_retail = 100; p_measurements = @{ weight_g = 5 }; p_rows = @(@{ material_id = $material.id }) }
 }
 # Carico come in movimenti.js: il codice del movimento nasce qui, con articolo, tipo, momento e dispositivo
 function Carico($codice, $campi) {
@@ -92,7 +90,8 @@ $usato = NuovoGioiello 'Anello Usato' $materials[0]
 $usato.sku
 $device = @(Api GET '/rest/v1/devices?select=id,code&code=eq.PC1&revoked_at=is.null')
 if ($device.Count) { $device = $device[0] } else { $device = @(Api POST '/rest/v1/devices' @{ code = 'PC1'; name = 'PC delle prove' })[0] }
-Carico $usato.sku @{ p_article_id = $usato.id; p_pieces = 2 }
+# Il primo carico porta la conferma del codice, come "Confermo e proseguo" in movimenti.js
+Carico $usato.sku @{ p_article_id = $usato.id; p_pieces = 2; p_confirm_code = $usato.sku }
 
 Passo 'Anello Nuovo, con una foto'
 $nuovo = NuovoGioiello 'Anello Nuovo' $materials[1]
@@ -114,8 +113,10 @@ Api POST '/rest/v1/photos' @{ article_id = $nuovo.id; storage_path = $photoPath;
 $photoPath
 
 Passo 'Dal sito (SITOPROVA1)'
-Api POST '/rest/v1/articles' @{ collection_id = $coll.id; name = 'Dal sito'; product_type_id = $type.id; sku = 'SITOPROVA1'
-  measurements = @{ weight_g = 5 } } | Out-Null
+# Un codice che l'app non crea: lo scrive solo un import, senza token. Con psql, come sede\importa-catalogo.js
+$env:PGPASSWORD = $cred.PostgresPassword
+& $Psql -U postgres -d desimone -v ON_ERROR_STOP=1 -q -c "INSERT INTO articles (collection_id, name, product_type_id, sku, measurements) VALUES ('$($coll.id)', 'Dal sito', '$($type.id)', 'SITOPROVA1', jsonb_build_object('weight_g', 5))"
+if ($LASTEXITCODE) { throw 'psql: articolo del sito non creato' }
 'SITOPROVA1'
 
 $pallinoRiga = ''

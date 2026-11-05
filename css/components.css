@@ -794,3 +794,40 @@
 .anag-fields { display: flex; flex-wrap: wrap; gap: 8px 16px; }
 .anag-fields label { display: inline-flex; align-items: center; gap: 6px; font-family: var(--editorial); font-size: 13px; color: var(--text-primary); cursor: pointer; }
 .anag-fields input { width: 16px; height: 16px; accent-color: var(--ebony); cursor: pointer; }
+
+/* Codice dei gioielli: provvisorio, articoli simili, schermata di controllo (036) */
+.code-tag {
+  display: inline-block;
+  padding: 1px 6px;
+  border: 1px solid var(--coral);
+  border-radius: 3px;
+  color: var(--coral);
+  font-family: var(--editorial);
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  vertical-align: middle;
+}
+.code-similar {
+  margin-top: 8px;
+  padding: 10px 12px;
+  background: var(--ivory);
+  border-radius: 3px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.code-similar ul { margin: 6px 0 0; padding-left: 18px; }
+.code-similar a { color: var(--coral); font-family: var(--mono); font-size: 12px; }
+#codeCheckBox:focus { outline: none; }
+.code-check-code {
+  font-family: var(--mono);
+  font-size: 20px;
+  letter-spacing: 1px;
+  color: var(--coral);
+  margin-bottom: 12px;
+  overflow-wrap: anywhere;
+}
+.code-parts { width: 100%; margin-bottom: 12px; }
+.code-check-item { display: flex; gap: 12px; align-items: flex-start; margin-bottom: 12px; }
+.code-check-item img { width: 72px; height: 72px; object-fit: cover; border-radius: 3px; flex-shrink: 0; }
+.code-check-warning { font-weight: 600; margin: 0; }
+.anag-check { display: flex; align-items: center; gap: 6px; font-size: 13px; margin-bottom: 8px; }

@@ -63,9 +63,7 @@ export function initMaterialPicker(container, materials, rows = [], onChange = (
 
     const sel = row.querySelector('.material-select')
     for (const m of materials) {
-      const opt = new Option(m.name, m.id)
-      opt.dataset.code = m.code
-      sel.add(opt)
+      sel.add(new Option(m.name, m.id))
     }
     sel.value = data.material_id || ''
 
@@ -145,7 +143,6 @@ export function initMaterialPicker(container, materials, rows = [], onChange = (
   return {
     // Id scelti, nell'ordine delle righe
     getIds: () => selects().map(s => s.value).filter(Boolean),
-    firstCode: () => selects().find(s => s.value)?.selectedOptions[0]?.dataset.code || '',
     // Righe da salvare, nell'ordine: { rows } oppure { error, element } se un valore non va
     read() {
       const out = []

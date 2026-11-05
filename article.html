@@ -92,7 +92,7 @@
 
     <div style="max-width: 720px; margin: 40px auto; padding: 0 16px 120px; " class="editor-content">
       <h1 style="font-family:var(--editorial); font-size:28px; font-weight:400; line-height:1.3; margin-bottom:8px;" id="headerName">Modifica Articolo</h1>
-      <p style="font-family:var(--mono); fill:var(--text-muted); font-size:12px; margin-bottom:32px; color:var(--text-muted);" id="headerSku">Caricamento...</p>
+      <p style="font-family:var(--mono); fill:var(--text-muted); font-size:12px; margin-bottom:32px; color:var(--text-muted);"><span id="headerSku">Caricamento...</span> <span class="code-tag" id="headerCodeTag" hidden>Provvisorio</span></p>
 
       <div class="editor-section">
         <div class="editor-title">Identità</div>
@@ -114,8 +114,9 @@
             <select class="field-select" id="f_type"></select>
           </div>
           <div class="form-field">
-            <label class="field-label">SKU</label>
+            <label class="field-label">Codice</label>
             <input type="text" class="field-input" id="f_sku" disabled style="background:rgba(255,255,255,0.02); color:var(--text-muted);">
+            <span class="field-hint" id="codeStatus"></span>
           </div>
         </div>
         <div class="form-row full" style="margin-top:16px;">
@@ -136,7 +137,7 @@
         </div>
         <div class="form-row">
           <div class="form-field">
-            <label class="field-label">Metallo <span class="field-required">*</span></label>
+            <label class="field-label">Metallo</label>
             <select class="field-select" id="f_metal"></select>
           </div>
           <div class="form-field" id="f_metal_grams_field" hidden>

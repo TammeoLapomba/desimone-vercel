@@ -181,6 +181,6 @@ switch ($Comando) {
     'Servizio della sede: ' + $(if (@(Processi 'node.exe').Count) { 'acceso' } else { 'spento' })
   }
   'dati' {
-    & (Join-Path $PSScriptRoot 'dati-prova.ps1') -Credenziali $Credenziali -Esito $Esito -Foto "$Dati\foto" -Pallino:$Pallino
+    & (Join-Path $PSScriptRoot 'dati-prova.ps1') -Credenziali $Credenziali -Esito $Esito -Foto "$Dati\foto" -Psql "$Pg\bin\psql.exe" -Pallino:$Pallino
   }
 }

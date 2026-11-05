@@ -23,12 +23,6 @@ export function parseEuro(text) {
   return { ok: true, value }
 }
 
-// SKU generato dall'app (generate_sku): CODICE-MATERIALE-METALLO-NNN. Una volta assegnato non cambia più (AC-03).
-// Gli articoli importati dal sito hanno il codice originale: il loro titolo non segue il nome della collezione.
-export function isAppSku(sku) {
-  return /^[A-Z0-9]{4}-[A-Z]{2,3}-[A-Z]{2,3}-\d{3}$/.test(sku || '')
-}
-
 export function getCoverPhoto(photos) {
   if (!photos || photos.length === 0) return null
   const processed = photos.filter(p => p.photo_type === 'processed')
@@ -56,21 +50,6 @@ export function debounce(fn, delay = 300) {
     clearTimeout(timer)
     timer = setTimeout(() => fn(...args), delay)
   }
-}
-
-export function buildSkuPreview(collectionSlug, materialCode, metalCode) {
-  const collMap = {
-    'intreccio': 'INTR',
-    'abbraccio': 'ABBR',
-    'trame-di-corallo': 'TRAM',
-    'cielo-stellato': 'CIEL'
-  }
-  // Come generate_sku: i vecchi slug hanno un codice fisso, gli altri danno i primi 4 caratteri senza trattini
-  const coll = collMap[collectionSlug]
-    || (collectionSlug ? collectionSlug.replace(/[^a-zA-Z0-9]/g, '').slice(0, 4).toUpperCase().padEnd(4, 'X') : '—')
-  const material = materialCode || '—'
-  const metal = metalCode || '—'
-  return `${coll}-${material}-${metal}-###`
 }
 
 const materialRows = article => (article.article_materials || []).slice().sort((a, b) => a.sort_order - b.sort_order)
@@ -147,21 +126,24 @@ export function validateCollection({ name, code }, collections, editingId = null
   return null
 }
 
-// ── Anagrafiche: regole uguali a quelle del database (033, AN-04, AN-09) ──
+// ── Anagrafiche: regole uguali a quelle del database (033, 036, AN-04, AN-09) ──
 
-// Lettera di un tipo, materiale, metallo o colore: un carattere, Z è riservata ai vuoti del codice
-export const isCodeLetter = v => /^[A-Y0-9]$/.test(v)
+// Lettera di un tipo, materiale o metallo: uno o due caratteri, Z è riservata ai vuoti del codice
+export const isCodeLetter = v => /^[A-Y0-9]{1,2}$/.test(v)
+// Lettera del colore: nel codice c'è posto per un carattere
+export const isColorLetter = v => /^[A-Y0-9]$/.test(v)
 
 // null se la voce va bene, altrimenti il messaggio. others: le altre voci dello stesso elenco;
 // positions: { position: nome } di metalli e materiali, che hanno un'unica numerazione.
-export function validateAnagrafica({ name, letter, colorLetter, code, position }, { others, positions = {}, needsCode = false }) {
+export function validateAnagrafica({ name, letter, hasColor, colorLetter, code, position }, { others, positions = {}, needsCode = false }) {
   if (!name) return 'Il nome è obbligatorio'
   const sameName = others.find(o => o.name.toLowerCase() === name.toLowerCase())
   if (sameName) return `Esiste già: ${sameName.name}`
-  if (letter && !isCodeLetter(letter)) return 'La lettera è un carattere solo, lettera o cifra, diverso da Z'
-  if (colorLetter && !isCodeLetter(colorLetter)) return 'La lettera del colore è un carattere solo, lettera o cifra, diverso da Z'
+  if (letter && !isCodeLetter(letter)) return 'La lettera è di uno o due caratteri, lettere o cifre, senza Z'
+  if (hasColor && !colorLetter) return 'Scrivi la lettera del colore, o togli la casella'
+  if (colorLetter && !isColorLetter(colorLetter)) return 'La lettera del colore è un carattere solo, lettera o cifra, diverso da Z'
   if (needsCode) {
-    if (!/^[A-Z]{2,3}$/.test(code)) return 'La sigla ha 2 o 3 lettere: entra nei codici degli articoli di oggi'
+    if (!/^[A-Z]{2,3}$/.test(code)) return 'La sigla ha 2 o 3 lettere: la usano gli import'
     const sameCode = others.find(o => o.code === code)
     if (sameCode) return `La sigla ${code} è già usata da ${sameCode.name}`
     if (position && !(Number.isInteger(Number(position)) && Number(position) > 0)) return 'La posizione è un numero intero maggiore di zero'

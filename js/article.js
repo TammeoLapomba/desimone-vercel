@@ -1,6 +1,6 @@
 // js/article.js
 import { requireAuth, getCollections, getMaterials, getMetals, getProductTypes, getArticleById, getItemStock, updateArticle, setArticleMaterials, retirePreview, retireItem, signOut } from './supabase.js'
-import { showToast, isAppSku, confirmRetire } from './utils.js'
+import { showToast, confirmRetire } from './utils.js'
 import { initMaterialPicker, initMetalWeight } from './material-picker.js'
 
 window.signOutUser = signOut
@@ -11,6 +11,23 @@ let collections = []
 let materialPicker = null
 let metalWeight = null
 let isAdmin = false
+let backToMovements = false
+
+// Dalla schermata di controllo si torna al carico, con il codice di adesso (CR11)
+function leave(code) {
+  window.location.href = backToMovements
+    ? `/movimenti.html?codice=${encodeURIComponent(code)}&bozza=1`
+    : '/catalog.html'
+}
+
+// Provvisorio o definitivo, accanto al codice (decisione 10)
+function renderCodeStatus() {
+  const provisional = !currentArticle.code_confirmed_at
+  document.getElementById('headerCodeTag').hidden = !provisional
+  document.getElementById('codeStatus').textContent = provisional
+    ? 'Codice provvisorio: segue i dati fino al primo carico.'
+    : 'Codice definitivo: non cambia più.'
+}
 
 async function init() {
   const session = await requireAuth()
@@ -19,6 +36,7 @@ async function init() {
 
   const params = new URLSearchParams(window.location.search)
   articleId = params.get('id')
+  backToMovements = params.get('torna') === 'movimenti'
   if (!articleId) {
     window.location.href = '/catalog.html'
     return
@@ -39,7 +57,7 @@ async function init() {
 
     populateSelect('f_collection', collections, 'id', 'name', 'Seleziona collezione…')
     populateSelect('f_type', productTypes, 'id', 'name', 'Seleziona…')
-    populateSelect('f_metal', metals, 'id', 'name', 'Seleziona…', 'code')
+    populateSelect('f_metal', metals, 'id', 'name', 'Nessuno')
 
     document.getElementById('headerName').textContent = currentArticle.name
     document.getElementById('f_title').value = currentArticle.name
@@ -49,6 +67,7 @@ async function init() {
     document.getElementById('f_collection').value = currentArticle.collection_id
     document.getElementById('f_type').value = currentArticle.product_type_id
     document.getElementById('f_sku').value = currentArticle.sku
+    renderCodeStatus()
     document.getElementById('f_notes').value = currentArticle.notes || ''
     
     const articleRows = (currentArticle.article_materials || []).slice().sort((a, b) => a.sort_order - b.sort_order)
@@ -94,9 +113,7 @@ function populateSelect(id, items, valueKey, labelKey, emptyLabel = '', dataAttr
 }
 
 function setupListeners() {
-  document.getElementById('btnCancel').addEventListener('click', () => {
-    window.location.href = '/catalog.html'
-  })
+  document.getElementById('btnCancel').addEventListener('click', () => leave(currentArticle.sku))
 
   // Mai usato: si elimina. Altrimenti si archivia (CR10): il pulsante dice quale delle due
   const btnDelete = document.getElementById('btnDelete')
@@ -128,16 +145,15 @@ function setupListeners() {
   })
 
   document.getElementById('btnSave').addEventListener('click', async () => {
-    // Validazione base — materiale, metallo e prezzo restano obbligatori per gli articoli creati dall'app, come all'inserimento
-    const appSku = isAppSku(currentArticle.sku)
+    // Validazione base — materiale e prezzo restano obbligatori per gli articoli creati dall'app, come all'inserimento
+    const fromApp = currentArticle.code_origin === 'app'
     const materialIds = materialPicker.getIds()
     const title = document.getElementById('f_title').value.trim()
     if (!title) return showToast("Inserisci il titolo dell'articolo")
     if (!document.getElementById('f_collection').value) return showToast('Seleziona una collezione')
     if (!document.getElementById('f_type').value) return showToast('Seleziona il tipo prodotto')
-    if (appSku && !materialIds.length) return showToast('Aggiungi almeno un materiale')
-    if (appSku && !document.getElementById('f_metal').value) return showToast('Seleziona il tipo di metallo')
-    if (appSku && !document.getElementById('f_price_retail').value) return showToast('Inserisci il prezzo retail')
+    if (fromApp && !materialIds.length) return showToast('Aggiungi almeno un materiale')
+    if (fromApp && !document.getElementById('f_price_retail').value) return showToast('Inserisci il prezzo retail')
     // Il peso del modello serve a ogni movimento (028): obbligatorio per tutti, anche per gli articoli del sito
     if (!(Number(document.getElementById('f_weight').value) > 0)) return showToast('Inserisci il peso di un pezzo (g)')
     const materialCheck = materialPicker.read()
@@ -150,7 +166,8 @@ function setupListeners() {
       }
     }
 
-    if (!confirm('ATTENZIONE: Stai per sovrascrivere in modo permanente i dati di questo articolo. Il codice resta invariato. Vuoi procedere?')) {
+    const codeNote = currentArticle.code_confirmed_at ? 'Il codice resta invariato.' : 'Il codice provvisorio segue i dati.'
+    if (!confirm(`ATTENZIONE: Stai per sovrascrivere in modo permanente i dati di questo articolo. ${codeNote} Vuoi procedere?`)) {
       return
     }
 
@@ -172,7 +189,7 @@ function setupListeners() {
       if (h) measurements.height_cm = Number(h)
       if (wt) measurements.weight_g = Number(wt)
 
-      // Il codice non è tra i campi: non cambia mai, neanche se cambiano collezione, materiali o metallo (AC-03)
+      // Il codice non è tra i campi: lo tiene il database. Provvisorio segue i dati, definitivo non cambia più (AC-03)
       const updates = {
         name: title,
         product_type_id: typeSel.value,
@@ -190,11 +207,10 @@ function setupListeners() {
 
       await updateArticle(articleId, updates)
       await setArticleMaterials(articleId, materialCheck.rows)
-      showToast('Articolo aggiornato con successo!')
-      
-      setTimeout(() => {
-        window.location.href = '/catalog.html'
-      }, 1000)
+      const saved = await getArticleById(articleId)
+      showToast(saved.sku === currentArticle.sku ? 'Articolo aggiornato con successo!' : `Articolo aggiornato. Il codice ora è ${saved.sku}`)
+
+      setTimeout(() => leave(saved.sku), saved.sku === currentArticle.sku ? 1000 : 2000)
 
     } catch (err) {
       console.error(err)

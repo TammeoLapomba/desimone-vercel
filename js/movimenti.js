@@ -8,9 +8,9 @@
 // SD-04 trasferimento.
 import {
   requireAuth, signOut, getMyOperator, getMovementSetup, getMovableItems, getItemStock, getItemHistory,
-  registerMovement, cancelMovement, insertDevice, setDeviceScale, findItemByCode,
+  registerMovement, cancelMovement, insertDevice, setDeviceScale, findItemByCode, getCodeCheck,
 } from './supabase.js'
-import { showToast, formatEuro, parseEuro } from './utils.js'
+import { showToast, formatEuro, parseEuro, getCoverPhoto, articleMaterialLines, articleMetalLine } from './utils.js'
 import { initFilters } from './filters.js'
 import { initMobileNav } from './pwa.js'
 import { createScale, sourceFor, SIMULATED_MODEL } from './bilancia/bilancia.js'
@@ -24,6 +24,7 @@ const UNIT_LABELS = { pezzi: 'a pezzi', grammi: 'a grammi', pezzi_grammi: 'a pez
 const SOURCE_LABELS = { cavo: 'via cavo', simulata: 'simulata', sede: 'della sede' }
 const DEVICE_KEY = 'desimone-os:dispositivo'
 const LAST_CODE_KEY = 'desimone-os:ultimo-codice'
+const DRAFT_KEY = 'desimone-os:bozza-carico'
 
 const $ = id => document.getElementById(id)
 const esc = v => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;')
@@ -45,6 +46,7 @@ const state = {
   scaleWeight: null,  // { grams, scaleId } letto dalla bilancia; null se il peso è scritto a mano
   pending: null,      // richiesta partita senza esito: si ripete con lo stesso codice (REQ-E-11)
   priceTouched: false, // il prezzo di vendita l'ha scritto l'operatore: non si ripropone più
+  check: null,        // schermata di controllo aperta: { params, code }
 }
 
 const storage = {
@@ -79,8 +81,11 @@ async function init() {
   setupListeners()
   initSearch()
   // Arrivo dall'inventario (catalogo, articolo, semilavorato): articolo già scelto
-  const preset = state.byCode.get((new URLSearchParams(location.search).get('codice') || '').toUpperCase())
+  const query = new URLSearchParams(location.search)
+  const preset = state.byCode.get((query.get('codice') || '').toUpperCase())
   if (preset) await selectItem(preset)
+  // Di ritorno da "Correggi i dati": il carico riprende da ciò che era già scritto (CR11)
+  if (preset && query.has('bozza')) restoreDraft()
   if (!state.device) openModal('deviceModal')
   else if (!preset) $('codeInput').focus()
 }
@@ -102,6 +107,7 @@ function normalizeItems({ articles, raw }) {
     kind: 'montato',
     id: a.id,
     code: a.sku,
+    provisional: !a.code_confirmed_at,   // da confermare prima del primo uso (REQ-A-09)
     name: a.name,
     unit: 'pezzi',
     price: a.price_retail ?? null,     // listino: si propone nel prezzo di vendita
@@ -114,6 +120,7 @@ function normalizeItems({ articles, raw }) {
     kind: 'semilavorato',
     id: r.id,
     code: r.sku,
+    provisional: !r.code_confirmed_at,
     name: r.description || [r.raw_categories?.name, r.raw_shapes?.name, r.size].filter(Boolean).join(' '),
     unit: r.unit,
     price: null,
@@ -221,10 +228,7 @@ async function selectItem(item) {
   $('lastInput').checked = false
   $('priceInput').value = ''
   state.priceTouched = false
-  $('itemBox').innerHTML = `
-    <div class="mov-item-code">${esc(item.code)}</div>
-    <div class="mov-item-name">${esc(item.name)}</div>
-    <div class="mov-item-meta">${esc(item.group)} · ${UNIT_LABELS[item.unit] || ''}</div>`
+  renderItemBox()
   $('itemBox').hidden = false
   $('details').hidden = false
   hideResult()
@@ -232,6 +236,14 @@ async function selectItem(item) {
   renderLocations()
   setDefaultWeightKind()
   changed()
+}
+
+function renderItemBox() {
+  const { item } = state
+  $('itemBox').innerHTML = `
+    <div class="mov-item-code">${esc(item.code)}${item.provisional ? ' <span class="code-tag">Provvisorio</span>' : ''}</div>
+    <div class="mov-item-name">${esc(item.name)}</div>
+    <div class="mov-item-meta">${esc(item.group)} · ${UNIT_LABELS[item.unit] || ''}</div>`
 }
 
 async function loadItemData() {
@@ -480,8 +492,14 @@ async function submit(e) {
   if (state.pending) return send(state.pending)
   const req = buildRequest()
   if (req.error) return showResult(req.error, 'error')
+  // Primo uso: prima si controlla il codice. Il database rifiuta chi salta la conferma (REQ-A-09, A-10)
+  if (state.item.provisional) return openCodeCheck(req.params)
+  await sendNew(req.params)
+}
+
+function sendNew(params, confirmCode = null) {
   const when = new Date()
-  await send({ ...req.params, code: newCode(state.type, when), occurredAt: when.toISOString(), deviceId: state.device.id })
+  return send({ ...params, confirmCode, code: newCode(state.type, when), occurredAt: when.toISOString(), deviceId: state.device.id })
 }
 
 // Stesso movimento? Serve se il codice risultasse già usato da un altro movimento. Il peso di un gioiello lo
@@ -505,6 +523,10 @@ async function send(params, attempt = 1) {
       return send({ ...params, code: `${params.code}-${attempt + 1}` }, attempt + 1)
     }
     state.pending = null
+    if (params.confirmCode) {
+      state.item.provisional = false
+      renderItemBox()
+    }
     showOutcome(res, params)
     await loadItemData()
     renderLocations(true)
@@ -584,6 +606,94 @@ function changed(clearResult = true) {
   renderQuantity()
   renderPrice()
   renderPreview()
+}
+
+// ─── Schermata di controllo prima del primo uso (REQ-A-09, CR11) ─
+
+async function openCodeCheck(params) {
+  let check
+  try {
+    check = await getCodeCheck(state.item)
+  } catch (err) {
+    return showResult(err.message || String(err), 'error')
+  }
+  // Confermato da qualcun altro nel frattempo: si prosegue
+  if (!check.explain) {
+    state.item.provisional = false
+    renderItemBox()
+    return sendNew(params)
+  }
+  if (check.explain.missing) return showResult(check.explain.missing, 'error')
+
+  // Il codice può essere cambiato da quando la pagina è aperta: si mostra e si conferma quello di adesso
+  state.byCode.delete(state.item.code.toUpperCase())
+  state.item.code = check.explain.code
+  state.byCode.set(state.item.code.toUpperCase(), state.item)
+  renderItemBox()
+  state.check = { params, code: check.explain.code }
+  renderCodeCheck(check)
+  lastFocus = document.activeElement
+  $('codeCheckModal').classList.add('open')
+  // Sulla finestra e non su un pulsante: il lettore chiude ogni lettura con Invio, e non deve confermare (CD-10)
+  $('codeCheckBox').focus()
+}
+
+function renderCodeCheck({ explain, details }) {
+  const isJewel = state.item.kind === 'montato'
+  const photo = isJewel ? getCoverPhoto(details.photos) : getCoverPhoto(details.raw_photos)
+  const lines = isJewel
+    ? [...articleMaterialLines(details), articleMetalLine(details),
+       details.price_retail ? `Prezzo: ${formatEuro(details.price_retail)}` : '',
+       state.item.weight ? `Peso di un pezzo: ${gramsText(state.item.weight)}` : ''].filter(Boolean)
+    : [details.size ? `Misura: ${details.size}` : '', UNIT_LABELS[details.unit] ? `Si muove ${UNIT_LABELS[details.unit]}` : ''].filter(Boolean)
+  $('codeCheckBody').innerHTML = `
+    <div class="code-check-code">${esc(explain.code)}</div>
+    <table class="mov-table code-parts">
+      <tbody>${explain.parts.map(p => `<tr><td class="mov-item-code">${esc(p.text)}</td><td>${esc(p.label)}</td><td>${esc(p.meaning)}</td></tr>`).join('')}</tbody>
+    </table>
+    ${explain.left_out?.length ? `<p class="mov-modal-text">Non ci stanno nel codice: ${esc(explain.left_out.join(', '))}. Restano nella scheda.</p>` : ''}
+    <div class="code-check-item">
+      ${photo ? `<img src="${esc(photo)}" alt="">` : ''}
+      <div>
+        <div class="mov-item-name">${esc(state.item.name)}</div>
+        ${lines.map(l => `<div class="mov-note">${esc(l)}</div>`).join('')}
+      </div>
+    </div>
+    ${isJewel ? '' : '<p class="mov-modal-text">Il codice di un semilavorato non segue i dati: se è sbagliato, eliminalo e rifallo da Semilavorato.</p>'}
+    <p class="code-check-warning">Dopo la conferma questo codice non cambia più.</p>`
+  $('btnCodeFix').hidden = !isJewel
+}
+
+// Il carico riparte con ciò che era già scritto, anche se il codice cambia
+function fixItemData() {
+  const draft = {
+    itemId: state.item.id,
+    type: state.type,
+    toId: $('toSelect').value,
+    reasonId: $('reasonSelect').value,
+    pieces: $('piecesInput').value,
+    note: $('noteInput').value,
+  }
+  try { sessionStorage.setItem(DRAFT_KEY, JSON.stringify(draft)) } catch {}
+  location.href = `/article.html?id=${encodeURIComponent(state.item.id)}&torna=movimenti`
+}
+
+function restoreDraft() {
+  let draft = null
+  try {
+    draft = JSON.parse(sessionStorage.getItem(DRAFT_KEY))
+    sessionStorage.removeItem(DRAFT_KEY)
+  } catch {}
+  if (draft?.itemId !== state.item?.id) return
+  if (allowedTypes().includes(draft.type)) state.type = draft.type
+  renderTypes()
+  renderLocations()
+  $('toSelect').value = draft.toId
+  $('piecesInput').value = draft.pieces
+  $('noteInput').value = draft.note
+  changed()
+  $('reasonSelect').value = draft.reasonId
+  changed()
 }
 
 // ─── Giacenza e storico dell'articolo (F-13) ──────────────────
@@ -908,7 +1018,18 @@ function setupListeners() {
   $('btnDevice').addEventListener('click', () => openModal('deviceModal'))
   $('deviceBody').addEventListener('click', deviceModalClick)
 
-  for (const id of ['searchModal', 'deviceModal']) {
+  $('btnCodeFix').addEventListener('click', fixItemData)
+  $('btnCodeConfirm').addEventListener('click', () => {
+    const { params, code } = state.check
+    closeModal('codeCheckModal')
+    sendNew(params, code)
+  })
+  // Invio non preme nessun pulsante di questa finestra: lo manda il lettore di codici (CD-10)
+  $('codeCheckModal').addEventListener('keydown', e => {
+    if (e.key === 'Enter') e.preventDefault()
+  })
+
+  for (const id of ['searchModal', 'deviceModal', 'codeCheckModal']) {
     const modal = $(id)
     modal.addEventListener('click', e => {
       if (e.target === modal || e.target.closest('[data-close]')) closeModal(id)
@@ -916,7 +1037,7 @@ function setupListeners() {
   }
   document.addEventListener('keydown', e => {
     if (e.key !== 'Escape') return
-    for (const id of ['searchModal', 'deviceModal']) if ($(id).classList.contains('open')) closeModal(id)
+    for (const id of ['searchModal', 'deviceModal', 'codeCheckModal']) if ($(id).classList.contains('open')) closeModal(id)
   })
 }
 

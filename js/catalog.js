@@ -1,6 +1,6 @@
 // js/catalog.js
 import { supabase, requireAuth, getCollections, getArticles, insertCollection, retirePreview, retireItem, deleteCollection, signOut } from './supabase.js'
-import { formatPrice, getCoverPhoto, showToast, isAppSku, articleMaterials, articleMaterialLines, articleMetalLine, validateCollection, confirmRetire } from './utils.js'
+import { formatPrice, getCoverPhoto, showToast, articleMaterials, articleMaterialLines, articleMetalLine, validateCollection, confirmRetire } from './utils.js'
 import { initColorSelect } from './color-select.js'
 import { initFilters } from './filters.js'
 import { openArticleModal } from './article-form.js'
@@ -459,7 +459,7 @@ function openDetail(articleId) {
     <div style="padding:20px;">
       <div style="font-family:var(--editorial);font-size:10px;letter-spacing:3px;text-transform:uppercase;color:var(--coral);margin-bottom:4px;">${a.collections?.name || ''}</div>
       <div style="font-family:var(--editorial);font-size:20px;font-weight:400;line-height:1.3;margin-bottom:4px;">${dispName}</div>
-      <div style="font-family:var(--mono);font-size:10px;color:var(--text-muted);margin-bottom:16px;">${a.sku}</div>
+      <div style="font-family:var(--mono);font-size:10px;color:var(--text-muted);margin-bottom:16px;">${a.sku}${a.code_confirmed_at ? '' : ' <span class="code-tag">Provvisorio</span>'}</div>
       ${detailRow('Materiali', articleMaterialLines(a).map(esc).join('<br>') || '—')}
       ${detailRow('Metallo', esc(articleMetalLine(a)) || '—')}
       ${detailRow('Prezzo retail', formatPrice(a.price_retail))}
@@ -630,7 +630,7 @@ function setupListeners() {
       if (editingCollectionId) {
         const baseSlug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
         const slug = `${code.toLowerCase()}-${baseSlug}`
-        if (!confirm("Avviso: negli articoli creati dall'app il nome della collezione verrà sostituito nel titolo. I codici degli articoli non cambiano. Continuare?")) return
+        if (!confirm("Avviso: negli articoli creati dall'app il nome della collezione verrà sostituito nel titolo. I codici definitivi non cambiano, quelli provvisori seguono la collezione. Continuare?")) return
         const coll = currentCollections.find(c => c.id === editingCollectionId)
 
         const { error } = await supabase.from('collections').update({
@@ -640,9 +640,8 @@ function setupListeners() {
 
         const relatedArticles = allArticles.filter(a => a.collection_id === editingCollectionId)
         for (const a of relatedArticles) {
-          if (!isAppSku(a.sku)) continue
+          if (a.code_origin !== 'app') continue
           // Nel titolo si sostituisce solo il nome della collezione: il resto, anche se scritto a mano, resta.
-          // Il codice dell'articolo non cambia, neanche se cambia quello della collezione (AC-03).
           const updatedName = a.name.includes(coll.name) ? a.name.replace(coll.name, name) : a.name
 
           if (updatedName !== a.name) {

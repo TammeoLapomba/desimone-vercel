@@ -40,7 +40,7 @@ export async function getCollections() {
   return data.sort((a, b) => a.name.localeCompare(b.name, 'it'))
 }
 
-// Lo slug comincia con il codice: lo SKU di oggi ne prende i primi 4 caratteri (generate_sku, 033)
+// Lo slug comincia con il codice, per restare unico anche fra collezioni con lo stesso nome
 export async function insertCollection({ name, code, color }) {
   const baseSlug = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
   const { data, error } = await supabase
@@ -91,6 +91,13 @@ export async function getAnagrafica(list) {
   return data.sort((a, b) => a.name.localeCompare(b.name, 'it'))
 }
 
+// Le voci che stanno in un codice definitivo: le loro lettere non si cambiano più (036). Set di "materials:<id>"
+export async function getAnagraficaLocked() {
+  const { data, error } = await supabase.rpc('anagrafica_locked')
+  if (error) throw error
+  return new Set(data.map(r => `${r.list}:${r.id}`))
+}
+
 // Quanti articoli usano ogni voce: { "materials:<id>": 3, … }
 export async function getAnagraficaUsage() {
   const { data, error } = await supabase.rpc('anagrafica_usage')
@@ -118,7 +125,7 @@ export async function getArticles(collectionId = null) {
     let query = supabase
       .from('articles')
       .select(`
-        id, name, sku, product_type_id, channel,
+        id, name, sku, code_origin, code_confirmed_at, product_type_id, channel,
         price_retail, price_wholesale,
         collection_id, metal_id, metal_grams, created_at,
         collections(name, slug),
@@ -139,14 +146,52 @@ export async function getArticles(collectionId = null) {
   return withStock(data, stock)
 }
 
-export async function insertArticle(fields) {
-  const { data, error } = await supabase
-    .from('articles')
-    .insert(fields)
-    .select()
-    .single()
+// Un gioiello nuovo: il codice lo assegna il server, provvisorio fino al primo uso (036, AC-09). Risponde l'articolo.
+export async function createArticle({ collectionId, productTypeId, name, metalId, metalGrams, priceRetail, priceWholesale, notes, measurements }, rows) {
+  const { data, error } = await supabase.rpc('create_article', {
+    p_collection_id: collectionId,
+    p_product_type_id: productTypeId,
+    p_name: name,
+    p_rows: rows,
+    p_metal_id: metalId ?? null,
+    p_metal_grams: metalGrams ?? null,
+    p_price_retail: priceRetail ?? null,
+    p_price_wholesale: priceWholesale ?? null,
+    p_notes: notes ?? null,
+    p_measurements: measurements ?? null
+  })
   if (error) throw error
   return data
+}
+
+// Il codice che avrebbe un gioiello con questi dati e i modelli uguali (CD-13): { code, parts, similar } oppure { missing }
+export async function articleCodePreview({ typeId, collectionId, metalId, materialIds }) {
+  const { data, error } = await supabase.rpc('article_code_preview', {
+    p_type: typeId,
+    p_collection: collectionId,
+    p_metal: metalId ?? null,
+    p_materials: materialIds
+  })
+  if (error) throw error
+  return data
+}
+
+// Per la schermata di controllo (REQ-A-09): il codice spiegato e i dati dell'articolo. explain è null se è già confermato.
+export async function getCodeCheck({ kind, id }) {
+  const isJewel = kind === 'montato'
+  const [explain, details] = await Promise.all([
+    isJewel
+      ? supabase.rpc('article_code_explain', { p_article_id: id })
+      : supabase.rpc('raw_code_explain', { p_raw_item_id: id }),
+    isJewel
+      ? supabase.from('articles')
+        .select('name, price_retail, metal_grams, measurements, metal:metals(name), article_materials(material_id, sort_order, pieces, carats, size_mm, size2_mm, size_mode, grams, material:materials(name)), photos(public_url, is_cover, photo_type)')
+        .eq('id', id).single()
+      : supabase.from('raw_items').select('description, size, unit, raw_photos(public_url, is_cover)').eq('id', id).single()
+  ])
+  if (explain.error) throw explain.error
+  if (details.error) throw details.error
+  return { explain: explain.data?.provisional ? explain.data : null, details: details.data }
 }
 
 export async function updateArticle(id, fields) {
@@ -175,7 +220,7 @@ export async function getArticleById(id) {
   return data
 }
 
-// Righe dei materiali dell'articolo con i loro valori (035), nell'ordine dato: il primo materiale entra nello SKU dell'app
+// Righe dei materiali dell'articolo con i loro valori (035), nell'ordine dato. Un codice provvisorio le segue (036)
 export async function setArticleMaterials(articleId, rows) {
   const { error } = await supabase.rpc('set_article_materials', {
     p_article_id: articleId,
@@ -425,10 +470,10 @@ export async function getMovementSetup() {
 export async function getMovableItems() {
   const [articles, raw] = await Promise.all([
     selectAll(() => supabase.from('articles')
-      .select('id, sku, name, price_retail, measurements, collection_id, collections(name), product_type:product_types(name), article_materials(material:materials(name))')
+      .select('id, sku, code_confirmed_at, name, price_retail, measurements, collection_id, collections(name), product_type:product_types(name), article_materials(material:materials(name))')
       .is('deleted_at', null).order('id')),
     selectAll(() => supabase.from('raw_items')
-      .select('id, sku, description, size, quality, color, unit, raw_categories(name), raw_shapes(name)')
+      .select('id, sku, code_confirmed_at, description, size, quality, color, unit, raw_categories(name), raw_shapes(name)')
       .is('deleted_at', null).order('id')),
   ])
   return { articles, raw }
@@ -610,6 +655,7 @@ export async function registerMovement(p) {
     p_note: p.note || null,
     p_document_ref: p.documentRef || null,
     p_shown_stock: p.shownStock ?? null,
+    p_confirm_code: p.confirmCode ?? null,
     p_sale_price: p.salePrice ?? null,
   })
   if (error) throw error

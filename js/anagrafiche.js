@@ -1,6 +1,6 @@
 // js/anagrafiche.js — Tipi, materiali e metalli con le lettere del codice (pacchetto 1.1, AN-01…AN-09).
 // Li gestisce solo l'account dev di Dedalo: lo impone il database (033), la pagina lo dice e basta.
-import { requireAuth, signOut, getAnagrafica, getAnagraficaUsage, saveAnagrafica, retireAnagrafica } from './supabase.js'
+import { requireAuth, signOut, getAnagrafica, getAnagraficaUsage, getAnagraficaLocked, saveAnagrafica, retireAnagrafica } from './supabase.js'
 import { showToast, isCodeLetter, validateAnagrafica } from './utils.js'
 import { initMobileNav, initHamburger, initPanelToggle, closeDrawer } from './pwa.js'
 
@@ -10,26 +10,26 @@ const $ = id => document.getElementById(id)
 const esc = v => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 const slugify = name => name.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
 
-// hasCode: sigla degli SKU di oggi e posizione nel codice. preview: dove finisce la lettera nel codice di 14 caratteri (AC-04).
+// hasCode: sigla usata dagli import e posizione nel codice. preview: dove finisce la lettera nel codice di 14 caratteri (036).
 // fields: i campi che la voce fa comparire sugli articoli (035, CO-04).
 const LISTS = {
   product_types: {
     label: 'Tipi', one: 'tipo', article: 'il tipo', newLabel: 'Nuovo tipo', hasCode: false, hasColor: false, fields: [],
-    preview: f => [f.letter || 'T', 'MMMM', 'C', 'LLL', '#####'],
+    preview: f => [(f.letter || 'T').padEnd(2, 'Z'), 'MMMMMM', 'C', 'LLL', '##'],
   },
   materials: {
     label: 'Materiali', one: 'materiale', article: 'il materiale', newLabel: 'Nuovo materiale', hasCode: true, hasColor: true,
     fields: [['has_pieces', 'Numero'], ['has_carats', 'Carati'], ['has_size', 'Misura'], ['has_grams', 'Peso']],
-    preview: f => ['T', `${f.letter || 'M'}MMM`, f.colorLetter || 'C', 'LLL', '#####'],
+    preview: f => ['TT', (f.letter || 'M').padEnd(6, 'M'), f.hasColor ? f.colorLetter || 'C' : 'Z', 'LLL', '##'],
   },
   metals: {
     label: 'Metalli', one: 'metallo', article: 'il metallo', newLabel: 'Nuovo metallo', hasCode: true, hasColor: false,
     fields: [['has_weight', 'Peso del metallo']],
-    preview: f => ['T', `${f.letter || 'M'}MMM`, 'C', 'LLL', '#####'],
+    preview: f => ['TT', (f.letter || 'M').padEnd(6, 'M'), 'C', 'LLL', '##'],
   },
 }
 
-const state = { list: 'product_types', voices: { product_types: [], materials: [], metals: [] }, usage: {}, editing: null }
+const state = { list: 'product_types', voices: { product_types: [], materials: [], metals: [] }, usage: {}, locked: new Set(), editing: null }
 
 const usedBy = (list, id) => state.usage[`${list}:${id}`] || 0
 const articlesLabel = n => `${n} ${n === 1 ? 'articolo' : 'articoli'}`
@@ -51,9 +51,10 @@ async function init() {
 }
 
 async function load() {
-  const [productTypes, materials, metals, usage] = await Promise.all([
-    getAnagrafica('product_types'), getAnagrafica('materials'), getAnagrafica('metals'), getAnagraficaUsage(),
+  const [productTypes, materials, metals, usage, locked] = await Promise.all([
+    getAnagrafica('product_types'), getAnagrafica('materials'), getAnagrafica('metals'), getAnagraficaUsage(), getAnagraficaLocked(),
   ])
+  state.locked = locked
   state.voices = { product_types: productTypes, materials, metals }
   state.usage = usage
   render()
@@ -152,7 +153,14 @@ function openEditor(voice = null) {
   $('voiceModalTitle').textContent = voice ? `Modifica ${list.one}` : list.newLabel
   $('f_name').value = voice?.name || ''
   $('f_letter').value = voice?.letter || ''
+  $('f_has_color').checked = !!voice?.has_color
   $('f_color_letter').value = voice?.color_letter || ''
+  // In un codice definitivo la lettera si vede ma non si cambia più (decisione 6)
+  const locked = !!voice && state.locked.has(`${state.list}:${voice.id}`)
+  $('f_letter').readOnly = locked
+  $('f_color_letter').readOnly = locked
+  $('f_has_color').disabled = locked
+  $('letterLocked').hidden = !locked
   $('f_code').value = voice?.code || ''
   $('f_position').value = voice?.code_position ?? ''
   $('fieldColor').hidden = !list.hasColor
@@ -184,7 +192,8 @@ function readForm() {
   return {
     name: $('f_name').value.trim(),
     letter: $('f_letter').value.trim().toUpperCase(),
-    colorLetter: $('f_color_letter').value.trim().toUpperCase(),
+    hasColor: $('f_has_color').checked,
+    colorLetter: $('f_has_color').checked ? $('f_color_letter').value.trim().toUpperCase() : '',
     code: $('f_code').value.trim().toUpperCase(),
     position: $('f_position').value.trim(),
   }
@@ -195,6 +204,7 @@ function updateEditorNotes() {
   const form = readForm()
   $('letterNote').textContent = letterNote('letter', form.letter)
   $('colorNote').textContent = letterNote('color_letter', form.colorLetter)
+  $('colorLetterBox').hidden = !form.hasColor
   $('voicePreview').textContent = list.preview(form).join(' ')
 }
 
@@ -218,7 +228,10 @@ async function saveVoice() {
   if (invalid) return showToast(invalid, 5000)
 
   const fields = { name: form.name, letter: form.letter || null }
-  if (list.hasColor) fields.color_letter = form.colorLetter || null
+  if (list.hasColor) {
+    fields.has_color = form.hasColor
+    fields.color_letter = form.colorLetter || null
+  }
   if (list.hasCode) {
     fields.code = form.code
     // Vuota: la successiva libera, la sceglie il database (033)
@@ -312,7 +325,7 @@ function setupListeners() {
   $('btnSaveVoice').addEventListener('click', saveVoice)
   $('btnCloseVoice').addEventListener('click', closeEditor)
   $('btnRetireVoice').addEventListener('click', () => { if (state.editing) retireVoice(state.editing) })
-  for (const id of ['f_letter', 'f_color_letter', 'f_name']) $(id).addEventListener('input', updateEditorNotes)
+  for (const id of ['f_letter', 'f_color_letter', 'f_name', 'f_has_color']) $(id).addEventListener('input', updateEditorNotes)
 }
 
 init().catch(err => {

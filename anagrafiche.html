@@ -126,13 +126,18 @@
       <div class="form-row">
         <div class="form-field">
           <label class="field-label" for="f_letter">Lettera nel codice</label>
-          <input type="text" class="field-input" id="f_letter" maxlength="1" style="text-transform:uppercase;">
+          <input type="text" class="field-input" id="f_letter" maxlength="2" style="text-transform:uppercase;">
+          <span class="field-hint">Uno o due caratteri, senza Z.</span>
+          <span class="field-hint anag-warning" id="letterLocked" hidden>È in un codice definitivo: non si cambia più.</span>
           <span class="field-hint anag-warning" id="letterNote" aria-live="polite"></span>
         </div>
         <div class="form-field" id="fieldColor">
-          <label class="field-label" for="f_color_letter">Lettera del colore</label>
-          <input type="text" class="field-input" id="f_color_letter" maxlength="1" style="text-transform:uppercase;">
-          <span class="field-hint">Solo per i coralli.</span>
+          <span class="field-label">Colore</span>
+          <label class="anag-check"><input type="checkbox" id="f_has_color"> Ha un colore, come i coralli</label>
+          <div id="colorLetterBox" hidden>
+            <label class="field-label" for="f_color_letter">Lettera del colore</label>
+            <input type="text" class="field-input" id="f_color_letter" maxlength="1" style="text-transform:uppercase;">
+          </div>
           <span class="field-hint anag-warning" id="colorNote" aria-live="polite"></span>
         </div>
       </div>
@@ -140,7 +145,7 @@
         <div class="form-field" id="fieldCode">
           <label class="field-label" for="f_code">Sigla <span class="field-required">*</span></label>
           <input type="text" class="field-input" id="f_code" maxlength="3" style="text-transform:uppercase;">
-          <span class="field-hint">2 o 3 lettere: entra nei codici di oggi.</span>
+          <span class="field-hint">2 o 3 lettere: la usano gli import.</span>
         </div>
         <div class="form-field" id="fieldPosition">
           <label class="field-label" for="f_position">Posizione nel codice</label>

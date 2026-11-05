@@ -237,6 +237,26 @@
   </div>
 </div>
 
+<!-- Prima del primo uso di un codice provvisorio (REQ-A-09, CR11) -->
+<div class="modal-overlay mov-modal" id="codeCheckModal" role="dialog" aria-modal="true" aria-labelledby="codeCheckTitle">
+  <div class="modal mov-device-modal" id="codeCheckBox" tabindex="-1">
+    <div class="modal-header">
+      <div>
+        <div class="modal-eyebrow">Prima del primo uso</div>
+        <div class="modal-title" id="codeCheckTitle">Controlla articolo e codice</div>
+      </div>
+      <button type="button" class="mov-modal-x" data-close aria-label="Chiudi">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body" id="codeCheckBody"></div>
+    <div class="modal-footer">
+      <button type="button" class="btn-ghost" id="btnCodeFix">Correggi i dati</button>
+      <button type="button" class="btn-primary" id="btnCodeConfirm">Confermo e proseguo</button>
+    </div>
+  </div>
+</div>
+
 <script src="config.js"></script>
 <script src="js/bilancia/pesi.js"></script>
 <script src="js/bilancia/sics.js"></script>

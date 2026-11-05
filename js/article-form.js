@@ -1,6 +1,6 @@
 // js/article-form.js
-import { supabase, getCollections, insertCollection, getMaterials, getMetals, getProductTypes, insertArticle, setArticleMaterials, uploadPhoto } from './supabase.js'
-import { buildSkuPreview, showToast, validateCollection } from './utils.js'
+import { getCollections, insertCollection, getMaterials, getMetals, getProductTypes, createArticle, articleCodePreview, uploadPhoto } from './supabase.js'
+import { debounce, showToast, validateCollection } from './utils.js'
 import { initColorSelect } from './color-select.js'
 import { initPhotoUpload } from './photo-upload.js'
 import { initMaterialPicker, initMetalWeight } from './material-picker.js'
@@ -18,6 +18,7 @@ let canCreateCollection = false
 
 // Tipi, materiali e metalli li aggiunge l'account dev di Dedalo (033): qui non si creano
 const MISSING_HINT = 'Se manca una voce, chiedi a Dedalo di aggiungerla.'
+const esc = v => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 
 export async function openArticleModal({ onSuccess, onCollectionCreated, canCreateCollection: canCreate = false }) {
   onSuccessCallback = onSuccess
@@ -118,8 +119,9 @@ function renderModal() {
           </div>
           <div class="form-row full">
             <div class="form-field">
-              <label class="field-label">SKU (anteprima)</label>
-              <div class="sku-preview empty" id="skuPreview">—-—-—-###</div>
+              <label class="field-label">Codice (anteprima)</label>
+              <div class="sku-preview empty" id="skuPreview">—</div>
+              <span class="field-hint">Provvisorio: segue i dati fino al primo carico, poi non cambia più.</span>
             </div>
           </div>
           <div class="form-row full">
@@ -140,10 +142,10 @@ function renderModal() {
           </div>
           <div class="form-row">
             <div class="form-field">
-              <label class="field-label">Metallo <span class="field-required">*</span></label>
+              <label class="field-label">Metallo</label>
               <select class="field-select" id="f_metal">
-                <option value="">Seleziona…</option>
-                ${metals.map(m => `<option value="${m.id}" data-code="${m.code}">${m.name}</option>`).join('')}
+                <option value="">Nessuno</option>
+                ${metals.map(m => `<option value="${m.id}">${m.name}</option>`).join('')}
               </select>
               <span class="field-hint">${MISSING_HINT}</span>
             </div>
@@ -185,6 +187,7 @@ function renderModal() {
             </div>
           </div>
           <div style="margin-top:8px;padding:10px 12px;background:var(--ivory);border-radius:3px;font-family:var(--mono);font-size:12px;color:var(--coral);" id="skuPreviewStep2"></div>
+          <div class="code-similar" id="codeSimilar" hidden></div>
         </div>
 
         <div id="step3Content" style="display:none;">
@@ -232,30 +235,54 @@ function setupFormListeners() {
     document.getElementById('stepLabel').textContent = `Step ${step} di 3 — ${stepLabels[step - 1]}`
     document.getElementById('btnBack').style.display = step > 1 ? '' : 'none'
     document.getElementById('btnNext').textContent = step === 3 ? 'Salva articolo' : 'Avanti →'
-    updateSkuPreview()
+    updateCodePreview()
   }
 
-  function updateSkuPreview() {
-    const collSel = document.getElementById('f_collection')
-    const metalSel = document.getElementById('f_metal')
-    const collSlug = collSel.selectedOptions[0]?.dataset.slug || ''
-    const metalCode = metalSel.selectedOptions[0]?.dataset.code || ''
-    const preview = buildSkuPreview(collSlug, materialPicker?.firstCode(), metalCode)
+  // Anteprima del codice e modelli uguali (CD-13, AC-07): la regola sta nel database. Una risposta vecchia non conta.
+  let previewRequest = 0
+  let lastPreview = null
+
+  async function refreshCodePreview() {
+    const typeId = document.getElementById('f_type').value
+    const collectionId = document.getElementById('f_collection').value
+    const request = ++previewRequest
+    const preview = typeId && collectionId
+      ? await articleCodePreview({
+          typeId,
+          collectionId,
+          metalId: document.getElementById('f_metal').value || null,
+          materialIds: materialPicker?.getIds() || []
+        }).catch(err => ({ missing: err.message, similar: [] }))
+      : null
+    if (request !== previewRequest) return
+    lastPreview = preview
+
     const el1 = document.getElementById('skuPreview')
     const el2 = document.getElementById('skuPreviewStep2')
-    if (el1) { el1.textContent = preview; el1.classList.toggle('empty', !collSlug) }
-    if (el2) el2.textContent = preview
-  }
+    if (!el1) return
+    el1.textContent = preview?.code || '—'
+    el1.classList.toggle('empty', !preview?.code)
+    el2.textContent = preview?.code || preview?.missing || '—'
 
-  materialPicker = initMaterialPicker(document.getElementById('f_materials'), materials, [], updateSkuPreview)
+    // Avvisa e non blocca: possono essere modelli diversi (decisione 7)
+    const similar = preview?.similar || []
+    const box = document.getElementById('codeSimilar')
+    box.hidden = !similar.length
+    box.innerHTML = similar.length ? `
+      <b>${similar.length === 1 ? 'Ce n\'è già uno' : `Ce ne sono già ${similar.length}`} con gli stessi dati.</b>
+      Se è lo stesso modello, altri pezzi si aggiungono con un carico.
+      <ul>${similar.map(a => `<li><a href="/article.html?id=${esc(a.id)}" target="_blank" rel="noopener">${esc(a.sku)}</a> ${esc(a.name)}</li>`).join('')}</ul>` : ''
+  }
+  const updateCodePreview = debounce(refreshCodePreview, 200)
+
+  materialPicker = initMaterialPicker(document.getElementById('f_materials'), materials, [], updateCodePreview)
   metalWeight = initMetalWeight({
     select: document.getElementById('f_metal'),
     field: document.getElementById('f_metal_grams_field'),
     input: document.getElementById('f_metal_grams'),
     metals
   })
-  document.getElementById('f_collection').addEventListener('change', updateSkuPreview)
-  document.getElementById('f_metal')?.addEventListener('change', updateSkuPreview)
+  for (const id of ['f_collection', 'f_type', 'f_metal']) document.getElementById(id).addEventListener('change', updateCodePreview)
 
   // ── Titolo: si compone da solo finché non lo si modifica a mano ──
   const titleInput = document.getElementById('f_title')
@@ -337,6 +364,7 @@ function setupFormListeners() {
 
   document.getElementById('btnNext').addEventListener('click', async () => {
     if (step < 3) {
+      if (step === 2) await refreshCodePreview()
       if (!validateStep(step)) return
       step++
       updateStep()
@@ -361,7 +389,8 @@ function setupFormListeners() {
       for (const check of [materialPicker.read(), metalWeight.read()]) {
         if (check.error) { showToast(check.error, 5000); check.element.focus(); return false }
       }
-      if (!document.getElementById('f_metal').value) { showToast('Seleziona il tipo di metallo'); return false }
+      // Una lettera che manca blocca il salvataggio: meglio dirlo subito (CD-04)
+      if (lastPreview?.missing) { showToast(lastPreview.missing, 6000); return false }
       if (!document.getElementById('f_price_retail').value) { showToast('Inserisci il prezzo retail'); return false }
       if (!(Number(document.getElementById('f_weight').value) > 0)) { showToast('Inserisci il peso di un pezzo (g)'); return false }
     }
@@ -374,19 +403,9 @@ function setupFormListeners() {
     btn.disabled = true
 
     try {
-      // 1. Genera SKU server-side via Supabase RPC
-      const collId = document.getElementById('f_collection').value
       const { rows: materialRows } = materialPicker.read()
-      const metalId = document.getElementById('f_metal').value
 
-      const { data: skuData, error: skuError } = await supabase.rpc('generate_sku', {
-        p_collection_id: collId,
-        p_material_id: materialRows[0].material_id,
-        p_metal_id: metalId
-      })
-      if (skuError) throw skuError
-
-      // 2. INSERT article
+      // 1. L'articolo con i suoi materiali: il codice lo assegna il server (AC-09)
       const measurements = {}
       const w = document.getElementById('f_width').value
       const l = document.getElementById('f_length').value
@@ -397,30 +416,25 @@ function setupFormListeners() {
       if (h) measurements.height_cm = Number(h)
       if (wt) measurements.weight_g = Number(wt)
 
-      const typeSel = document.getElementById('f_type')
-
-      const article = await insertArticle({
-        collection_id: collId,
+      const article = await createArticle({
+        collectionId: document.getElementById('f_collection').value,
+        productTypeId: document.getElementById('f_type').value,
         name: titleInput.value.trim(),
-        product_type_id: typeSel.value,
-        metal_id: metalId,
-        metal_grams: metalWeight.read().value,
-        sku: skuData,
-        price_retail: Number(document.getElementById('f_price_retail').value) || null,
-        price_wholesale: Number(document.getElementById('f_price_wholesale').value) || null,
-        channel: 'both',
+        metalId: document.getElementById('f_metal').value || null,
+        metalGrams: metalWeight.read().value,
+        priceRetail: Number(document.getElementById('f_price_retail').value) || null,
+        priceWholesale: Number(document.getElementById('f_price_wholesale').value) || null,
         notes: document.getElementById('f_notes').value.trim() || null,
         measurements: Object.keys(measurements).length ? measurements : null
-      })
-      await setArticleMaterials(article.id, materialRows)
+      }, materialRows)
 
-      // 3. Upload photos
+      // 2. Upload photos
       const files = photoUploader.getFiles()
       for (const file of files) {
         await uploadPhoto(file, article.id)
       }
 
-      // 4. Close + callback
+      // 3. Close + callback
       document.getElementById('articleModal').classList.remove('open')
       if (onSuccessCallback) onSuccessCallback(article)
 
