@@ -8,7 +8,7 @@
 // SD-04 trasferimento.
 import {
   requireAuth, signOut, getMyOperator, getMovementSetup, getMovableItems, getItemStock, getItemHistory,
-  registerMovement, cancelMovement, insertDevice, setDeviceScale, setDeviceKind, findItemByCode, getCodeCheck,
+  registerMovement, cancelMovement, insertDevice, setDeviceScale, setDeviceKind, findItemByCode, getCodeCheck, correctStock,
 } from './supabase.js'
 import { scanQr, cameraSupport } from './scanner.js'
 import { showToast, formatEuro, parseEuro, getCoverPhoto, articleMaterialLines, articleMetalLine } from './utils.js'
@@ -19,7 +19,8 @@ import { createScale, sourceFor, SIMULATED_MODEL } from './bilancia/bilancia.js'
 window.signOutUser = signOut
 const { validaPeso, formatGrams } = window.Pesi
 
-const TYPES = { C: 'Carico', S: 'Scarico', T: 'Trasferimento' }
+// R, la rettifica di una conta (041): la scrive solo la conta, quindi in Movimenti non si sceglie (non ha causali libere)
+const TYPES = { C: 'Carico', S: 'Scarico', T: 'Trasferimento', R: 'Rettifica' }
 const ROLE_LABELS = { admin: 'Amministrazione', laboratorio: 'Laboratorio', negozio: 'Negozio', fiere: 'Fiere' }
 const UNIT_LABELS = { pezzi: 'a pezzi', grammi: 'a grammi', pezzi_grammi: 'a pezzi e grammi' }
 const SOURCE_LABELS = { cavo: 'via cavo', simulata: 'simulata', sede: 'della sede' }
@@ -49,6 +50,7 @@ const state = {
   pending: null,      // richiesta partita senza esito: si ripete con lo stesso codice (REQ-E-11)
   priceTouched: false, // il prezzo di vendita l'ha scritto l'operatore: non si ripropone più
   check: null,        // schermata di controllo aperta: { params, code }
+  correctScale: null, // peso letto dalla bilancia in "Correggi la giacenza": { grams, scaleId }
 }
 
 const storage = {
@@ -731,8 +733,10 @@ function renderItemPanel() {
   const isAdmin = state.operator.role === 'admin'
   const when = d => new Date(d).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
   const rows = historyRows()
-  // Il trasferimento non aggiunge né toglie: la quantità si mostra senza segno
-  const sign = (r, text) => (r.movement_type === 'C' ? '+' : r.movement_type === 'S' ? '−' : '') + text
+  // Il trasferimento non aggiunge né toglie: la quantità si mostra senza segno. Nella rettifica pezzi e peso hanno
+  // ciascuno il suo segno (041): un pezzo in più e un grammo in meno stanno nella stessa riga
+  const sign = (r, text, value) => (r.movement_type === 'R' ? (value < 0 ? '−' : '+')
+    : r.movement_type === 'C' ? '+' : r.movement_type === 'S' ? '−' : '') + text
   const afterText = l => [showPieces ? `${l.pieces_after} pz` : '', showGrams ? gramsText(l.grams_after) : ''].filter(Boolean).join(' · ')
   const place = r => r.movement_type === 'T'
     ? `${esc(locationName(r.m.from_location_id))} → ${esc(locationName(r.m.to_location_id))}`
@@ -751,6 +755,7 @@ function renderItemPanel() {
       <tbody>${stockRows.map(s => `<tr><td>${esc(locationName(s.location_id))}</td>${showPieces ? `<td class="num">${s.pieces}</td>` : ''}${showGrams ? `<td class="num">${gramsText(s.grams)}</td>` : ''}</tr>`).join('')}</tbody>
       ${stockRows.length > 1 ? `<tfoot><tr><th scope="row">Totale</th>${showPieces ? `<td class="num">${total.pieces}</td>` : ''}${showGrams ? `<td class="num">${gramsText(total.grams)}</td>` : ''}</tr></tfoot>` : ''}
     </table>` : '<p class="mov-empty">Nessuna giacenza registrata con i movimenti.</p>'}
+    ${isAdmin ? '<button type="button" class="mov-link" data-correct>Correggi la giacenza</button>' : ''}
     <h3 class="mov-panel-title">Storico</h3>
     ${rows.length ? `
     <div class="mov-table-scroll">
@@ -769,9 +774,9 @@ function renderItemPanel() {
         return `<tr class="${r.cancelled ? 'is-cancelled' : ''}" title="${esc(r.code)}">
           <td>${when(r.occurred_at)}</td>
           <td>${place(r)}</td>
-          <td>${TYPES[r.movement_type]} · ${esc(reasons.get(m.reason_id) || '')}${m.sale_price ? ` · ${formatEuro(m.sale_price)}` : ''}${m.note ? `<div class="mov-note">${esc(m.note)}</div>` : ''}${r.cancelled ? `<div class="mov-note">Annullato: ${esc(m.cancel_reason)}</div>` : ''}</td>
-          ${showPieces ? `<td class="num">${pieces ? sign(r, String(pieces)) : ''}</td>` : ''}
-          ${showGrams ? `<td class="num">${grams ? sign(r, gramsText(grams)) : ''}${m.weight_source === 'calcolo' ? ' <span class="mov-note">calcolato</span>' : ''}</td>` : ''}
+          <td>${r.movement_type === 'R' ? '' : `${TYPES[r.movement_type]} · `}${esc(reasons.get(m.reason_id) || '')}${m.document_ref ? ` · ${esc(m.document_ref)}` : ''}${m.sale_price ? ` · ${formatEuro(m.sale_price)}` : ''}${m.note ? `<div class="mov-note">${esc(m.note)}</div>` : ''}${r.cancelled ? `<div class="mov-note">Annullato: ${esc(m.cancel_reason)}</div>` : ''}</td>
+          ${showPieces ? `<td class="num">${pieces ? sign(r, String(pieces), r.legs[0].pieces) : ''}</td>` : ''}
+          ${showGrams ? `<td class="num">${grams ? sign(r, gramsText(grams), Number(r.legs[0].grams)) : ''}${m.weight_source === 'calcolo' ? ' <span class="mov-note">calcolato</span>' : ''}</td>` : ''}
           <td class="num">${r.cancelled ? '—' : after(r)}</td>
           <td>${esc(operators.get(m.operator_id) || '')}</td>
           ${isAdmin ? `<td>${cancel}</td>` : ''}
@@ -950,6 +955,131 @@ function closeModal(id) {
   lastFocus?.focus?.()
 }
 
+// ─── Correggi la giacenza (scheda 2.1, decisione 1): solo l'amministrazione ─
+// Si scrive quanto c'è davvero in un luogo; la differenza la calcola e la registra il database (stock_count_quick),
+// come una conta di un articolo. Si può correggere anche un luogo dove non risulta niente.
+
+function openCorrect() {
+  const item = state.item
+  const sede = state.setup.locations.filter(l => l.active && l.kind === 'sede')
+  const withStock = sede.find(l => holds(l.id))
+  $('correctItem').textContent = `${item.code} · ${item.name}`
+  $('correctLocation').innerHTML = sede.map(l => `<option value="${l.id}">${esc(l.name)}</option>`).join('')
+  $('correctLocation').value = (withStock || sede.find(l => l.id === state.operator.default_location_id) || sede[0])?.id || ''
+  const unit = item.kind === 'montato' ? 'montato' : item.unit
+  $('correctPiecesField').hidden = unit === 'grammi'
+  $('correctGramsField').hidden = unit === 'montato'
+  $('btnCorrectScale').hidden = unit === 'montato' || !state.scale?.source || state.scale.source === 'sede'
+  $('correctPieces').value = ''
+  $('correctGrams').value = ''
+  $('correctResult').hidden = true
+  state.correctScale = null
+  renderCorrectPreview()
+  openModal('correctModal')
+  setTimeout(() => $(unit === 'grammi' ? 'correctGrams' : 'correctPieces').focus(), 60)
+}
+
+// Pezzi e peso scritti, nell'unità dell'articolo; 0 vale: non c'è niente
+function correctValues() {
+  const item = state.item
+  const unit = item.kind === 'montato' ? 'montato' : item.unit
+  const out = { pieces: null, grams: null, source: null, scaleId: null }
+  if (unit !== 'grammi') {
+    const p = $('correctPieces').value
+    if (p === '' || !/^\d+$/.test(p)) return { error: 'Scrivi quanti pezzi ci sono, anche 0.' }
+    out.pieces = parseInt(p, 10)
+  }
+  if (unit !== 'montato') {
+    if (state.correctScale) {
+      Object.assign(out, { grams: state.correctScale.grams, source: 'bilancia', scaleId: state.correctScale.scaleId })
+    } else {
+      const g = $('correctGrams').value.trim()
+      if (g === '' && unit === 'pezzi') return out
+      if (g === '' && unit === 'pezzi_grammi' && out.pieces === 0) return { ...out, grams: 0, source: 'mano' }
+      if (/^0+([.,]0?)?$/.test(g)) return { ...out, grams: 0, source: 'mano' }
+      const v = validaPeso(g)
+      if (!v.ok) return { error: v.error }
+      Object.assign(out, { grams: v.mg / 1000, source: 'mano' })
+    }
+  }
+  return out
+}
+
+function renderCorrectPreview() {
+  const box = $('correctPreview')
+  const loc = $('correctLocation').value
+  const now = stockAt(loc)
+  const v = correctValues()
+  const unit = state.item.kind === 'montato' ? 'montato' : state.item.unit
+  const fmt = (p, g) => [unit !== 'grammi' ? `${p} pz` : '', unit !== 'montato' && g !== null ? gramsText(g) : ''].filter(Boolean).join(' · ')
+  const risulta = `Risulta: ${fmt(now.pieces, now.grams)}`
+  if (v.error) {
+    box.innerHTML = `<div class="mov-preview-line">${esc(risulta)}</div><span class="mov-preview-hint">${esc(v.error)}</span>`
+    $('btnCorrectSave').disabled = true
+    return
+  }
+  const dp = v.pieces === null ? 0 : v.pieces - now.pieces
+  const dg = v.grams === null ? 0 : Math.round((v.grams - now.grams) * 10) / 10
+  const diff = [dp ? signed(dp, `${Math.abs(dp)} pz`) : '', unit !== 'montato' && dg ? signed(dg, gramsText(Math.abs(dg))) : ''].filter(Boolean).join(' · ')
+  box.innerHTML = `<div class="mov-preview-line">${esc(risulta)}</div>
+    <div class="mov-preview-line"><span class="mov-preview-loc">Rettifica</span><b>${diff || 'nessuna: è già così'}</b></div>`
+  $('btnCorrectSave').disabled = !diff
+}
+
+async function readCorrectScale() {
+  const driver = getDriver()
+  if (!driver) return
+  const btn = $('btnCorrectScale')
+  btn.disabled = true
+  btn.textContent = 'Attendo il peso stabile…'
+  try {
+    const reading = await driver.readStable()
+    state.correctScale = { grams: reading.grams, scaleId: state.scale.scale.id }
+    $('correctGrams').value = reading.text.replace(' g', '')
+    renderCorrectPreview()
+  } catch (err) {
+    $('correctResult').textContent = err.message
+    $('correctResult').className = 'mov-result is-error'
+    $('correctResult').hidden = false
+  } finally {
+    btn.disabled = false
+    btn.textContent = 'Leggi dalla bilancia'
+  }
+}
+
+async function saveCorrect() {
+  const v = correctValues()
+  const result = $('correctResult')
+  if (v.error) return
+  if (!state.device) {
+    result.textContent = 'Scegli prima il dispositivo: la sua sigla entra nel codice della rettifica.'
+    result.className = 'mov-result is-error'
+    result.hidden = false
+    return
+  }
+  const btn = $('btnCorrectSave')
+  btn.disabled = true
+  try {
+    const res = await correctStock({
+      locationId: $('correctLocation').value,
+      articleId: state.item.kind === 'montato' ? state.item.id : null,
+      rawItemId: state.item.kind === 'montato' ? null : state.item.id,
+      deviceId: state.device.id,
+      pieces: v.pieces, grams: v.grams, weightSource: v.source, scaleId: v.scaleId,
+    })
+    closeModal('correctModal')
+    showToast(`Rettifica registrata: ${res.label}`)
+    await loadItemData()
+    renderLocations(true)
+    changed()
+  } catch (err) {
+    result.textContent = err.message
+    result.className = 'mov-result is-error'
+    result.hidden = false
+    btn.disabled = false
+  }
+}
+
 // ─── Eventi ──────────────────────────────────────────────────
 
 function setupListeners() {
@@ -1055,6 +1185,7 @@ function setupListeners() {
   })
 
   $('itemPanel').addEventListener('click', e => {
+    if (e.target.closest('[data-correct]')) return openCorrect()
     const btn = e.target.closest('[data-cancel]')
     if (btn) cancel(btn.dataset.cancel, btn.dataset.code)
   })
@@ -1073,7 +1204,13 @@ function setupListeners() {
     if (e.key === 'Enter') e.preventDefault()
   })
 
-  for (const id of ['searchModal', 'deviceModal', 'codeCheckModal']) {
+  $('correctLocation').addEventListener('change', renderCorrectPreview)
+  $('correctPieces').addEventListener('input', renderCorrectPreview)
+  $('correctGrams').addEventListener('input', () => { state.correctScale = null; renderCorrectPreview() })
+  $('btnCorrectSave').addEventListener('click', saveCorrect)
+  $('btnCorrectScale').addEventListener('click', readCorrectScale)
+
+  for (const id of ['searchModal', 'deviceModal', 'codeCheckModal', 'correctModal']) {
     const modal = $(id)
     modal.addEventListener('click', e => {
       if (e.target === modal || e.target.closest('[data-close]')) closeModal(id)
@@ -1081,7 +1218,7 @@ function setupListeners() {
   }
   document.addEventListener('keydown', e => {
     if (e.key !== 'Escape') return
-    for (const id of ['searchModal', 'deviceModal', 'codeCheckModal']) if ($(id).classList.contains('open')) closeModal(id)
+    for (const id of ['searchModal', 'deviceModal', 'codeCheckModal', 'correctModal']) if ($(id).classList.contains('open')) closeModal(id)
   })
 }
 

@@ -7,7 +7,8 @@
     { "source": "/giacenze", "destination": "/giacenze.html" },
     { "source": "/registro", "destination": "/registro.html" },
     { "source": "/anagrafiche", "destination": "/anagrafiche.html" },
-    { "source": "/impostazioni", "destination": "/impostazioni.html" }
+    { "source": "/impostazioni", "destination": "/impostazioni.html" },
+    { "source": "/conte", "destination": "/conte.html" }
   ],
   "headers": [
     {

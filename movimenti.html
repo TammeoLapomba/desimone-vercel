@@ -229,6 +229,39 @@
 </div>
 
 <!-- Dispositivo in uso (REQ-D-04) e sua bilancia (CR7) -->
+<!-- Correggi la giacenza: una conta di un articolo, solo l'amministrazione (scheda 2.1, decisione 1) -->
+<div class="modal-overlay mov-modal" id="correctModal" role="dialog" aria-modal="true" aria-labelledby="correctTitle">
+  <div class="modal mov-device-modal">
+    <div class="modal-header">
+      <div>
+        <div class="modal-eyebrow" id="correctItem"></div>
+        <div class="modal-title" id="correctTitle">Correggi la giacenza</div>
+      </div>
+      <button type="button" class="mov-modal-x" data-close aria-label="Chiudi">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <p class="mov-modal-text">Scrivi quanto c'è davvero: il sistema registra la differenza come rettifica, con il numero di una conta.</p>
+      <label class="field"><span class="field-label">Luogo</span>
+        <select class="field-input field-select" id="correctLocation"></select></label>
+      <div class="mov-weight-row">
+        <label class="field" id="correctPiecesField"><span class="field-label">Pezzi contati</span>
+          <input class="field-input" id="correctPieces" type="number" min="0" step="1" inputmode="numeric"></label>
+        <label class="field" id="correctGramsField"><span class="field-label">Peso contato (g)</span>
+          <input class="field-input" id="correctGrams" inputmode="decimal" autocomplete="off"></label>
+        <button type="button" class="btn-ghost mov-scale-btn" id="btnCorrectScale" hidden>Leggi dalla bilancia</button>
+      </div>
+      <div class="mov-preview" id="correctPreview" aria-live="polite"></div>
+      <div class="mov-result" id="correctResult" role="alert" hidden></div>
+    </div>
+    <div class="modal-footer">
+      <button type="button" class="btn-ghost" data-close>Annulla</button>
+      <button type="button" class="btn-primary" id="btnCorrectSave">Registra la rettifica</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay mov-modal" id="deviceModal" role="dialog" aria-modal="true" aria-labelledby="deviceTitle">
   <div class="modal mov-device-modal">
     <div class="modal-header">

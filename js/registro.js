@@ -11,7 +11,7 @@ import { initMobileNav } from './pwa.js'
 window.signOutUser = signOut
 
 const PAGE = 100
-const TYPES = { C: 'Carico', S: 'Scarico', T: 'Trasferimento' }
+const TYPES = { C: 'Carico', S: 'Scarico', T: 'Trasferimento', R: 'Rettifica' }   // R: la rettifica di una conta (041)
 const ROLE_LABELS = { admin: 'Amministrazione', laboratorio: 'Laboratorio', negozio: 'Negozio', fiere: 'Fiere' }
 const FAMILY = 'famiglia:'
 
@@ -169,7 +169,9 @@ function render() {
   const where = m => m.movement_type === 'T' ? `${place(m.from_location_id)} → ${place(m.to_location_id)}`
     : place(m.from_location_id || m.to_location_id)
   // Il trasferimento non aggiunge né toglie: la quantità si mostra senza segno
-  const sign = (m, text) => (m.movement_type === 'C' ? '+' : m.movement_type === 'S' ? '−' : '') + text
+  // Nella rettifica pezzi e peso hanno ciascuno il suo segno (041)
+  const sign = (m, text, value) => (m.movement_type === 'R' ? (value < 0 ? '−' : '+')
+    : m.movement_type === 'C' ? '+' : m.movement_type === 'S' ? '−' : '') + text
 
   const head = `
     <colgroup>
@@ -188,12 +190,12 @@ function render() {
       <tr class="${m.cancelled_at ? 'is-cancelled' : ''}" data-code="${esc(item.code)}" tabindex="0" title="${esc(m.code)} · apri l'articolo nei Movimenti">
         <td class="reg-when">${when(m.occurred_at)}</td>
         <td><div class="cell-code">${esc(item.code) || '—'}</div><div class="cell-sub">${esc(item.name)}${archived}</div></td>
-        <td>${TYPES[m.movement_type]} · ${esc(reasons.get(m.reason_id) || '')}${m.sale_price ? ` · ${formatEuro(m.sale_price)}` : ''}
+        <td>${m.movement_type === 'R' ? '' : `${TYPES[m.movement_type]} · `}${esc(reasons.get(m.reason_id) || '')}${m.document_ref ? ` · ${esc(m.document_ref)}` : ''}${m.sale_price ? ` · ${formatEuro(m.sale_price)}` : ''}
           ${m.note ? `<div class="mov-note">${esc(m.note)}</div>` : ''}
           ${m.cancelled_at ? `<div class="mov-note">Annullato: ${esc(m.cancel_reason)}</div>` : ''}</td>
         <td>${where(m)}</td>
-        <td class="num">${m.pieces ? sign(m, num(m.pieces)) : ''}</td>
-        <td class="num">${m.grams ? sign(m, gramsText(m.grams)) : ''}${m.weight_source === 'calcolo' ? ' <span class="mov-note">calcolato</span>' : ''}</td>
+        <td class="num">${m.pieces ? sign(m, num(Math.abs(m.pieces)), m.pieces) : ''}</td>
+        <td class="num">${m.grams ? sign(m, gramsText(Math.abs(m.grams)), Number(m.grams)) : ''}${m.weight_source === 'calcolo' ? ' <span class="mov-note">calcolato</span>' : ''}</td>
         <td>${esc(operators.get(m.operator_id) || '')}</td>
       </tr>`
   }).join('')

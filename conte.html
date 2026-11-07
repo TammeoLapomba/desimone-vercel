@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+  <title>De Simone OS — Conte</title>
+
+  <!-- PWA -->
+  <link rel="manifest" href="/manifest.json">
+  <meta name="theme-color" content="#1A1814">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="De Simone">
+  <link rel="apple-touch-icon" href="/icons/icon-192.png">
+
+  <meta name="description" content="Atelier Antonino De Simone — Conta della merce e rettifiche">
+
+  <link rel="stylesheet" href="css/variables.css">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/layout.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/mobile.css">
+  <link rel="stylesheet" href="css/movimenti.css">
+  <link rel="stylesheet" href="css/giacenze.css">
+</head>
+<body>
+<a href="#conte-main" class="skip-link">Vai al contenuto principale</a>
+<div id="toast" role="status" aria-live="polite"></div>
+<div class="app-shell">
+
+  <!-- SIDEBAR -->
+  <aside class="sidebar" aria-label="Navigazione principale">
+    <div class="sidebar-logo" aria-hidden="true">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7zm0 9.5c-1.38 0-2.5-1.12-2.5-2.5s1.12-2.5 2.5-2.5 2.5 1.12 2.5 2.5-1.12 2.5-2.5 2.5z"/></svg>
+    </div>
+    <nav class="sidebar-nav" aria-label="Menu">
+      <a href="/catalog.html" class="nav-item" title="Montato">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+        <span class="nav-item-label">Montato</span>
+      </a>
+      <a href="/semilavorato.html" class="nav-item" title="Semilavorato">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M12 2L2 7l10 5 10-5-10-5z"/><path d="M2 17l10 5 10-5"/><path d="M2 12l10 5 10-5"/></svg>
+        <span class="nav-item-label">Semilavorato</span>
+      </a>
+      <a href="/movimenti.html" class="nav-item" title="Movimenti">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+        <span class="nav-item-label">Movimenti</span>
+      </a>
+      <a href="/giacenze.html" class="nav-item active" aria-current="page" title="Giacenze">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/></svg>
+        <span class="nav-item-label">Giacenze</span>
+      </a>
+      <a href="/registro.html" class="nav-item" title="Registro">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true"><line x1="9" y1="6" x2="20" y2="6"/><line x1="9" y1="12" x2="20" y2="12"/><line x1="9" y1="18" x2="20" y2="18"/><circle cx="5" cy="6" r="1"/><circle cx="5" cy="12" r="1"/><circle cx="5" cy="18" r="1"/></svg>
+        <span class="nav-item-label">Registro</span>
+      </a>
+    </nav>
+    <div class="sidebar-bottom">
+      <button class="sidebar-account" onclick="window.signOutUser()" aria-label="Esci dall'account">ADS</button>
+    </div>
+  </aside>
+
+  <!-- MAIN -->
+  <main class="main" id="conte-main">
+    <div class="topbar" role="toolbar" aria-label="Conte">
+      <div class="mov-topbar-title"><a href="/giacenze.html" class="cnt-back">Giacenze</a> · Conte</div>
+      <div class="mov-topbar-meta">
+        <a href="/movimenti.html" class="mov-chip mov-chip-button" id="deviceChip"></a>
+        <span class="mov-chip" id="operatorChip" aria-live="polite"></span>
+      </div>
+    </div>
+
+    <div class="catalog-area">
+      <div class="mov-blocked" id="blocked" hidden></div>
+
+      <!-- Elenco delle conte e conta nuova (UC-08, REQ-M-09) -->
+      <section id="listView" hidden>
+        <div class="gia-toolbar">
+          <p class="cnt-intro">Si conta la merce di un luogo; le differenze le vede e le conferma l'amministrazione.</p>
+          <button type="button" class="btn-primary" id="btnNew">Nuova conta</button>
+        </div>
+
+        <form class="mov-card cnt-new" id="newForm" hidden>
+          <div class="mov-card-title">Nuova conta</div>
+          <div class="cnt-grid">
+            <label class="field"><span class="field-label">Luogo</span>
+              <select class="field-input field-select" id="newLocation" required></select></label>
+            <label class="field"><span class="field-label">Cosa si conta</span>
+              <select class="field-input field-select" id="newFamily">
+                <option value="gioielli">Gioielli</option>
+                <option value="semilavorati">Semilavorati</option>
+              </select></label>
+            <label class="field" id="newCategoryField" hidden><span class="field-label">Categoria</span>
+              <select class="field-input field-select" id="newCategory"></select></label>
+          </div>
+          <fieldset class="cnt-kind">
+            <legend class="field-label">Conta</legend>
+            <label class="mov-check"><input type="radio" name="newKind" value="parziale" checked> <span><b>Parziale:</b> cambia solo ciò che si conta</span></label>
+            <label class="mov-check"><input type="radio" name="newKind" value="completa"> <span><b>Completa:</b> ciò che risulta qui e non si conta va a zero</span></label>
+          </fieldset>
+          <div class="field-error" id="newError" role="alert"></div>
+          <div class="mov-actions">
+            <button type="button" class="btn-ghost" id="btnNewCancel">Annulla</button>
+            <button type="submit" class="btn-primary">Apri la conta</button>
+          </div>
+        </form>
+
+        <h2 class="mov-panel-title">Aperte</h2>
+        <div id="openList"></div>
+        <h2 class="mov-panel-title">Chiuse di recente</h2>
+        <div id="closedList"></div>
+      </section>
+
+      <!-- Una conta: si legge, si scrive, si conferma (SD-05) -->
+      <section id="countView" hidden>
+        <div class="mov-card">
+          <div class="cnt-head">
+            <div>
+              <div class="mov-card-title" id="countTitle"></div>
+              <div class="cnt-sub" id="countSub"></div>
+            </div>
+            <a href="/conte.html" class="btn-ghost">Tutte le conte</a>
+          </div>
+
+          <div id="countOpen">
+            <div class="mov-code-row">
+              <input class="field-input mov-code-input" id="codeInput" autocomplete="off" spellcheck="false"
+                     aria-label="Codice letto o cercato" placeholder="Leggi il codice, o scrivi codice o nome…">
+              <button type="button" class="btn-ghost" id="btnCamera" hidden>Fotocamera</button>
+            </div>
+            <div class="cnt-matches" id="matches" hidden></div>
+            <div class="mov-result" id="readResult" role="status" hidden></div>
+            <p class="cnt-note" id="blindNote">Si vede solo ciò che si conta: quanto risulta lo vede l'amministrazione nel riepilogo.</p>
+          </div>
+
+          <div class="table-scroll">
+            <table class="mov-table cnt-table" id="linesTable"></table>
+          </div>
+          <div class="gia-count" id="linesCount" aria-live="polite"></div>
+
+          <div class="mov-actions cnt-actions" id="countActions">
+            <button type="button" class="btn-ghost" id="btnDiscard">Butta la conta</button>
+            <button type="button" class="btn-primary" id="btnSummary" hidden>Riepilogo e conferma</button>
+          </div>
+        </div>
+
+        <!-- Riepilogo: solo l'amministrazione (decisioni 4 e 5) -->
+        <div class="mov-card" id="summaryCard" hidden>
+          <div class="mov-card-title">Riepilogo</div>
+          <p class="cnt-note">"Risultava" è la giacenza del momento in cui l'articolo è stato contato: un movimento fatto dopo non sbaglia la differenza.</p>
+          <div class="table-scroll">
+            <table class="mov-table cnt-table" id="summaryTable"></table>
+          </div>
+          <div class="mov-result" id="summaryResult" role="status" hidden></div>
+          <div class="mov-actions">
+            <button type="button" class="btn-ghost" id="btnSummaryClose">Torna a contare</button>
+            <button type="button" class="btn-primary" id="btnConfirm">Conferma le rettifiche</button>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+</div>
+
+<script src="config.js"></script>
+<script src="js/bilancia/pesi.js"></script>
+<script src="js/bilancia/sics.js"></script>
+<script src="js/bilancia/simulatore.js"></script>
+<script type="module" src="js/conte.js"></script>
+<script type="module" src="js/pwa.js"></script>
+</body>
+</html>

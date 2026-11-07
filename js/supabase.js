@@ -616,7 +616,7 @@ export async function getMovableItems() {
       .select('id, sku, code_confirmed_at, name, price_retail, measurements, collection_id, collections(name), product_type:product_types(name), article_materials(material:materials(name))')
       .is('deleted_at', null).order('id')),
     selectAll(() => supabase.from('raw_items')
-      .select('id, sku, code_confirmed_at, description, size, quality, color, unit, raw_categories(name), raw_shapes(name)')
+      .select('id, sku, code_confirmed_at, description, size, quality, color, unit, category_id, raw_categories(name), raw_shapes(name)')
       .is('deleted_at', null).order('id')),
   ])
   return { articles, raw }
@@ -753,7 +753,7 @@ export async function getMovements(f = {}, { offset = 0, limit = 100 } = {}) {
   let query = supabase
     .from('movements')
     .select(`id, code, movement_type, occurred_at, article_id, raw_item_id, from_location_id, to_location_id,
-      pieces, grams, weight_source, reason_id, sale_price, note, operator_id, parent_id, cancelled_at, cancel_reason,
+      pieces, grams, weight_source, reason_id, sale_price, note, document_ref, operator_id, parent_id, cancelled_at, cancel_reason,
       article:articles(sku, name, deleted_at), raw_item:raw_items(sku, description, deleted_at)`)
     .order('occurred_at', { ascending: false })
     .order('id')
@@ -817,6 +817,90 @@ export async function registerMovement(p) {
 // Annulla un movimento con motivo: solo l'amministrazione (REQ-M-06, M-13)
 export async function cancelMovement(id, reason) {
   const { data, error } = await supabase.rpc('cancel_movement', { p_movement_id: id, p_reason: reason })
+  if (error) throw error
+  return data
+}
+
+// ── Conte e rettifiche (041, scheda 2.1) ──────────────────────────
+// Contano tutti gli operatori; differenze e conferma solo l'amministrazione. Le regole le decide il database.
+
+// Le conte, dalla più recente. status: 'aperta', 'confermata', 'buttata' o null per tutte
+export async function getStockCounts({ status = null, limit = 50 } = {}) {
+  let query = supabase.from('stock_counts')
+    .select('id, year, number, location_id, family, category_id, complete, quick, status, opened_by, opened_at, closed_by, closed_at')
+    .order('opened_at', { ascending: false })
+    .limit(limit)
+  if (status) query = query.eq('status', status)
+  const { data, error } = await query
+  if (error) throw error
+  return data
+}
+
+// Una conta e le sue righe: articolo, pezzi e peso contati, chi e quando. Quanto risultava non serve a chi conta
+export async function getStockCount(id) {
+  const [count, lines] = await Promise.all([
+    supabase.from('stock_counts')
+      .select('id, year, number, location_id, family, category_id, complete, quick, status, opened_by, opened_at, closed_by, closed_at')
+      .eq('id', id).maybeSingle(),
+    supabase.from('stock_count_lines')
+      .select('id, article_id, raw_item_id, pieces, grams, weight_source, scale_id, counted_by, counted_at')
+      .eq('count_id', id).order('counted_at', { ascending: false }),
+  ])
+  if (count.error) throw count.error
+  if (lines.error) throw lines.error
+  return count.data ? { ...count.data, lines: lines.data } : null
+}
+
+export async function openStockCount({ locationId, family, categoryId = null, complete = false }) {
+  const { data, error } = await supabase.rpc('stock_count_open', {
+    p_location_id: locationId, p_family: family, p_category_id: categoryId, p_complete: complete,
+  })
+  if (error) throw error
+  return data
+}
+
+// add: una lettura del codice, un pezzo in più (REQ-B-03). Altrimenti pezzi e peso si scrivono come sono (REQ-B-04)
+export async function setStockCountLine({ countId, articleId = null, rawItemId = null, pieces = null, grams = null,
+  weightSource = null, scaleId = null, add = false }) {
+  const { data, error } = await supabase.rpc('stock_count_set', {
+    p_count_id: countId, p_article_id: articleId, p_raw_item_id: rawItemId, p_pieces: pieces, p_grams: grams,
+    p_weight_source: weightSource, p_scale_id: scaleId, p_add: add,
+  })
+  if (error) throw error
+  return data
+}
+
+export async function removeStockCountLine(lineId) {
+  const { error } = await supabase.rpc('stock_count_remove_line', { p_line_id: lineId })
+  if (error) throw error
+}
+
+export async function discardStockCount(id) {
+  const { error } = await supabase.rpc('stock_count_discard', { p_count_id: id })
+  if (error) throw error
+}
+
+// Contato, quanto risultava quando si è contato, giacenza di adesso, differenza e cosa ferma la conferma
+export async function getStockCountSummary(id) {
+  const { data, error } = await supabase.rpc('stock_count_summary', { p_count_id: id })
+  if (error) throw error
+  return data
+}
+
+// Risponde { duplicate, label, movements }: una conferma ripetuta restituisce quella di prima (REQ-E-11)
+export async function confirmStockCount(id, deviceId) {
+  const { data, error } = await supabase.rpc('stock_count_confirm', { p_count_id: id, p_device_id: deviceId })
+  if (error) throw error
+  return data
+}
+
+// "Correggi la giacenza" di un articolo in un luogo: una conta di un articolo, confermata subito
+export async function correctStock({ locationId, articleId = null, rawItemId = null, deviceId, pieces = null, grams = null,
+  weightSource = null, scaleId = null }) {
+  const { data, error } = await supabase.rpc('stock_count_quick', {
+    p_location_id: locationId, p_article_id: articleId, p_raw_item_id: rawItemId, p_device_id: deviceId,
+    p_pieces: pieces, p_grams: grams, p_weight_source: weightSource, p_scale_id: scaleId,
+  })
   if (error) throw error
   return data
 }

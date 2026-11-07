@@ -16,8 +16,8 @@ import { initMobileNav } from './pwa.js'
 window.signOutUser = signOut
 
 const ROLE_LABELS = { admin: 'Amministrazione', laboratorio: 'Laboratorio', negozio: 'Negozio', fiere: 'Fiere' }
-const SERIES_LABELS = { bolla: 'Bolle', ritorno: 'Ritorni', ordine: 'Ordini' }
-const SERIES_NEXT = { bolla: 'La prossima bolla', ritorno: 'Il prossimo ritorno', ordine: 'Il prossimo ordine' }
+const SERIES_LABELS = { bolla: 'Bolle', ritorno: 'Ritorni', ordine: 'Ordini', conta: 'Conte' }
+const SERIES_NEXT = { bolla: 'La prossima bolla', ritorno: 'Il prossimo ritorno', ordine: 'Il prossimo ordine', conta: 'La prossima conta' }
 const DEVICE_KEY = 'desimone-os:dispositivo'
 const TABS = {
   azienda: 'tab-company', iva: 'tab-vat', numerazione: 'tab-counters', utenti: 'tab-users',
