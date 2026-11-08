@@ -1,5 +1,5 @@
 // js/semilavorato.js
-import { requireAuth, getMyRole, getRawCategories, getRawItems, getRawCodeRules, signOut } from './supabase.js'
+import { requireAuth, getMyRole, getRawCategories, getRawItems, getRawCodeRules, getCorals, createRawCategory, signOut } from './supabase.js'
 import { stockLabel, showToast } from './utils.js'
 import { initFilters } from './filters.js'
 import { openRawItemModal } from './raw-form.js'
@@ -11,19 +11,21 @@ window.signOutUser = signOut
 let allItems      = []
 let allCategories = []
 let rules = { shapes: [], groups: [], variants: [] }   // regole dei codici (raw_shapes, raw_code_groups, raw_variants)
+let corals = []   // i coralli delle Anagrafiche (042)
 let loaded = false   // regole e categorie arrivate: prima "Nuovo pezzo" non apre la finestra
 let currentCategoryId  = null
 let isAdmin = false
 
 // Filtri per campo (barra sopra gli articoli, vedi filters.js)
 const distinct = (items, get) => [...new Set(items.map(get).filter(Boolean))]
+const esc = v => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 const FILTER_FIELDS = [
   { key: 'shape', label: 'Forma', all: 'Tutte', options: items => distinct(items, i => i.raw_shapes?.name).map(v => [v, v]), test: (i, v) => i.raw_shapes?.name === v },
   { key: 'tall', label: 'Alta', all: 'Tutte', options: () => [['si', 'Alte'], ['no', 'Non alte']], test: (i, v) => !!i.is_tall === (v === 'si') },
   { key: 'quality', label: 'Qualità', all: 'Tutte', options: items => distinct(items, i => i.quality).map(v => [v, v]), test: (i, v) => i.quality === v },
   { key: 'finish', label: 'Finitura', all: 'Tutte', options: items => distinct(items, i => i.finish).map(v => [v, v]), test: (i, v) => i.finish === v },
   { key: 'size', label: 'Misura', range: true, unit: 'mm', value: i => { const n = i.size_from_mm ?? i.base_mm; return n === null || n === undefined ? null : Number(n) } },
-  { key: 'color', label: 'Colore', options: items => distinct(items, i => i.color).map(v => [v, v]), test: (i, v) => i.color === v },
+  { key: 'coral', label: 'Corallo', options: items => distinct(items, i => i.coral?.name).map(v => [v, v]), test: (i, v) => i.coral?.name === v },
   { key: 'stock', label: 'Disponibilità',
     options: () => [['si', 'Disponibili'], ['no', 'Esauriti']],
     test: (i, v) => (i.stock > 0 || i.stock_grams > 0) === (v === 'si') },
@@ -37,7 +39,7 @@ async function init() {
   isAdmin = (await getMyRole()) === 'admin'
   filters = initFilters({
     fields: FILTER_FIELDS,
-    text: i => [i.sku, i.description, i.size, i.color, i.quality, i.finish, (i.variants || []).join(' '), i.raw_shapes?.name, i.raw_categories?.name, i.notes].join('\n'),
+    text: i => [i.sku, i.description, i.size, i.coral?.name, i.quality, i.finish, (i.variants || []).join(' '), i.raw_shapes?.name, i.raw_categories?.name, i.notes].join('\n'),
     onChange: () => renderCurrent(),
   })
 
@@ -48,7 +50,7 @@ async function init() {
   })
   setupListeners()
 
-  rules = await getRawCodeRules()
+  ;[rules, corals] = await Promise.all([getRawCodeRules(), getCorals()])
   await refresh()
   loaded = true
 }
@@ -81,10 +83,10 @@ function renderCategoryItem(c, isActive) {
   const colors = { pallini: '#E8A898', spole: '#C9A84C', navette: '#B8B4AE' }
   const color  = colors[c.slug] || '#C94030'
   return `
-    <div data-category-id="${c.id}" data-category-name="${c.name}"
+    <div data-category-id="${c.id}" data-category-name="${esc(c.name)}"
          class="collection-item${isActive ? ' active' : ''}">
       <div class="collection-dot" style="background:${color};"></div>
-      <span class="collection-name">${c.name}</span>
+      <span class="collection-name">${esc(c.name)}</span>
       <span class="collection-count">${count}</span>
     </div>`
 }
@@ -137,7 +139,8 @@ function renderGrid(items) {
   }
 
   grid.innerHTML = items.map((item, i) => {
-    const catName    = item.raw_categories?.name || '—'
+    const catName    = esc(item.raw_categories?.name || '—')
+    const sizeText   = esc(item.size || item.description || '—')   // con il codice a mano la misura sta nella descrizione
     // Giacenza: somma dei movimenti (getRawItems), nell'unità del semilavorato (REQ-U-03)
     const byGrams    = item.unit === 'grammi'
     const amount     = byGrams ? item.stock_grams : item.stock
@@ -147,7 +150,7 @@ function renderGrid(items) {
 
     return `
       <div class="raw-item-card" data-item-id="${item.id}" role="listitem" tabindex="0" title="${(item.description || '').replace(/"/g, '&quot;')}"
-           style="animation-delay:${Math.min(i, 12) * 0.04}s" aria-label="${catName} ${item.size || ''} — ${stockLabel(item)}">
+           style="animation-delay:${Math.min(i, 12) * 0.04}s" aria-label="${catName} ${sizeText} — ${stockLabel(item)}">
 
         ${item.cover_url
           ? `<div style="aspect-ratio:4/3;overflow:hidden;border-radius:3px;margin:-16px -16px 0;">
@@ -160,7 +163,7 @@ function renderGrid(items) {
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
         </button>
         <div style="font-family:var(--mono);font-size:10px;color:var(--text-muted);margin-bottom:4px;">${item.sku || 'N/D'}</div>
-        <div class="raw-item-size">${item.size || '—'}</div>
+        <div class="raw-item-size">${sizeText}</div>
 
         <div class="raw-item-badges">
           ${item.raw_shapes?.name ? `<span class="raw-badge">${item.raw_shapes.name}</span>` : ''}
@@ -168,7 +171,7 @@ function renderGrid(items) {
           ${item.quality ? `<span class="raw-badge ${getQualityClass(item.quality)}">${item.quality}</span>` : ''}
           ${item.finish  ? `<span class="raw-badge quality-top">${item.finish}</span>` : ''}
           ${(item.variants || []).map(v => `<span class="raw-badge">${v}</span>`).join('')}
-          ${item.color   ? `<span class="raw-badge ${getColorClass(item.color)}">${item.color}</span>`     : ''}
+          ${item.coral   ? `<span class="raw-badge ${getColorClass(item.coral.name)}">${esc(item.coral.name)}</span>` : ''}
         </div>
 
         <div class="raw-item-stock-row">
@@ -192,7 +195,7 @@ function renderGrid(items) {
       e.stopPropagation()
       const card = btn.closest('.raw-item-card')
       const item = allItems.find(x => x.id === card.dataset.itemId)
-      if (item) openRawItemModal({ item, categories: allCategories, rules, isAdmin, onSuccess: refresh })
+      if (item) openRawItemModal({ item, categories: allCategories, rules, corals, isAdmin, onSuccess: refresh })
     })
   })
 
@@ -253,7 +256,22 @@ function setupListeners() {
   document.getElementById('btnNewItem').addEventListener('click', () => {
     // La finestra ha bisogno delle regole del codice e delle categorie: finché non sono arrivate, lo si dice
     if (!loaded) return showToast('Un attimo: sto caricando i semilavorati')
-    openRawItemModal({ categories: allCategories, rules, defaultCategoryId: currentCategoryId, onSuccess: refresh })
+    openRawItemModal({ categories: allCategories, rules, corals, defaultCategoryId: currentCategoryId, isAdmin, onSuccess: refresh })
+  })
+
+  // Un tipo nuovo è una forma nuova data al corallo: lo crea l'amministrazione, senza SQL (RS-07)
+  document.getElementById('btnNewType').parentElement.hidden = !isAdmin
+  document.getElementById('btnNewType').addEventListener('click', async () => {
+    const name = prompt('Nome del nuovo tipo, per esempio Sfere:')
+    if (name === null) return
+    try {
+      const type = await createRawCategory(name)
+      await refresh()
+      showToast(`Tipo ${type.name} creato. Per i suoi articoli scrivi il codice a mano`, 5000)
+    } catch (err) {
+      console.error(err)
+      showToast(err.message, 6000)
+    }
   })
 
   const btnArchived = document.getElementById('btnArchived')

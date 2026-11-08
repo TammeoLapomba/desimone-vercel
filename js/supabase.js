@@ -442,7 +442,7 @@ export async function getRawItems(categoryId = null) {
   for (let from = 0; ; from += PAGE) {
     let query = supabase
       .from('raw_items')
-      .select('*, raw_categories(name, slug), raw_shapes(name, slug)')
+      .select('*, raw_categories(name, slug), raw_shapes(name, slug), coral:materials(id, name)')
       .is('deleted_at', null)
       .order('created_at', { ascending: false })
       .order('id')
@@ -486,14 +486,29 @@ export async function previewRawItem(f) {
   return data
 }
 
-export async function insertRawCategory(fields) {
-  const { data, error } = await supabase
-    .from('raw_categories')
-    .insert(fields)
-    .select()
-    .single()
+// Un tipo nuovo: solo l'amministrazione (042, RS-07)
+export async function createRawCategory(name) {
+  const { data, error } = await supabase.rpc('create_raw_category', { p_name: name })
   if (error) throw error
   return data
+}
+
+// I coralli delle Anagrafiche, per il campo Corallo di un semilavorato (042, RS-09). Anche gli archiviati, per chi li ha già
+export async function getCorals() {
+  const { data, error } = await supabase
+    .from('materials')
+    .select('id, name, active')
+    .eq('has_color', true)
+    .order('name')
+  if (error) throw error
+  return data
+}
+
+// Dopo il primo movimento l'unità di misura non si cambia più (022)
+export async function hasRawMovements(rawItemId) {
+  const { data, error } = await supabase.from('movements').select('id').eq('raw_item_id', rawItemId).limit(1)
+  if (error) throw error
+  return data.length > 0
 }
 
 export async function insertRawItem(fields) {
@@ -616,7 +631,7 @@ export async function getMovableItems() {
       .select('id, sku, code_confirmed_at, name, price_retail, measurements, collection_id, collections(name), product_type:product_types(name), article_materials(material:materials(name))')
       .is('deleted_at', null).order('id')),
     selectAll(() => supabase.from('raw_items')
-      .select('id, sku, code_confirmed_at, description, size, quality, color, unit, category_id, raw_categories(name), raw_shapes(name)')
+      .select('id, sku, code_confirmed_at, description, size, quality, unit, category_id, raw_categories(name), raw_shapes(name)')
       .is('deleted_at', null).order('id')),
   ])
   return { articles, raw }

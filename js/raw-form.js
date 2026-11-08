@@ -1,7 +1,8 @@
-// js/raw-form.js — Modale inserimento/modifica semilavorato (pallini, spole)
-// Il codice non si scrive: si sceglie tipo, forma, qualità, finitura, misura e varianti, e il database
+// js/raw-form.js — Modale inserimento/modifica semilavorato: è sempre corallo lavorato (scheda 2.3)
+// Di solito il codice non si scrive: si sceglie tipo, forma, qualità, finitura, misura e varianti, e il database
 // lo compone con lo standard del cliente (raw_item_preview, vedi 019_semilavorato_codici.sql).
-import { insertRawItem, updateRawItem, getRawItemPhotos, previewRawItem, retirePreview, retireItem } from './supabase.js'
+// Per ciò che non ha regole l'amministrazione lo scrive a mano, con i controlli del database (042).
+import { insertRawItem, updateRawItem, getRawItemPhotos, previewRawItem, retirePreview, retireItem, findItemByCode, hasRawMovements } from './supabase.js'
 import { createGallery } from './gallery.js'
 import { showToast, debounce, stockLabel, confirmRetire, parseCm } from './utils.js'
 
@@ -10,6 +11,10 @@ let photoUploader = null
 
 const esc = v => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 const fmtNum = n => (n === null || n === undefined || n === '' ? '' : String(parseFloat(n)).replace('.', ','))
+const byName = (a, b) => a.name.localeCompare(b.name, 'it', { numeric: true })
+const CODE_FORMAT = /^[A-Z0-9]+(\.[A-Z0-9]+)*$/   // come il database (042)
+const UNITS = [['grammi', 'Grammi'], ['pezzi', 'Pezzi'], ['pezzi_grammi', 'Pezzi e grammi']]
+const hintStyle = 'font-family:var(--editorial);font-size:11px;color:var(--text-muted);margin-top:4px;display:block;'
 
 const SUFFIX_MM = `<span style="position:absolute;right:12px;font-family:var(--editorial);font-size:12px;color:var(--text-muted);">mm</span>`
 const SUFFIX_CM = `<span style="position:absolute;right:12px;font-family:var(--editorial);font-size:12px;color:var(--text-muted);">cm</span>`
@@ -26,7 +31,7 @@ const numField = (id, label, suffix, { required = false, value = '', hint = '', 
   </div>`
 
 // rules = { shapes, groups, variants } da getRawCodeRules()
-export function openRawItemModal({ item = null, categories = [], rules, defaultCategoryId = null, isAdmin = false, onSuccess }) {
+export function openRawItemModal({ item = null, categories = [], rules, corals = [], defaultCategoryId = null, isAdmin = false, onSuccess }) {
   onSuccessCallback = onSuccess
 
   // Rimuovi modale precedente
@@ -36,8 +41,10 @@ export function openRawItemModal({ item = null, categories = [], rules, defaultC
   const shapeOf = id => rules.shapes.find(s => s.id === id)
   const baseId = shape => shape.base_shape_id || shape.id
   const groupsOf = (shape, tall) => rules.groups.filter(g => g.shape_id === baseId(shape) && g.is_tall === !!tall)
-  const creatableShapes = categoryId => rules.shapes.filter(s => s.category_id === categoryId && s.creatable)
-  const types = categories.filter(c => creatableShapes(c.id).length)
+  const creatableShapes = categoryId => rules.shapes.filter(s => s.category_id === categoryId && s.creatable).sort(byName)
+  // L'amministrazione crea in ogni tipo, anche senza regole. Gli altri dove il codice si compone da solo
+  const types = (isAdmin ? [...categories] : categories.filter(c => creatableShapes(c.id).length)).sort(byName)
+  const handCoded = isEdit && !item.shape_id
 
   const root = document.getElementById('rawItemModalRoot')
   root.innerHTML = `
@@ -74,11 +81,34 @@ export function openRawItemModal({ item = null, categories = [], rules, defaultC
                 ${types.map(c => `<option value="${c.id}" ${c.id === defaultCategoryId ? 'selected' : ''}>${esc(c.name)}</option>`).join('')}
               </select>
             </div>
-            <div class="form-field">
+            <div class="form-field" id="rf_shape_field">
               <label class="field-label" for="rf_shape" id="rf_shape_label">Forma <span class="field-required">*</span></label>
               <select class="field-select" id="rf_shape"></select>
             </div>
           </div>
+          ${isAdmin ? `
+          <div class="form-row full">
+            <label style="display:flex;align-items:center;gap:8px;font-family:var(--editorial);font-size:14px;cursor:pointer;">
+              <input type="checkbox" id="rf_manual"> Scrivo il codice a mano
+            </label>
+            <span style="${hintStyle}">Per ciò che non ha una regola. Solo l'amministrazione.</span>
+          </div>
+          <div id="rf_manual_fields" style="display:none;">
+            <div class="form-row full">
+              <div class="form-field">
+                <label class="field-label" for="rf_description">Descrizione <span class="field-required">*</span></label>
+                <input type="text" class="field-input" id="rf_description" maxlength="200" autocomplete="off" placeholder="Per esempio: Sfere corallo mm 8,5">
+              </div>
+            </div>
+            <div class="form-row full">
+              <div class="form-field">
+                <label class="field-label" for="rf_sku">Codice <span class="field-required">*</span></label>
+                <input type="text" class="field-input" id="rf_sku" maxlength="30" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Per esempio: 50.8.5" aria-describedby="rfSkuNote">
+                <div id="rfSkuNote" style="font-family:var(--editorial);font-size:12px;color:var(--text-muted);margin-top:6px;min-height:18px;" aria-live="polite"></div>
+              </div>
+            </div>
+          </div>` : ''}
+          <div id="rf_rule_fields">
           <div class="form-row full" id="rf_tall_row" style="display:none;">
             <label style="display:flex;align-items:center;gap:8px;font-family:var(--editorial);font-size:14px;cursor:pointer;">
               <input type="checkbox" id="rf_tall"> Alta
@@ -103,6 +133,7 @@ export function openRawItemModal({ item = null, categories = [], rules, defaultC
             <div id="rfCodeNote" style="font-family:var(--editorial);font-size:12px;color:var(--text-muted);margin-top:6px;min-height:18px;">
               Scegli forma, qualità e misura: il codice si compone da solo.
             </div>
+          </div>
           </div>`}
         </div>
 
@@ -110,26 +141,35 @@ export function openRawItemModal({ item = null, categories = [], rules, defaultC
         <div id="rstep2Content" style="display:none;">
           <div class="form-row">
             <div class="form-field">
-              <label class="field-label">Colore <span class="field-required">*</span></label>
-              <select class="field-input field-select" id="rf_color">
-                <option value="">Seleziona colore…</option>
-                ${['Corallo Rosso del Mediterraneo', 'Corallo Rosa', 'Corallo Sciacca', 'Corallo Bianco', 'Altro'].map(c =>
-                  `<option value="${c}" ${item?.color === c ? 'selected' : ''}>${c}</option>`
+              <label class="field-label" for="rf_coral">Corallo</label>
+              <select class="field-input field-select" id="rf_coral">
+                <option value="">Non indicato</option>
+                ${corals.filter(c => c.active || c.id === item?.coral_id).map(c =>
+                  `<option value="${c.id}" ${item?.coral_id === c.id ? 'selected' : ''}>${esc(c.name)}</option>`
                 ).join('')}
               </select>
             </div>
             <div class="form-field">
-              <label class="field-label">Giacenza</label>
+              <label class="field-label" for="rf_unit">Unità di misura</label>
+              <select class="field-input field-select" id="rf_unit" ${isEdit ? 'disabled' : ''} aria-describedby="rf_unit_hint">
+                ${UNITS.map(([v, label]) => `<option value="${v}" ${(item?.unit || 'pezzi_grammi') === v ? 'selected' : ''}>${label}</option>`).join('')}
+              </select>
+              <span id="rf_unit_hint" style="${hintStyle}">${isEdit ? '' : 'Si cambia finché non ci sono movimenti.'}</span>
+            </div>
+          </div>
+          <div class="form-row full">
+            <div class="form-field">
+              <label class="field-label" for="rf_stock">Giacenza</label>
               <input type="text" class="field-input" id="rf_stock" readonly
                      value="${isEdit ? stockLabel(item) : 'Si carica dai Movimenti'}"
-                     title="Somma dei movimenti: si cambia solo con un movimento (Carico iniziale, Nuova produzione…)">
+                     title="Somma dei movimenti: si cambia solo con un movimento">
             </div>
           </div>
           <div class="form-row full">
             <div class="form-field">
               <label class="field-label">Note interne</label>
               <textarea class="field-input field-textarea" id="rf_notes" rows="3"
-                        placeholder="Note per il magazzino o per i fornitori…">${esc(item?.notes || '')}</textarea>
+                        placeholder="Note per il magazzino…">${esc(item?.notes || '')}</textarea>
             </div>
           </div>
 
@@ -192,6 +232,49 @@ export function openRawItemModal({ item = null, categories = [], rules, defaultC
     category: categories.find(c => c.id === $('rf_type')?.value),
     tall: !!$('rf_tall')?.checked,
   })
+
+  const isManual = () => !!$('rf_manual')?.checked
+
+  // Codice a mano: restano tipo, descrizione e codice. I campi della regola non servono
+  function showManual() {
+    if (!$('rf_manual')) return
+    const manual = isManual()
+    $('rf_shape_field').style.display = manual ? 'none' : ''
+    $('rf_rule_fields').style.display = manual ? 'none' : ''
+    $('rf_manual_fields').style.display = manual ? '' : 'none'
+    updateNext()
+  }
+
+  let manualOk = false
+  let manualSeq = 0
+  function showManualNote(text, isError = false) {
+    const note = $('rfSkuNote')
+    note.textContent = text
+    note.style.color = isError ? 'var(--coral)' : 'var(--text-muted)'
+  }
+  const MANUAL_HINT = 'Solo lettere maiuscole, cifre e punti. Dal primo uso non cambia più.'
+
+  // Formato e doppioni li controlla anche il database: qui lo si dice mentre si scrive (RS-03)
+  async function checkManualCode() {
+    const code = $('rf_sku').value
+    const seq = ++manualSeq
+    manualOk = false
+    if (!code || code.endsWith('.')) showManualNote(MANUAL_HINT)
+    else if (!CODE_FORMAT.test(code)) showManualNote('Solo lettere maiuscole, cifre e punti, senza due punti di seguito.', true)
+    else {
+      try {
+        const found = await findItemByCode(code)
+        if (seq !== manualSeq) return
+        if (found) showManualNote(`Esiste già: ${found.code}${found.name ? ' — ' + found.name : ''}${found.archived ? ' (archiviato)' : ''}`, true)
+        else { manualOk = true; showManualNote(MANUAL_HINT) }
+      } catch (err) {
+        if (seq !== manualSeq) return
+        showManualNote(`Non riesco a controllare il codice: ${err.message}`, true)
+      }
+    }
+    updateNext()
+  }
+  const scheduleManualCheck = debounce(checkManualCode, 250)
 
   function fillShapes() {
     const shapes = creatableShapes($('rf_type').value)
@@ -343,19 +426,52 @@ export function openRawItemModal({ item = null, categories = [], rules, defaultC
   }
 
   if (!isEdit) {
-    $('rf_type').addEventListener('change', () => { fillShapes(); onShapeChange() })
+    $('rf_type').addEventListener('change', onTypeChange)
     $('rf_shape').addEventListener('change', onShapeChange)
     $('rf_tall').addEventListener('change', () => { fillQuality(); fillFinish(); refreshPreview() })
     $('rf_quality').addEventListener('change', () => { fillFinish(); refreshPreview() })
     $('rf_finish').addEventListener('change', refreshPreview)
-    fillShapes()
+    if ($('rf_manual')) {
+      $('rf_manual').addEventListener('change', showManual)
+      $('rf_description').addEventListener('input', updateNext)
+      $('rf_sku').addEventListener('input', () => {
+        const el = $('rf_sku')
+        const at = el.selectionStart
+        el.value = el.value.toUpperCase()
+        el.setSelectionRange(at, at)
+        manualOk = false
+        manualSeq++
+        updateNext()
+        scheduleManualCheck()
+      })
+      showManualNote(MANUAL_HINT)
+    }
     renderVariants()
-    onShapeChange()
+    onTypeChange()
+  } else if (handCoded) {
+    $('rf_description').addEventListener('input', updateNext)
+  }
+
+  // Un tipo senza regole si crea solo con il codice a mano
+  function onTypeChange() {
+    fillShapes()
+    const hasShapes = creatableShapes($('rf_type').value).length > 0
+    if ($('rf_manual')) {
+      if (!hasShapes) $('rf_manual').checked = true
+      $('rf_manual').disabled = !hasShapes
+      showManual()
+    }
+    if (hasShapes) onShapeChange()
   }
 
   // ─── Navigazione tra gli step ────────────────────────────────
 
-  function blockedOnStep1() { return !isEdit && step === 1 && (!preview || !!preview.existing) }
+  function blockedOnStep1() {
+    if (step !== 1) return false
+    if (isEdit) return handCoded && !$('rf_description').value.trim()
+    if (isManual()) return !manualOk || !$('rf_description').value.trim()
+    return !preview || !!preview.existing
+  }
 
   function updateNext() {
     const btn = $('rbtnNext')
@@ -379,7 +495,7 @@ export function openRawItemModal({ item = null, categories = [], rules, defaultC
   }
 
   function updateCardPreview() {
-    const color = $('rf_color').value || ''
+    const coral = $('rf_coral').value ? $('rf_coral').selectedOptions[0].text : ''
     const stock  = isEdit ? stockLabel(item) : '0'
     const amount = isEdit ? (item.unit === 'grammi' ? item.stock_grams : item.stock) : 0
 
@@ -387,8 +503,13 @@ export function openRawItemModal({ item = null, categories = [], rules, defaultC
     if (isEdit) {
       catName = item.raw_categories?.name || '—'
       sku = item.sku || '—'
-      sizeText = item.size || '—'
+      sizeText = item.size || $('rf_description')?.value.trim() || item.description || '—'
       badges = [item.raw_shapes?.name, item.is_tall ? 'Alta' : '', item.quality, item.finish, ...(item.variants || [])]
+    } else if (isManual()) {
+      catName = selected().category?.name || '—'
+      sku = $('rf_sku').value || '—'
+      sizeText = $('rf_description').value.trim() || '—'
+      badges = []
     } else {
       const { shape, category } = selected()
       const f = readFields()
@@ -397,7 +518,7 @@ export function openRawItemModal({ item = null, categories = [], rules, defaultC
       sizeText = preview?.size_label || '—'
       badges = [shape?.name, f.is_tall ? 'Alta' : '', f.quality, f.finish, ...f.variants]
     }
-    badges = [...badges.filter(Boolean), color].filter(Boolean)
+    badges = [...badges.filter(Boolean), coral].filter(Boolean)
 
     $('rfp_cat').textContent  = catName
     $('rfp_sku').textContent  = sku
@@ -409,17 +530,25 @@ export function openRawItemModal({ item = null, categories = [], rules, defaultC
     stockEl.style.color  = amount === 0 ? 'var(--coral)' : item?.unit !== 'grammi' && amount < 5 ? '#C9A84C' : 'var(--text-primary)'
   }
 
-  ;['rf_color'].forEach(id => {
-    $(id)?.addEventListener('input', updateCardPreview)
-    $(id)?.addEventListener('change', updateCardPreview)
-  })
+  $('rf_coral').addEventListener('change', updateCardPreview)
+
+  // L'unità si cambia finché non ci sono movimenti: dopo la rifiuta anche il database (022)
+  if (isEdit) {
+    hasRawMovements(item.id)
+      .then(used => {
+        $('rf_unit').disabled = used
+        $('rf_unit_hint').textContent = used ? 'Ha già movimenti: non si cambia più.' : 'Si cambia finché non ci sono movimenti.'
+      })
+      .catch(err => { $('rf_unit_hint').textContent = `Non riesco a controllare i movimenti: ${err.message}` })
+  }
 
   $('rbtnNext').addEventListener('click', async () => {
     if (step < 3) {
       if (blockedOnStep1()) return
       step++; updateStep()
     } else {
-      await submitRawItem(isEdit, item?.id, isEdit ? null : readFields())
+      const manualFields = () => ({ category_id: selected().category?.id, sku: $('rf_sku').value, description: $('rf_description').value.trim() })
+      await submitRawItem(isEdit, item?.id, isEdit ? null : isManual() ? manualFields() : readFields())
     }
   })
 
@@ -454,6 +583,7 @@ export function openRawItemModal({ item = null, categories = [], rules, defaultC
 }
 
 // Un articolo esistente non cambia codice: forma, qualità, misura e sigle si vedono ma non si modificano.
+// Con il codice a mano la descrizione non viene dai campi: si può correggere (RS-05).
 function renderReadOnlyIdentity(item, shape) {
   const rows = [
     ['Tipo', item.raw_categories?.name],
@@ -469,11 +599,18 @@ function renderReadOnlyIdentity(item, shape) {
     <div style="padding:14px 16px;background:var(--ivory);border:1px solid var(--ivory-dark);border-radius:4px;">
       <div class="field-label" style="margin-bottom:6px;">Codice</div>
       <div class="sku-preview">${esc(item.sku || '—')}</div>
-      ${item.description ? `<div style="font-family:var(--editorial);font-size:13px;color:var(--text-secondary);margin-top:8px;">${esc(item.description)}</div>` : ''}
+      ${item.shape_id && item.description ? `<div style="font-family:var(--editorial);font-size:13px;color:var(--text-secondary);margin-top:8px;">${esc(item.description)}</div>` : ''}
       <dl style="display:grid;grid-template-columns:auto 1fr;gap:4px 16px;margin:12px 0 0;font-family:var(--editorial);font-size:13px;">
         ${rows.map(([k, v]) => `<dt style="color:var(--text-muted);">${k}</dt><dd style="margin:0;">${esc(v)}</dd>`).join('')}
       </dl>
     </div>
+    ${item.shape_id ? '' : `
+    <div class="form-row full" style="margin-top:12px;">
+      <div class="form-field">
+        <label class="field-label" for="rf_description">Descrizione <span class="field-required">*</span></label>
+        <input type="text" class="field-input" id="rf_description" maxlength="200" autocomplete="off" value="${esc(item.description || '')}">
+      </div>
+    </div>`}
     <p style="font-family:var(--editorial);font-style:italic;font-size:12px;color:var(--text-muted);margin-top:12px;">
       Il codice non cambia mai. Per un'altra misura o qualità inserisci un nuovo articolo.
     </p>`
@@ -489,9 +626,12 @@ async function submitRawItem(isEdit, existingId, codeFields) {
 
   try {
     const details = {
-      color:   document.getElementById('rf_color').value || null,
-      notes:   document.getElementById('rf_notes').value.trim()   || null,
+      coral_id: document.getElementById('rf_coral').value || null,
+      notes:    document.getElementById('rf_notes').value.trim() || null,
     }
+    const unit = document.getElementById('rf_unit')
+    if (!unit.disabled) details.unit = unit.value
+    if (isEdit && document.getElementById('rf_description')) details.description = document.getElementById('rf_description').value.trim()
 
     let savedItem
     if (isEdit) {
