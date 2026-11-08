@@ -8,7 +8,9 @@
     { "source": "/registro", "destination": "/registro.html" },
     { "source": "/anagrafiche", "destination": "/anagrafiche.html" },
     { "source": "/impostazioni", "destination": "/impostazioni.html" },
-    { "source": "/conte", "destination": "/conte.html" }
+    { "source": "/conte", "destination": "/conte.html" },
+    { "source": "/catalog-scheda", "destination": "/catalog-scheda.html" },
+    { "source": "/semilavorato-scheda", "destination": "/semilavorato-scheda.html" }
   ],
   "headers": [
     {

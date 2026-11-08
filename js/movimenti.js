@@ -92,6 +92,8 @@ async function init() {
   if (preset && query.has('bozza')) restoreDraft()
   if (!state.device) openModal('deviceModal')
   else if (!preset) focusCode()
+  // Dalla scheda dell'articolo: "Correggi la giacenza" (scheda 2.4). Serve il dispositivo, per il codice della rettifica
+  else if (query.has('correggi') && state.operator.role === 'admin') openCorrect()
 }
 
 function block(message) {
@@ -747,7 +749,8 @@ function renderItemPanel() {
 
   $('itemPanel').className = ''
   $('itemPanel').innerHTML = `
-    <div class="mov-panel-item"><span class="mov-item-code">${esc(item.code)}</span> ${esc(item.name)}</div>
+    <div class="mov-panel-item"><span class="mov-item-code">${esc(item.code)}</span> ${esc(item.name)}
+      <a class="mov-link" href="/${item.kind === 'montato' ? 'catalog' : 'semilavorato'}-scheda.html?id=${encodeURIComponent(item.id)}">Apri la scheda</a></div>
     <h3 class="mov-panel-title">Dove si trova</h3>
     ${stockRows.length ? `
     <table class="mov-table">

@@ -1,0 +1,37 @@
+/* css/scheda.css — Le due schede dell'articolo: gioiello e semilavorato (scheda 2.4) */
+.sch-back { font-family: var(--editorial); font-size: 13px; color: var(--text-muted); text-decoration: none; }
+.sch-back:hover { color: var(--coral); }
+.sch-back:focus-visible { outline: 2px solid var(--coral); outline-offset: 2px; }
+.sch-layout {
+  display: grid;
+  grid-template-columns: minmax(260px, 340px) minmax(0, 1fr);
+  gap: 24px;
+  align-items: start;
+}
+.sch-layout[hidden] { display: none; }
+.sch-column { display: flex; flex-direction: column; gap: 24px; min-width: 0; }
+.sch-cover {
+  aspect-ratio: 1; background: var(--ivory); border-radius: 4px; overflow: hidden; margin-bottom: 14px;
+  display: flex; align-items: center; justify-content: center;
+  font-family: var(--editorial); font-size: 13px; color: var(--text-muted);
+}
+.sch-cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.sch-group { font-family: var(--editorial); font-size: 10px; letter-spacing: 3px; text-transform: uppercase; color: var(--coral); margin-bottom: 4px; }
+.sch-name { font-family: var(--editorial); font-size: 20px; font-weight: 400; line-height: 1.3; margin: 0 0 8px; overflow-wrap: anywhere; }
+.sch-archived { font-family: var(--editorial); font-size: 13px; font-weight: 600; color: var(--coral); margin: 0 0 8px; }
+.sch-code { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+.sch-code code { font-family: var(--mono); font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+.sch-code-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 16px; }
+.sch-actions { display: flex; flex-direction: column; gap: 8px; padding-top: 14px; border-top: 1px solid var(--ivory-dark); }
+.sch-actions > * { justify-content: center; text-align: center; }
+.sch-data { display: grid; grid-template-columns: auto minmax(0, 1fr); gap: 6px 20px; margin: 0; font-family: var(--editorial); font-size: 14px; }
+.sch-data dt { color: var(--text-muted); }
+.sch-data dd { margin: 0; overflow-wrap: anywhere; }
+.sch-values { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--ivory-dark); }
+.mov-table .is-cancelled td { color: var(--text-muted); text-decoration: line-through; }
+.mov-table .is-cancelled .mov-note { text-decoration: none; }
+.sch-column .mov-link { display: inline-block; margin-top: 10px; }
+@media (max-width: 1000px) {
+  .sch-layout { grid-template-columns: minmax(0, 1fr); }
+  .sch-cover { max-width: 320px; }
+}

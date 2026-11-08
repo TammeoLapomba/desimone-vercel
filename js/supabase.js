@@ -486,6 +486,37 @@ export async function previewRawItem(f) {
   return data
 }
 
+// La scheda di un gioiello (2.4): anche archiviato, che il database fa leggere a chi ha fatto l'accesso
+export async function getArticleCard(id) {
+  const { data, error } = await supabase
+    .from('articles')
+    .select(`*, collections(name), product_type:product_types(name), metal:metals(name),
+      article_materials(material_id, sort_order, pieces, carats, size_mm, size2_mm, size_mode, grams, material:materials(name)),
+      photos(public_url, is_cover, sort_order)`)
+    .eq('id', id)
+    .maybeSingle()
+  if (error) throw error
+  return data
+}
+
+// La scheda di un semilavorato (2.4)
+export async function getRawItemCard(id) {
+  const { data, error } = await supabase
+    .from('raw_items')
+    .select('*, raw_categories(name, slug), raw_shapes(name, slug), coral:materials(id, name), raw_photos(public_url, is_cover, sort_order)')
+    .eq('id', id)
+    .maybeSingle()
+  if (error) throw error
+  return data
+}
+
+// Le modifiche di un articolo, campo per campo: solo l'amministrazione (044, SC-06)
+export async function getItemChanges({ articleId = null, rawItemId = null, limit = 100 }) {
+  const { data, error } = await supabase.rpc('item_changes', { p_article_id: articleId, p_raw_item_id: rawItemId, p_limit: limit })
+  if (error) throw error
+  return data
+}
+
 // Un tipo nuovo: solo l'amministrazione (042, RS-07)
 export async function createRawCategory(name) {
   const { data, error } = await supabase.rpc('create_raw_category', { p_name: name })

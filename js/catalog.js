@@ -477,7 +477,8 @@ function openDetail(articleId) {
       ${a.stock_locations.map(l => detailRow(esc(l.name), l.pieces + ' pz')).join('')}
     </div>
     <div style="padding:16px 20px;border-top:1px solid var(--ivory-dark);display:flex;flex-direction:column;gap:8px;">
-      <a href="/article.html?id=${a.id}" class="btn-primary btn-success" style="text-align:center;justify-content:center;">Modifica articolo</a>
+      <a href="/catalog-scheda.html?id=${a.id}" class="btn-primary btn-success" style="text-align:center;justify-content:center;">Apri la scheda</a>
+      <a href="/article.html?id=${a.id}" class="btn-ghost" style="text-align:center;justify-content:center;">Modifica articolo</a>
       ${a.sku ? `<a href="/movimenti.html?codice=${encodeURIComponent(a.sku)}" class="btn-ghost" style="text-align:center;justify-content:center;">Movimenta</a>` : ''}
       ${isAdmin ? `<button type="button" class="btn-danger" id="btnDetailDelete" style="justify-content:center;">Archivia o elimina</button>` : ''}
     </div>`

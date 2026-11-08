@@ -199,6 +199,13 @@ function renderGrid(items) {
     })
   })
 
+  // Click sulla carta → scheda del semilavorato. I pulsanti della carta fanno da soli (stopPropagation)
+  grid.querySelectorAll('.raw-item-card').forEach(card => {
+    const open = () => { location.href = `/semilavorato-scheda.html?id=${encodeURIComponent(card.dataset.itemId)}` }
+    card.addEventListener('click', open)
+    card.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target === card) open() })
+  })
+
   // Click bottone movimenta → schermata Movimenti con l'articolo già scelto
   grid.querySelectorAll('.raw-movimento-btn').forEach(btn => {
     btn.addEventListener('click', e => {

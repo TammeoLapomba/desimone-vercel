@@ -1,4 +1,4 @@
-const CACHE_NAME = 'desimone-os-v52'
+const CACHE_NAME = 'desimone-os-v55'
 
 const SHELL_ASSETS = [
   '/catalog.html',
@@ -10,6 +10,8 @@ const SHELL_ASSETS = [
   '/anagrafiche.html',
   '/impostazioni.html',
   '/conte.html',
+  '/catalog-scheda.html',
+  '/semilavorato-scheda.html',
   '/login.html',
   '/config.js',
   '/css/variables.css',
@@ -20,6 +22,7 @@ const SHELL_ASSETS = [
   '/css/movimenti.css',
   '/css/scanner.css',
   '/css/giacenze.css',
+  '/css/scheda.css',
   '/css/registro.css',
   '/js/catalog.js',
   '/js/semilavorato.js',
@@ -36,6 +39,9 @@ const SHELL_ASSETS = [
   '/js/pwa.js',
   '/js/movimenti.js',
   '/js/conte.js',
+  '/js/scheda.js',
+  '/js/catalog-scheda.js',
+  '/js/semilavorato-scheda.js',
   '/js/scanner.js',
   '/js/vendor/jsQR-1.4.0.js',
   '/js/sede-client.js',

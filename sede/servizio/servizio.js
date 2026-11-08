@@ -356,7 +356,7 @@ const TYPES = {
 }
 // Cartelle del repository che non sono l'app: materiale privato e strumenti (come scripts/pubblica-codice.sh)
 const PRIVATE = ['docs', 'bilancia', 'old_software', 'inventory_data', 'supabase', 'sede', 'scripts', 'node_modules']
-const ROUTES = { '/': '/catalog.html', '/semilavorato': '/semilavorato.html', '/movimenti': '/movimenti.html', '/giacenze': '/giacenze.html', '/registro': '/registro.html', '/anagrafiche': '/anagrafiche.html', '/impostazioni': '/impostazioni.html', '/conte': '/conte.html' }
+const ROUTES = { '/': '/catalog.html', '/semilavorato': '/semilavorato.html', '/catalog-scheda': '/catalog-scheda.html', '/semilavorato-scheda': '/semilavorato-scheda.html', '/movimenti': '/movimenti.html', '/giacenze': '/giacenze.html', '/registro': '/registro.html', '/anagrafiche': '/anagrafiche.html', '/impostazioni': '/impostazioni.html', '/conte': '/conte.html' }
 
 function serveFile(req, res, file, cache, headers = {}) {
   fs.stat(file, (err, st) => {

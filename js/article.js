@@ -15,12 +15,13 @@ let materialPicker = null
 let metalWeight = null
 let isAdmin = false
 let backToMovements = false
+let backToCard = false
 
 // Dalla schermata di controllo si torna al carico, con il codice di adesso (CR11)
 function leave(code) {
   window.location.href = backToMovements
     ? `/movimenti.html?codice=${encodeURIComponent(code)}&bozza=1`
-    : '/catalog.html'
+    : backToCard ? `/catalog-scheda.html?id=${encodeURIComponent(articleId)}` : '/catalog.html'
 }
 
 // Provvisorio o definitivo, accanto al codice (decisione 10)
@@ -40,6 +41,7 @@ async function init() {
   const params = new URLSearchParams(window.location.search)
   articleId = params.get('id')
   backToMovements = params.get('torna') === 'movimenti'
+  backToCard = params.get('torna') === 'scheda'
   if (!articleId) {
     window.location.href = '/catalog.html'
     return
