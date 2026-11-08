@@ -147,18 +147,18 @@
           </div>
           <div class="form-field" id="f_metal_grams_field" hidden>
             <label class="field-label" for="f_metal_grams">Peso del metallo (g)</label>
-            <input type="text" class="field-input" id="f_metal_grams" inputmode="decimal" autocomplete="off">
+            <input type="text" class="field-input" id="f_metal_grams" inputmode="decimal" autocomplete="off" data-virgola>
             <span class="field-hint">Per il cartellino. Non cambia il peso totale.</span>
           </div>
         </div>
         <div class="form-row" style="margin-top:16px;">
           <div class="form-field">
             <label class="field-label">Prezzo retail (€) <span class="field-required">*</span></label>
-            <input type="number" class="field-input" id="f_price_retail" min="0" step="1">
+            <input type="text" class="field-input" id="f_price_retail" inputmode="decimal" autocomplete="off" data-virgola>
           </div>
           <div class="form-field">
             <label class="field-label">Prezzo ingrosso (€)</label>
-            <input type="number" class="field-input" id="f_price_wholesale" min="0" step="1">
+            <input type="text" class="field-input" id="f_price_wholesale" inputmode="decimal" autocomplete="off" data-virgola>
           </div>
         </div>
       </div>
@@ -174,7 +174,7 @@
           </div>
           <div class="form-field">
             <label class="field-label">Peso totale di un pezzo (g) <span class="field-required">*</span></label>
-            <input type="number" class="field-input" id="f_weight" min="0" step="0.1">
+            <input type="text" class="field-input" id="f_weight" inputmode="decimal" autocomplete="off" placeholder="0,0" data-virgola>
             <div class="field-hint">I movimenti pesano pezzi × questo peso. Senza, non si carica.</div>
           </div>
           <div class="form-field"></div>
@@ -182,15 +182,15 @@
         <div class="form-row triple" style="margin-top:16px;">
           <div class="form-field">
             <label class="field-label">Larghezza (cm)</label>
-            <input type="number" class="field-input" id="f_width">
+            <input type="text" class="field-input" id="f_width" inputmode="decimal" autocomplete="off" data-virgola>
           </div>
           <div class="form-field">
             <label class="field-label">Lunghezza (cm)</label>
-            <input type="number" class="field-input" id="f_length">
+            <input type="text" class="field-input" id="f_length" inputmode="decimal" autocomplete="off" data-virgola>
           </div>
           <div class="form-field">
             <label class="field-label">Altezza (cm)</label>
-            <input type="number" class="field-input" id="f_height">
+            <input type="text" class="field-input" id="f_height" inputmode="decimal" autocomplete="off" data-virgola>
           </div>
         </div>
       </div>
@@ -199,6 +199,7 @@
 </div>
 
 <script src="config.js"></script>
+<script src="js/bilancia/pesi.js"></script>
 <script type="module" src="js/article.js"></script>
 <script type="module" src="js/pwa.js"></script>
 </body>

@@ -3,13 +3,16 @@
 // che apre i campi, e i filtri attivi come etichette rimovibili.
 //
 // Ogni campo è una tendina:  { key, label, all?, options(items) → [[valore, etichetta]], test(item, valore) }
-// oppure un intervallo:      { key, label, range: true, unit, value(item) → numero }
-import { debounce } from './utils.js'
+// oppure un intervallo:      { key, label, range: true, unit, euro?, value(item) → numero }
+// euro: è un prezzo, si scrive con la regola del punto e della virgola (parseEuro). Le misure in mm restano campi numerici
+import { debounce, parseEuro } from './utils.js'
 
 const ICON_X = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'
 
 const esc = v => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;')
-const formatNum = n => n.toLocaleString('it-IT')
+const formatNum = n => n.toLocaleString('it-IT', { useGrouping: false })
+
+const rangeInput = (f, end, placeholder, label) => `<input ${f.euro ? 'type="text" autocomplete="off" data-virgola' : 'type="number" min="0"'} class="field-input" id="flt_${f.key}_${end}" inputmode="decimal" placeholder="${placeholder}" aria-label="${f.label} ${label}">`
 
 export function initFilters({ fields, text, onChange }) {
   const search = document.getElementById('searchInput')
@@ -23,22 +26,39 @@ export function initFilters({ fields, text, onChange }) {
   box.innerHTML = fields.map(f => f.range ? `
     <div class="filter-field filter-range" role="group" aria-labelledby="flt_${f.key}_label">
       <span class="filter-label" id="flt_${f.key}_label">${f.label}${f.unit ? ` (${f.unit})` : ''}</span>
-      <input type="number" class="field-input" id="flt_${f.key}_min" min="0" inputmode="decimal" placeholder="da" aria-label="${f.label} da">
+      ${rangeInput(f, 'min', 'da', 'da')}
       <span class="filter-range-sep" aria-hidden="true">–</span>
-      <input type="number" class="field-input" id="flt_${f.key}_max" min="0" inputmode="decimal" placeholder="a" aria-label="${f.label} fino a">
+      ${rangeInput(f, 'max', 'a', 'fino a')}
+      ${f.euro ? `<span class="field-error filter-error" id="flt_${f.key}_error" role="alert" hidden></span>` : ''}
     </div>` : `
     <div class="filter-field">
       <label class="filter-label" for="flt_${f.key}">${f.label}</label>
       <select class="field-input field-select" id="flt_${f.key}"><option value="">${f.all || 'Tutti'}</option></select>
     </div>`).join('')
 
-  const num = el => (el.value.trim() === '' || Number.isNaN(Number(el.value)) ? null : Number(el.value))
+  // Un estremo dell'intervallo, o null se è vuoto o non vale
+  function bound(f, end) {
+    const t = byId(`flt_${f.key}_${end}`).value.trim()
+    if (t === '') return null
+    if (f.euro) return parseEuro(t).value ?? null
+    return Number.isNaN(Number(t)) ? null : Number(t)
+  }
+
+  // Un prezzo che non vale non filtra: si dice perché
+  function showRangeErrors() {
+    for (const f of fields.filter(f => f.euro)) {
+      const failed = ['min', 'max'].map(end => byId(`flt_${f.key}_${end}`).value.trim()).filter(Boolean).map(parseEuro).find(p => !p.ok)
+      const box = byId(`flt_${f.key}_error`)
+      box.textContent = failed?.error || ''
+      box.hidden = !failed
+    }
+  }
 
   // Filtri attivi, letti dai campi
   function active() {
     return fields.map(f => {
       if (f.range) {
-        const min = num(byId(`flt_${f.key}_min`)), max = num(byId(`flt_${f.key}_max`))
+        const min = bound(f, 'min'), max = bound(f, 'max')
         return min === null && max === null ? null : { f, min, max }
       }
       const sel = byId(`flt_${f.key}`)
@@ -86,6 +106,7 @@ export function initFilters({ fields, text, onChange }) {
   }
 
   function update() {
+    showRangeErrors()
     renderChips()
     onChange()
   }

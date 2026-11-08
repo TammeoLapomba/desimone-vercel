@@ -43,7 +43,7 @@ const FILTER_FIELDS = [
   { key: 'stock', label: 'Disponibilità',
     options: () => [['si', 'Disponibili'], ['no', 'Esauriti']],
     test: (a, v) => (stockOf(a) > 0) === (v === 'si') },
-  { key: 'price', label: 'Prezzo', unit: '€', range: true, value: a => a.price_retail },
+  { key: 'price', label: 'Prezzo', unit: '€', range: true, euro: true, value: a => a.price_retail },
 ]
 let filters = null
 

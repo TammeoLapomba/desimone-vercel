@@ -1,9 +1,11 @@
 // js/article-form.js
 import { getCollections, insertCollection, getMaterials, getMetals, getProductTypes, createArticle, articleCodePreview } from './supabase.js'
-import { debounce, showToast, validateCollection } from './utils.js'
+import { debounce, showToast, validateCollection, readPrice, readCm } from './utils.js'
 import { initColorSelect } from './color-select.js'
 import { createGallery } from './gallery.js'
 import { initMaterialPicker, initMetalWeight } from './material-picker.js'
+
+const { validaPeso } = window.Pesi
 
 let collections = []
 let productTypes = []
@@ -151,39 +153,39 @@ function renderModal() {
             </div>
             <div class="form-field" id="f_metal_grams_field" hidden>
               <label class="field-label" for="f_metal_grams">Peso del metallo (g)</label>
-              <input type="text" class="field-input" id="f_metal_grams" inputmode="decimal" autocomplete="off">
+              <input type="text" class="field-input" id="f_metal_grams" inputmode="decimal" autocomplete="off" data-virgola>
               <span class="field-hint">Per il cartellino. Non cambia il peso totale.</span>
             </div>
           </div>
           <div class="form-row">
             <div class="form-field">
               <label class="field-label">Prezzo retail (€) <span class="field-required">*</span></label>
-              <input type="number" class="field-input" id="f_price_retail" placeholder="0" step="1" min="0">
+              <input type="text" class="field-input" id="f_price_retail" inputmode="decimal" autocomplete="off" placeholder="0" data-virgola>
             </div>
             <div class="form-field">
               <label class="field-label">Prezzo ingrosso (€)</label>
-              <input type="number" class="field-input" id="f_price_wholesale" placeholder="0" step="1" min="0">
+              <input type="text" class="field-input" id="f_price_wholesale" inputmode="decimal" autocomplete="off" placeholder="0" data-virgola>
             </div>
           </div>
           <div class="form-row">
             <div class="form-field">
               <label class="field-label">Peso totale di un pezzo (g) <span class="field-required">*</span></label>
-              <input type="number" class="field-input" id="f_weight" placeholder="0.0" step="0.1" min="0">
+              <input type="text" class="field-input" id="f_weight" inputmode="decimal" autocomplete="off" placeholder="0,0" data-virgola>
               <div class="field-hint">I movimenti pesano pezzi × questo peso.</div>
             </div>
           </div>
           <div class="form-row triple">
             <div class="form-field">
               <label class="field-label">Larghezza (cm)</label>
-              <input type="number" class="field-input" id="f_width" placeholder="—">
+              <input type="text" class="field-input" id="f_width" inputmode="decimal" autocomplete="off" placeholder="—" data-virgola>
             </div>
             <div class="form-field">
               <label class="field-label">Lunghezza (cm)</label>
-              <input type="number" class="field-input" id="f_length" placeholder="—">
+              <input type="text" class="field-input" id="f_length" inputmode="decimal" autocomplete="off" placeholder="—" data-virgola>
             </div>
             <div class="form-field">
               <label class="field-label">Altezza (cm)</label>
-              <input type="number" class="field-input" id="f_height" placeholder="—">
+              <input type="text" class="field-input" id="f_height" inputmode="decimal" autocomplete="off" placeholder="—" data-virgola>
             </div>
           </div>
           <div style="margin-top:8px;padding:10px 12px;background:var(--ivory);border-radius:3px;font-family:var(--mono);font-size:12px;color:var(--coral);" id="skuPreviewStep2"></div>
@@ -361,6 +363,18 @@ function setupFormListeners() {
     if (step > 1) { step--; updateStep() }
   })
 
+  // Prezzi e misure in cm dello step 2: { value } oppure { error, element }
+  function pricesAndSizes() {
+    const field = id => document.getElementById(id)
+    return {
+      retail: readPrice(field('f_price_retail'), 'Prezzo retail'),
+      wholesale: readPrice(field('f_price_wholesale'), 'Prezzo ingrosso'),
+      width: readCm(field('f_width'), 'Larghezza'),
+      length: readCm(field('f_length'), 'Lunghezza'),
+      height: readCm(field('f_height'), 'Altezza'),
+    }
+  }
+
   function validateStep(s) {
     if (s === 1) {
       if (isCollPanelOpen()) { showToast('Crea la nuova collezione o annulla prima di proseguire'); return false }
@@ -376,7 +390,12 @@ function setupFormListeners() {
       // Una lettera che manca blocca il salvataggio: meglio dirlo subito (CD-04)
       if (lastPreview?.missing) { showToast(lastPreview.missing, 6000); return false }
       if (!document.getElementById('f_price_retail').value) { showToast('Inserisci il prezzo retail'); return false }
-      if (!(Number(document.getElementById('f_weight').value) > 0)) { showToast('Inserisci il peso di un pezzo (g)'); return false }
+      for (const check of Object.values(pricesAndSizes())) {
+        if (check.error) { showToast(check.error, 5000); check.element.focus(); return false }
+      }
+      const weightInput = document.getElementById('f_weight')
+      const weight = validaPeso(weightInput.value)
+      if (!weight.ok) { showToast(`Peso di un pezzo: ${weight.error}`, 5000); weightInput.focus(); return false }
     }
     return true
   }
@@ -390,15 +409,12 @@ function setupFormListeners() {
       const { rows: materialRows } = materialPicker.read()
 
       // 1. L'articolo con i suoi materiali: il codice lo assegna il server (AC-09)
+      const { retail, wholesale, width, length, height } = pricesAndSizes()   // controllati allo step 2
       const measurements = {}
-      const w = document.getElementById('f_width').value
-      const l = document.getElementById('f_length').value
-      const h = document.getElementById('f_height').value
-      const wt = document.getElementById('f_weight').value
-      if (w) measurements.width_cm = Number(w)
-      if (l) measurements.length_cm = Number(l)
-      if (h) measurements.height_cm = Number(h)
-      if (wt) measurements.weight_g = Number(wt)
+      if (width.value) measurements.width_cm = width.value
+      if (length.value) measurements.length_cm = length.value
+      if (height.value) measurements.height_cm = height.value
+      measurements.weight_g = validaPeso(document.getElementById('f_weight').value).mg / 1000   // controllato allo step 2
 
       const article = await createArticle({
         collectionId: document.getElementById('f_collection').value,
@@ -406,8 +422,8 @@ function setupFormListeners() {
         name: titleInput.value.trim(),
         metalId: document.getElementById('f_metal').value || null,
         metalGrams: metalWeight.read().value,
-        priceRetail: Number(document.getElementById('f_price_retail').value) || null,
-        priceWholesale: Number(document.getElementById('f_price_wholesale').value) || null,
+        priceRetail: retail.value,
+        priceWholesale: wholesale.value,
         notes: document.getElementById('f_notes').value.trim() || null,
         measurements: Object.keys(measurements).length ? measurements : null
       }, materialRows)

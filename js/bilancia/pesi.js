@@ -80,5 +80,27 @@
     return { ok: true, mg }
   }
 
-  return { MG_PER_UNIT, parseDecimal, toMilligrams, formatGrams, validaPeso }
+  // "2.5" → "2,5" mentre si scrive: il punto vale come la virgola (REQ-U-06), ma a schermo c'è sempre la virgola
+  // (REQ-U-08). La stessa regola vale per il prezzo e le misure in cm (decisione di Matteo, 08/11/2026).
+  // Un carattere prende il posto di un altro: il cursore resta dov'era, anche a metà del numero.
+  function virgolaNelCampo (campo) {
+    if (!campo.value.includes('.')) return
+    const { selectionStart, selectionEnd } = campo
+    campo.value = campo.value.replace(/\./g, ',')
+    campo.setSelectionRange(selectionStart, selectionEnd)
+  }
+
+  // Basta l'attributo data-virgola su un campo di testo, anche disegnato dopo: righe delle conte, materiali, finestre.
+  // In cattura, così gli ascoltatori del campo leggono già la virgola. Mentre la tastiera del tablet sta componendo
+  // non si tocca il campo: cambiarlo a metà può far ripetere i caratteri. Si corregge quando ha finito.
+  function ascoltaCampiVirgola (pagina) {
+    const correggi = e => {
+      if (!e.isComposing && e.target.matches('input[data-virgola]')) virgolaNelCampo(e.target)
+    }
+    pagina.addEventListener('input', correggi, true)
+    pagina.addEventListener('compositionend', correggi, true)
+  }
+  if (typeof document !== 'undefined') ascoltaCampiVirgola(document)
+
+  return { MG_PER_UNIT, parseDecimal, toMilligrams, formatGrams, validaPeso, virgolaNelCampo, ascoltaCampiVirgola }
 })

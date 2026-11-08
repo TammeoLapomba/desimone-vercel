@@ -121,7 +121,7 @@
                 <div class="form-field" id="weightField">
                   <label class="field-label" for="weightInput" id="weightLabel">Peso (g)</label>
                   <div class="mov-weight-row" id="weightRow">
-                    <input class="field-input" id="weightInput" inputmode="decimal" autocomplete="off" placeholder="0,0" aria-describedby="weightHint">
+                    <input class="field-input" id="weightInput" inputmode="decimal" autocomplete="off" placeholder="0,0" aria-describedby="weightHint" data-virgola>
                     <button type="button" class="btn-ghost mov-scale-btn" id="btnScale">Leggi dalla bilancia</button>
                   </div>
                   <div class="field-hint" id="weightHint"></div>
@@ -162,7 +162,7 @@
               <div class="form-row full" id="priceField" hidden>
                 <div class="form-field">
                   <label class="field-label" for="priceInput">Prezzo di vendita, totale (€) <span class="field-required">*</span></label>
-                  <input class="field-input" id="priceInput" inputmode="decimal" autocomplete="off" placeholder="0,00" aria-describedby="priceHint">
+                  <input class="field-input" id="priceInput" inputmode="decimal" autocomplete="off" placeholder="0,00" aria-describedby="priceHint" data-virgola>
                   <div class="field-hint" id="priceHint"></div>
                 </div>
               </div>
@@ -249,7 +249,7 @@
         <label class="field" id="correctPiecesField"><span class="field-label">Pezzi contati</span>
           <input class="field-input" id="correctPieces" type="number" min="0" step="1" inputmode="numeric"></label>
         <label class="field" id="correctGramsField"><span class="field-label">Peso contato (g)</span>
-          <input class="field-input" id="correctGrams" inputmode="decimal" autocomplete="off"></label>
+          <input class="field-input" id="correctGrams" inputmode="decimal" autocomplete="off" placeholder="0,0" data-virgola></label>
         <button type="button" class="btn-ghost mov-scale-btn" id="btnCorrectScale" hidden>Leggi dalla bilancia</button>
       </div>
       <div class="mov-preview" id="correctPreview" aria-live="polite"></div>

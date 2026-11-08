@@ -5,7 +5,7 @@
 // lo storico. Il registro arriva al milione di movimenti: si legge dal più recente a pagine da 100 e i filtri li
 // applica il database (getMovements). Lo legge ogni operatore (movements_select): qui non si decide niente.
 import { requireAuth, signOut, getMyOperator, getMovementSetup, getMovements, findItemByCode } from './supabase.js'
-import { formatEuro } from './utils.js'
+import { formatEuro, gramsText } from './utils.js'
 import { initMobileNav } from './pwa.js'
 
 window.signOutUser = signOut
@@ -18,7 +18,6 @@ const FAMILY = 'famiglia:'
 const $ = id => document.getElementById(id)
 const esc = v => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 const num = (n, digits = 0) => Number(n).toLocaleString('it-IT', { minimumFractionDigits: digits, maximumFractionDigits: digits })
-const gramsText = g => `${num(g, 1)} g`     // al decimo di grammo (REQ-U-08)
 const when = d => new Date(d).toLocaleString('it-IT', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' })
 
 const state = {

@@ -1,10 +1,12 @@
 // js/article.js
 import { requireAuth, getMyRole, getCollections, getMaterials, getMetals, getProductTypes, getArticleById, getArticlePhotos, getItemStock, updateArticle, setArticleMaterials, retirePreview, retireItem, signOut } from './supabase.js'
-import { showToast, confirmRetire } from './utils.js'
+import { showToast, confirmRetire, formatDecimal, priceText, readPrice, readCm } from './utils.js'
 import { initMaterialPicker, initMetalWeight } from './material-picker.js'
 import { createGallery } from './gallery.js'
 
 window.signOutUser = signOut
+
+const { validaPeso } = window.Pesi
 
 let articleId = null
 let currentArticle = null
@@ -86,8 +88,8 @@ async function init() {
       metals,
       value: currentArticle.metal_grams
     })
-    document.getElementById('f_price_retail').value = currentArticle.price_retail || ''
-    document.getElementById('f_price_wholesale').value = currentArticle.price_wholesale || ''
+    document.getElementById('f_price_retail').value = currentArticle.price_retail ? priceText(currentArticle.price_retail) : ''
+    document.getElementById('f_price_wholesale').value = currentArticle.price_wholesale ? priceText(currentArticle.price_wholesale) : ''
 
     // Giacenza: somma dei movimenti in tutti i luoghi (REQ-001.1, C-01), si cambia solo dalla schermata Movimenti
     getItemStock({ articleId }).then(rows => {
@@ -96,10 +98,10 @@ async function init() {
     if (currentArticle.sku) document.getElementById('f_stock_link').href = `/movimenti.html?codice=${encodeURIComponent(currentArticle.sku)}`
     
     const meas = currentArticle.measurements || {}
-    document.getElementById('f_weight').value = meas.weight_g || ''
-    document.getElementById('f_width').value = meas.width_cm || ''
-    document.getElementById('f_length').value = meas.length_cm || ''
-    document.getElementById('f_height').value = meas.height_cm || ''
+    document.getElementById('f_weight').value = formatDecimal(meas.weight_g || null)
+    document.getElementById('f_width').value = formatDecimal(meas.width_cm || null)
+    document.getElementById('f_length').value = formatDecimal(meas.length_cm || null)
+    document.getElementById('f_height').value = formatDecimal(meas.height_cm || null)
 
     setupListeners()
   } catch (err) {
@@ -161,10 +163,22 @@ function setupListeners() {
     if (fromApp && !materialIds.length) return showToast('Aggiungi almeno un materiale')
     if (fromApp && !document.getElementById('f_price_retail').value) return showToast('Inserisci il prezzo retail')
     // Il peso del modello serve a ogni movimento (028): obbligatorio per tutti, anche per gli articoli del sito
-    if (!(Number(document.getElementById('f_weight').value) > 0)) return showToast('Inserisci il peso di un pezzo (g)')
+    const weightInput = document.getElementById('f_weight')
+    const weight = validaPeso(weightInput.value)
+    if (!weight.ok) {
+      showToast(`Peso di un pezzo: ${weight.error}`, 5000)
+      weightInput.focus()
+      return
+    }
     const materialCheck = materialPicker.read()
     const metalCheck = metalWeight.read()
-    for (const check of [materialCheck, metalCheck]) {
+    const field = id => document.getElementById(id)
+    const retail = readPrice(field('f_price_retail'), 'Prezzo retail')
+    const wholesale = readPrice(field('f_price_wholesale'), 'Prezzo ingrosso')
+    const width = readCm(field('f_width'), 'Larghezza')
+    const length = readCm(field('f_length'), 'Lunghezza')
+    const height = readCm(field('f_height'), 'Altezza')
+    for (const check of [materialCheck, metalCheck, retail, wholesale, width, length, height]) {
       if (check.error) {
         showToast(check.error, 5000)
         check.element.focus()
@@ -184,16 +198,12 @@ function setupListeners() {
     try {
       const typeSel = document.getElementById('f_type')
       const metalId = document.getElementById('f_metal').value || null
-      const l = document.getElementById('f_length').value
 
       const measurements = {}
-      const w = document.getElementById('f_width').value
-      const h = document.getElementById('f_height').value
-      const wt = document.getElementById('f_weight').value
-      if (w) measurements.width_cm = Number(w)
-      if (l) measurements.length_cm = Number(l)
-      if (h) measurements.height_cm = Number(h)
-      if (wt) measurements.weight_g = Number(wt)
+      if (width.value) measurements.width_cm = width.value
+      if (length.value) measurements.length_cm = length.value
+      if (height.value) measurements.height_cm = height.value
+      measurements.weight_g = weight.mg / 1000
 
       // Il codice non è tra i campi: lo tiene il database. Provvisorio segue i dati, definitivo non cambia più (AC-03)
       const updates = {
@@ -203,8 +213,8 @@ function setupListeners() {
         metal_id: metalId,
         metal_grams: metalCheck.value,
         notes: document.getElementById('f_notes').value.trim() || null,
-        price_retail: Number(document.getElementById('f_price_retail').value) || null,
-        price_wholesale: Number(document.getElementById('f_price_wholesale').value) || null,
+        price_retail: retail.value,
+        price_wholesale: wholesale.value,
         measurements: Object.keys(measurements).length ? measurements : null
       }
 

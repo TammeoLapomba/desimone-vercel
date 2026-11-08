@@ -224,7 +224,7 @@ function renderLines() {
         : l.pieces}</td>`
       const gramsValue = l.grams === null ? '' : Number(l.grams).toFixed(1).replace('.', ',')
       const grams = !showGrams ? '' : `<td class="num">${!hasGrams && !open ? '' : open && item.unit !== 'montato'
-        ? `<input class="field-input cnt-num" inputmode="decimal" data-line="${l.id}" data-field="grams" value="${esc(gramsValue)}" aria-label="Peso di ${esc(item.code)} in grammi"${l.weight_source === 'bilancia' ? ' readonly title="Dalla bilancia: cancella per scriverlo a mano"' : ''}>
+        ? `<input class="field-input cnt-num" inputmode="decimal" data-virgola data-line="${l.id}" data-field="grams" value="${esc(gramsValue)}" aria-label="Peso di ${esc(item.code)} in grammi"${l.weight_source === 'bilancia' ? ' readonly title="Dalla bilancia: cancella per scriverlo a mano"' : ''}>
            ${scaleUsable() ? `<button type="button" class="mov-link" data-scale="${l.id}">Bilancia</button>` : ''}
            ${l.weight_source === 'bilancia' ? '<div class="mov-note">dalla bilancia</div>' : ''}`
         : l.grams !== null ? gramsText(l.grams) : ''}</td>`

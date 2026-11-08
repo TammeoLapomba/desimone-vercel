@@ -1,26 +1,40 @@
 // js/utils.js
 
+// Un prezzo nel suo campo e negli elenchi: 1250 → "1250", 120.5 → "120,50". Mai il punto delle migliaia
+export function priceText(amount) {
+  const n = Number(amount)
+  return n.toLocaleString('it-IT', { minimumFractionDigits: Number.isInteger(n) ? 0 : 2, maximumFractionDigits: 2, useGrouping: false })
+}
+
 export function formatPrice(amount, currency = '€') {
   if (!amount) return '—'
-  return `${currency} ${Number(amount).toLocaleString('it-IT', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`
+  return `${currency} ${priceText(amount)}`
 }
 
-// Importo al centesimo: 240.5 → "240,50 €"
+// Importo al centesimo: 240.5 → "240,50 €". Mai il punto delle migliaia
 export function formatEuro(amount) {
-  return Number(amount).toLocaleString('it-IT', { style: 'currency', currency: 'EUR' })
+  return Number(amount).toLocaleString('it-IT', { style: 'currency', currency: 'EUR', useGrouping: false })
 }
 
-// Importo scritto a mano, all'italiana: "240", "240,50", "240.50", "1.250", "1.250,50" (punto delle migliaia).
-// Risponde { ok, value } oppure { ok: false, error }.
+// Importo scritto a mano: "240", "240,50", "240.50". Il punto vale come la virgola e non separa mai le migliaia:
+// "1.250" si rifiuta, non diventa né 1250 né 1,25 (decisione di Matteo, 08/11/2026). Al centesimo e sotto i 100
+// milioni, come numeric(10,2) nel database. Risponde { ok, value } oppure { ok: false, error }.
 export function parseEuro(text) {
-  const t = String(text ?? '').replace(/€|\s/g, '')
-  let normalized = null
-  if (/^\d{1,3}(\.\d{3})+(,\d{1,2})?$/.test(t)) normalized = t.replace(/\./g, '').replace(',', '.')
-  else if (/^\d+([.,]\d{1,2})?$/.test(t)) normalized = t.replace(',', '.')
-  if (normalized === null) return { ok: false, error: 'Prezzo non valido: per esempio 120 oppure 120,50.' }
-  const value = Number(normalized)
+  const t = String(text ?? '').replace('€', '').trim()
+  if ((t.match(/[.,]/g) || []).length > 1) return { ok: false, error: 'Un solo separatore decimale: "1.250,50" non vale, scrivi "1250,50".' }
+  if (/[.,]\d{3,}$/.test(t)) return { ok: false, error: 'Al massimo 2 decimali, e il punto non separa le migliaia: per 1250 € scrivi "1250".' }
+  if (!/^\d+([.,]\d{1,2})?$/.test(t)) return { ok: false, error: 'Scrivi un importo, per esempio 120 oppure 120,50.' }
+  const value = Number(t.replace(',', '.'))
   if (!(value > 0)) return { ok: false, error: 'Il prezzo deve essere maggiore di zero.' }
+  if (value >= 1e8) return { ok: false, error: 'Prezzo troppo alto: al massimo 99999999,99.' }
   return { ok: true, value }
+}
+
+// Un campo di prezzo al salvataggio: vuoto vale null. { value } oppure { error, element }
+export function readPrice(element, label) {
+  if (!element.value.trim()) return { value: null }
+  const parsed = parseEuro(element.value)
+  return parsed.ok ? { value: parsed.value } : { error: `${label}: ${parsed.error}`, element }
 }
 
 // La copertina: il database ne garantisce una per articolo (039). Senza, la prima nell'ordine
@@ -69,6 +83,19 @@ export function parseDecimal(text, decimals, max) {
   if (!new RegExp(`^\\d+${decimals ? `([.,]\\d{1,${decimals}})?` : ''}$`).test(t)) return { ok: false }
   const value = Number(t.replace(',', '.'))
   return value > 0 && value < max ? { ok: true, value } : { ok: false }
+}
+
+// Misura in cm scritta a mano: al decimo, come la lunghezza dei semilavorati (numeric(6,1)). Vuoto vale null.
+// { ok, value } oppure { ok: false, error }
+export function parseCm(text) {
+  const parsed = parseDecimal(text, 1, 100000)
+  return parsed.ok ? parsed : { ok: false, error: 'scrivi un numero maggiore di zero, con al massimo un decimale: per esempio 2,5. Il punto non separa le migliaia.' }
+}
+
+// Un campo in cm al salvataggio. { value } oppure { error, element }
+export function readCm(element, label) {
+  const parsed = parseCm(element.value)
+  return parsed.ok ? { value: parsed.value } : { error: `${label}: ${parsed.error}`, element }
 }
 
 // 0.035 → "0,035"; vuoto se non c'è
@@ -166,10 +193,15 @@ export function confirmRetire(item, preview) {
       'Sparisce dalle liste. Restano codice, foto e storico dei movimenti, e si può riattivare da "Archiviati".\n\nVuoi procedere?')
 }
 
+// 12500.5 → "12500,5 g": al decimo di grammo, con la virgola e mai il punto delle migliaia (REQ-U-05, U-08)
+export function gramsText(grams) {
+  return `${Number(grams).toLocaleString('it-IT', { minimumFractionDigits: 1, maximumFractionDigits: 1, useGrouping: false })} g`
+}
+
 // Giacenza di un articolo come la mostrano le pagine dell'inventario (stock e stock_grams da getArticles o
 // getRawItems, somma dei movimenti): nell'unità del semilavorato (REQ-U-03), peso al decimo di grammo (REQ-U-08)
 export function stockLabel(item) {
-  const grams = `${Number(item.stock_grams || 0).toLocaleString('it-IT', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} g`
+  const grams = gramsText(item.stock_grams || 0)
   if (item.unit === 'grammi') return grams
   if (item.unit === 'pezzi_grammi') return `${item.stock || 0} pz · ${grams}`
   return `${item.stock || 0} pz`

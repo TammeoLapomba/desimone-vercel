@@ -223,10 +223,10 @@
   .filter-field { flex-direction: column; align-items: stretch; gap: 4px; }
   .filter-field .field-select { max-width: none; }
   .filter-field .field-select,
-  .filter-field .field-input[type="number"] { font-size: 16px; min-height: 44px; }
+  .filter-range .field-input { font-size: 16px; min-height: 44px; }
   .filter-range { grid-column: 1 / -1; flex-direction: row; flex-wrap: wrap; align-items: center; }
   .filter-range .filter-label { flex-basis: 100%; }
-  .filter-range .field-input[type="number"] { flex: 1; width: auto; min-width: 0; }
+  .filter-range .field-input { flex: 1; width: auto; min-width: 0; }
 }
 
 @media (min-width: 769px) {

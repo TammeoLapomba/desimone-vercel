@@ -8,7 +8,7 @@
 import {
   requireAuth, signOut, getMyOperator, getMovementSetup, getStockOverview, IN_SEDE, getBackupStatus,
 } from './supabase.js'
-import { showToast } from './utils.js'
+import { showToast, gramsText } from './utils.js'
 import { initMobileNav } from './pwa.js'
 
 window.signOutUser = signOut
@@ -18,8 +18,7 @@ const ROLE_LABELS = { admin: 'Amministrazione', laboratorio: 'Laboratorio', nego
 const $ = id => document.getElementById(id)
 const esc = v => String(v ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')
 const num = (n, digits = 0) => Number(n).toLocaleString('it-IT', { minimumFractionDigits: digits, maximumFractionDigits: digits })
-const euro = n => `€ ${num(n, 2)}`
-const gramsText = g => `${num(g, 1)} g`     // al decimo di grammo (REQ-U-08)
+const euro = n => `€ ${Number(n).toLocaleString('it-IT', { minimumFractionDigits: 2, maximumFractionDigits: 2, useGrouping: false })}`   // mai il punto delle migliaia
 const articles = n => `${num(n)} ${n === 1 ? 'articolo' : 'articoli'}`
 
 const state = {

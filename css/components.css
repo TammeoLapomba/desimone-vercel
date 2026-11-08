@@ -370,7 +370,9 @@
   white-space: nowrap;
 }
 .filter-field .field-select { padding: 6px 30px 6px 10px; font-size: 13px; max-width: 220px; }
-.filter-field .field-input[type="number"] { width: 84px; padding: 6px 10px; font-size: 13px; }
+.filter-range .field-input { width: 84px; padding: 6px 10px; font-size: 13px; }
+.filter-range { flex-wrap: wrap; }
+.filter-error { flex-basis: 100%; }
 .filter-range-sep { color: var(--text-muted); }
 
 .filter-chips { display: contents; }
@@ -812,6 +814,7 @@
   letter-spacing: 0.5px;
   vertical-align: middle;
 }
+.code-tag[hidden] { display: none; }
 .code-similar {
   margin-top: 8px;
   padding: 10px 12px;
@@ -881,7 +884,7 @@
 .gal-hint[hidden], .gal-add[hidden] { display: none; }
 .gal-add { margin-top: 12px; display: flex; flex-direction: column; gap: 10px; }
 .gal-status { font-family: var(--editorial); font-size: 12px; color: var(--text-muted); min-height: 16px; margin-top: 8px; }
-.gal-lightbox { border: none; padding: 0; background: transparent; max-width: 96vw; max-height: 96vh; overflow: visible; }
+.gal-lightbox { margin: auto; border: none; padding: 0; background: transparent; max-width: 96vw; max-height: 96vh; overflow: visible; }
 .gal-lightbox::backdrop { background: rgba(26,24,20,0.88); }
 .gal-lightbox img { display: block; max-width: 92vw; max-height: 90vh; object-fit: contain; }
 .gal-lightbox .gal-btn { position: fixed; width: 40px; height: 40px; font-size: 22px; }
