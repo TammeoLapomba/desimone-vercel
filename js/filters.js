@@ -1,10 +1,11 @@
-// js/filters.js — Ricerca e filtri per campo sopra l'elenco (Montato e Semilavorato)
+// js/filters.js — Ricerca e filtri per campo sopra l'elenco (Montato, Semilavorato, Movimenti, Giacenze)
 // Sul modello della barra filtri dell'inventario di maat: ricerca, tasto "Filtri"
 // che apre i campi, e i filtri attivi come etichette rimovibili.
 //
 // Ogni campo è una tendina:  { key, label, all?, options(items) → [[valore, etichetta]], test(item, valore) }
 // oppure un intervallo:      { key, label, range: true, unit, euro?, value(item) → numero }
 // euro: è un prezzo, si scrive con la regola del punto e della virgola (parseEuro). Le misure in mm restano campi numerici
+// remember: un nome per ritrovare le tendine tornando indietro da un'altra pagina
 import { debounce, parseEuro } from './utils.js'
 
 const ICON_X = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>'
@@ -14,7 +15,7 @@ const formatNum = n => n.toLocaleString('it-IT', { useGrouping: false })
 
 const rangeInput = (f, end, placeholder, label) => `<input ${f.euro ? 'type="text" autocomplete="off" data-virgola' : 'type="number" min="0"'} class="field-input" id="flt_${f.key}_${end}" inputmode="decimal" placeholder="${placeholder}" aria-label="${f.label} ${label}">`
 
-export function initFilters({ fields, text, onChange }) {
+export function initFilters({ fields, text, onChange, remember }) {
   const search = document.getElementById('searchInput')
   const toggle = document.getElementById('btnFilters')
   const box = document.getElementById('filterFields')
@@ -108,7 +109,30 @@ export function initFilters({ fields, text, onChange }) {
   function update() {
     showRangeErrors()
     renderChips()
+    saveChoices()
     onChange()
+  }
+
+  // Tornando indietro il browser rimette la ricerca e i controlli fissi, non le tendine: le loro voci nascono dopo
+  const storageKey = `desimone-os:filtri:${remember}`
+
+  function saveChoices() {
+    if (!remember) return
+    const choices = fields.filter(f => !f.range).map(f => byId(`flt_${f.key}`)).filter(sel => sel.value)
+      .map(sel => [sel.id, sel.value, sel.selectedOptions[0]?.textContent || sel.value])
+    try { sessionStorage.setItem(storageKey, JSON.stringify(choices)) } catch { /* storage non disponibile */ }
+  }
+
+  function restoreChoices() {
+    if (!remember || performance.getEntriesByType('navigation')[0]?.type !== 'back_forward') return
+    let choices = []
+    try { choices = JSON.parse(sessionStorage.getItem(storageKey)) || [] } catch { /* storage non disponibile */ }
+    for (const [id, value, label] of choices) {
+      const sel = byId(id)
+      if (!sel) continue
+      sel.add(new Option(label, value))
+      sel.value = value
+    }
   }
 
   function reset() {
@@ -142,13 +166,35 @@ export function initFilters({ fields, text, onChange }) {
     ;(chipsBox.querySelector(`[data-chip="${i}"]`) || chipsBox.querySelector(`[data-chip="${i - 1}"]`) || search).focus()
   })
 
+  restoreChoices()
+
   return {
-    // Elementi che passano ricerca e filtri
+    // Elementi che passano ricerca e filtri. Ogni parola cercata deve esserci, in qualsiasi ordine (scheda 2.5):
+    // i nomi dei semilavorati vengono dall'azienda, e "pallini mm 11" ha altre parole in mezzo
     apply(items) {
-      const q = search.value.toLowerCase().trim()
+      const words = search.value.toLowerCase().split(/\s+/).filter(Boolean)
       const act = active()
-      return items.filter(item =>
-        (!q || text(item).toLowerCase().includes(q)) && act.every(c => passes(c, item)))
+      return items.filter(item => {
+        if (!act.every(c => passes(c, item))) return false
+        if (!words.length) return true
+        const haystack = text(item).toLowerCase()
+        return words.every(w => haystack.includes(w))
+      })
+    },
+    // Ciò che si sta filtrando, a parole: la ricerca e le etichette dei filtri attivi
+    labels() {
+      const q = search.value.trim()
+      return [...(q ? [`“${q}”`] : []), ...active().map(chipLabel)]
+    },
+    // I campi che non valgono per ciò che si guarda non si vedono, e il loro filtro si toglie
+    showFields(isShown) {
+      for (const f of fields) {
+        const shown = isShown(f)
+        byId(f.range ? `flt_${f.key}_min` : `flt_${f.key}`).closest('.filter-field').hidden = !shown
+        if (!shown) clearField(f)
+      }
+      renderChips()
+      saveChoices()
     },
     // Le tendine mostrano solo i valori presenti negli elementi visibili (es. la collezione aperta),
     // più quello già scelto

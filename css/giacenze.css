@@ -22,6 +22,9 @@
 /* ─── Barra dei filtri ──────────────────────────────────────── */
 .gia-toolbar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 12px; }
 .gia-toolbar .search-field { flex: 1; min-width: 220px; }
+.gia-filters { display: flex; flex-direction: column; gap: 10px; margin-bottom: 12px; }
+.gia-filters .gia-toolbar { margin-bottom: 0; }
+.gia-filters .filter-chips:not([hidden]) { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 10px; }
 .gia-select { width: auto; min-width: 200px; }
 .gia-check { white-space: nowrap; }
 .gia-note, .gia-hint { font-family: var(--editorial); font-size: 12px; color: var(--text-muted); margin: 0 0 12px; }
@@ -97,7 +100,7 @@
 
 @media (max-width: 600px) {
   .gia-toolbar .search-field { flex-basis: 100%; min-width: 0; }
-  .gia-select { flex: 1; min-width: 0; }
+  .gia-select { flex-basis: 100%; min-width: 0; }
   .gia-toolbar .btn-primary { width: 100%; }
 }
 
@@ -145,7 +148,8 @@
 
 /* ─── Stampa dell'elenco (REQ-R-01) ─────────────────────────── */
 @media print {
-  .sidebar, .topbar, .mobile-nav, .skip-link, #toast, .gia-tabs, .gia-toolbar, .gia-note, .gia-count { display: none !important; }
+  .sidebar, .topbar, .mobile-nav, .skip-link, #toast, .gia-tabs, .gia-toolbar, .gia-filters, .gia-note { display: none !important; }
+  .gia-count { color: #000; }
   .app-shell, .main, .catalog-area { display: block; height: auto; overflow: visible; padding: 0; margin: 0; }
   .gia-print-head { display: block; font-family: var(--editorial); font-size: 11px; color: #000; margin-bottom: 12px; }
   .gia-print-title { font-size: 18px; margin-bottom: 4px; }

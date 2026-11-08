@@ -361,6 +361,7 @@
 .filter-fields { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 22px; }
 .filter-fields[hidden] { display: none; }
 .filter-field { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.filter-field[hidden] { display: none; }
 .filter-label {
   font-family: var(--editorial);
   font-size: 10px;

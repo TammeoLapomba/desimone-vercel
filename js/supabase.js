@@ -722,10 +722,10 @@ async function selectAll(build) {
 export async function getStockOverview() {
   const [articles, raw, stock] = await Promise.all([
     selectAll(() => supabase.from('articles')
-      .select('id, sku, name, price_retail, price_wholesale, collections(name), product_type:product_types(name)')
+      .select('id, sku, name, price_retail, price_wholesale, collections(name), product_type:product_types(name), metal:metals(name), article_materials(material:materials(name))')
       .is('deleted_at', null).order('sku').order('id')),
     selectAll(() => supabase.from('raw_items')
-      .select('id, sku, description, size, unit, raw_categories(name)')
+      .select('id, sku, description, size, unit, quality, raw_categories(name), raw_shapes(name), coral:materials(name)')
       .is('deleted_at', null).order('sku').order('id')),
     getStockLevels(),
   ])

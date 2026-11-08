@@ -75,21 +75,29 @@
       <div id="page" hidden>
         <div class="gia-alert" id="backupAlert" role="alert" hidden></div>
 
-        <!-- Giacenze per articolo e luogo (UC-01, REQ-001.1), elenco stampabile (UC-10, REQ-R-01), valore (UC-14) -->
+        <!-- Giacenze per articolo e luogo (UC-01, REQ-001.1), con i filtri (REQ-M-28), elenco stampabile (UC-10, REQ-R-01), valore (UC-14) -->
         <section id="panel-stock">
-          <div class="gia-toolbar">
-            <div class="search-field">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
-              <input id="searchInput" type="search" aria-label="Cerca articoli" placeholder="Codice o nome, anche in parte…">
+          <div class="gia-filters" role="search" aria-label="Cerca e filtra le giacenze">
+            <div class="gia-toolbar">
+              <div class="search-field">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="M21 21l-4.35-4.35"/></svg>
+                <input id="searchInput" type="search" aria-label="Cerca articoli" placeholder="Codice o nome, anche in parte…">
+              </div>
+              <select class="field-input field-select gia-select" id="kindSelect" aria-label="Gioielli o semilavorati">
+                <option value="">Gioielli e semilavorati</option>
+                <option value="montato">Solo gioielli</option>
+                <option value="semilavorato">Solo semilavorati</option>
+              </select>
+              <label class="mov-check gia-check"><input type="checkbox" id="onlyStock" checked> Solo con giacenza</label>
+              <button type="button" class="filter-toggle" id="btnFilters" aria-expanded="false" aria-controls="filterFields">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 5h18l-7 8.5V19l-4 2v-7.5L3 5z"/></svg>
+                Filtri <span class="filter-count" hidden></span>
+              </button>
+              <a href="/conte.html" class="btn-ghost" id="btnCounts" title="Contare la merce di un luogo e correggere le differenze">Conte</a>
+              <button type="button" class="btn-primary" id="btnPrint" hidden>Stampa elenco</button>
             </div>
-            <select class="field-input field-select gia-select" id="kindSelect" aria-label="Tipo di articolo">
-              <option value="">Gioielli e semilavorati</option>
-              <option value="montato">Solo gioielli</option>
-              <option value="semilavorato">Solo semilavorati</option>
-            </select>
-            <label class="mov-check gia-check"><input type="checkbox" id="onlyStock" checked> Solo con giacenza</label>
-            <a href="/conte.html" class="btn-ghost" id="btnCounts" title="Contare la merce di un luogo e correggere le differenze">Conte</a>
-            <button type="button" class="btn-primary" id="btnPrint" hidden>Stampa elenco</button>
+            <div class="filter-fields" id="filterFields" hidden></div>
+            <div class="filter-chips" id="filterChips" hidden></div>
           </div>
           <p class="gia-note" id="valueNote" hidden>
             Valore: la base (costo, ingrosso o pubblico) è ancora da decidere con il commercialista (UC-14, REQ-M-08).
