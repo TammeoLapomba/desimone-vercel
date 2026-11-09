@@ -1,4 +1,4 @@
-const CACHE_NAME = 'desimone-os-v57'
+const CACHE_NAME = 'desimone-os-v59'
 
 const SHELL_ASSETS = [
   '/catalog.html',
@@ -12,6 +12,7 @@ const SHELL_ASSETS = [
   '/conte.html',
   '/catalog-scheda.html',
   '/semilavorato-scheda.html',
+  '/etichette.html',
   '/login.html',
   '/config.js',
   '/css/variables.css',
@@ -46,6 +47,10 @@ const SHELL_ASSETS = [
   '/js/vendor/jsQR-1.4.0.js',
   '/js/sede-client.js',
   '/js/account-menu.js',
+  '/js/lettore.js',
+  '/js/etichetta.js',
+  '/js/etichette.js',
+  '/js/vendor/qrcode-generator-1.4.4.js',
   '/js/vendor/supabase-2.117.3.mjs',
   '/css/fonts.css',
   '/fonts/work-sans/work-sans-latin-300-normal.woff2',

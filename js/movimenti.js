@@ -8,13 +8,14 @@
 // SD-04 trasferimento.
 import {
   requireAuth, signOut, getMyOperator, getMovementSetup, getMovableItems, getItemStock, getItemHistory,
-  registerMovement, cancelMovement, insertDevice, setDeviceScale, setDeviceKind, findItemByCode, getCodeCheck, correctStock,
+  registerMovement, cancelMovement, insertDevice, setDeviceScale, setDeviceKind, readCode, getCodeCheck, correctStock,
 } from './supabase.js'
 import { scanQr, cameraSupport } from './scanner.js'
 import { showToast, formatEuro, parseEuro, getCoverPhoto, articleMaterialLines, articleMetalLine } from './utils.js'
 import { initFilters } from './filters.js'
 import { initMobileNav } from './pwa.js'
 import { createScale, sourceFor, SIMULATED_MODEL } from './bilancia/bilancia.js'
+import { openLabelDialog } from './etichetta.js'
 
 window.signOutUser = signOut
 const { validaPeso, formatGrams } = window.Pesi
@@ -225,14 +226,19 @@ async function identify(raw) {
   const code = raw.trim().toUpperCase()
   if (!code) return
   $('codeInput').value = ''
-  const item = state.byCode.get(code)
+  let item = state.byCode.get(code)
+  let legacy = false
   if (!item) {
-    // Un codice archiviato non è sconosciuto (REQ-A-08): l'etichetta può essere ancora in giro
-    const found = await findItemByCode(code).catch(() => null)
-    showResult(found?.archived
-      ? `Articolo archiviato: ${found.code} ${found.name || ''}. Può riattivarlo l'amministrazione.`
-      : `Codice sconosciuto: ${raw.trim()}`, 'error')                  // REQ-B-02
-    return
+    // Un vecchio QR di STEP o un protocollo scritto a mano (REQ-L-09); un archiviato non è sconosciuto (REQ-A-08)
+    const found = await readCode(raw).catch(() => null)
+    item = found && !found.archived ? state.byCode.get(found.code.toUpperCase()) : null
+    if (!item) {
+      showResult(found?.archived
+        ? `Articolo archiviato: ${found.code} ${found.name || ''}. Può riattivarlo l'amministrazione.`
+        : `Codice sconosciuto: ${raw.trim()}`, 'error')                  // REQ-B-02
+      return
+    }
+    legacy = found.via !== 'codice'
   }
   if (state.item?.id === item.id && rule().pieces) {
     $('piecesInput').value = (parseInt($('piecesInput').value, 10) || 0) + 1
@@ -240,6 +246,7 @@ async function identify(raw) {
     return
   }
   await selectItem(item)
+  if (legacy) showResult(`Vecchia etichetta di STEP: è ${item.code}.`, 'ok')
 }
 
 async function selectItem(item) {
@@ -583,7 +590,17 @@ function showOutcome(res, params) {
   const diff = res.weighing_difference !== null && res.weighing_difference !== undefined
     ? `<div>Differenza di pesatura registrata: ${signed(-Number(res.weighing_difference), gramsText(Math.abs(Number(res.weighing_difference))))}</div>` : ''
   const price = m.sale_price ? `<div>Prezzo di vendita: ${formatEuro(m.sale_price)}</div>` : ''
-  showResult(`<b>${res.duplicate ? 'Era già registrato' : 'Registrato'}</b> · ${TYPES[params.type]} ${esc(m.code)}<div>${where}</div>${price}${diff}`, 'ok', true)
+  // Dopo un carico, le etichette: una copia, oppure una per pezzo (REQ-I-01, I-01.1, I-01.2; scheda 3.2)
+  const label = params.type === 'C' ? '<div><button type="button" class="btn-ghost" id="btnLabel">Etichette…</button></div>' : ''
+  showResult(`<b>${res.duplicate ? 'Era già registrato' : 'Registrato'}</b> · ${TYPES[params.type]} ${esc(m.code)}<div>${where}</div>${price}${diff}${label}`, 'ok', true)
+  if (label) {
+    const item = state.item
+    $('btnLabel').addEventListener('click', () => openLabelDialog({
+      kind: item.kind, id: item.id, code: item.code, name: item.name,
+      source: 'movimento', movementId: m.id, pieces: m.pieces || 1,
+    }).then(job => { if (job) showToast(`Etichette in coda: ${job.copies}`) })
+      .catch(err => showToast(err.message, 5000)))
+  }
 }
 
 function afterSuccess() {
@@ -1101,6 +1118,12 @@ function setupListeners() {
       e.preventDefault()
       identify($('codeInput').value)
     }
+  })
+  // Una lettura col cursore fuori dal campo del codice (lettore.js): vale come se fosse nel campo
+  document.addEventListener('lettura', e => {
+    if ($('codeInput').offsetParent === null) return
+    e.preventDefault()
+    identify(e.detail.text)
   })
 
   $('btnSearch').addEventListener('click', () => openModal('searchModal'))

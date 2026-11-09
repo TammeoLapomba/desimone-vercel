@@ -893,3 +893,17 @@
 .gal-lightbox-close { top: 16px; right: 16px; }
 .gal-lightbox-prev { left: 16px; top: 50%; }
 .gal-lightbox-next { right: 16px; top: 50%; }
+
+/* Lettore in ogni pagina (scheda 3.1): la giacenza dell'articolo letto, luogo per luogo */
+.reader-stock { width: 100%; border-collapse: collapse; font-size: 14px; }
+.reader-stock td { padding: 6px 0; border-bottom: 1px solid var(--ivory-dark); }
+.reader-stock td:last-child { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; padding-left: 12px; }
+.reader-stock tfoot td { font-weight: 600; border-bottom: none; }
+
+/* Etichette (scheda 3.2): anteprima ingrandita, conferma del codice, link "una per pezzo" */
+.label-preview { zoom: 2; width: 62mm; margin: 4px 0 8px; }
+.label-preview-face { border: 1px solid var(--ivory-dark); background: #fff; margin-bottom: 2mm; width: 62mm; }
+.label-face-caption { font-size: 5pt; letter-spacing: .5pt; text-transform: uppercase; color: var(--text-muted); margin-bottom: .5mm; }
+.label-check { margin-bottom: 16px; padding: 12px; border: 1px solid var(--ivory-dark); }
+.label-link { background: none; border: none; padding: 4px 0 0; cursor: pointer; color: var(--coral); text-decoration: underline; text-align: left; }
+.lbl-list-actions { display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap; }

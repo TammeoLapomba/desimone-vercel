@@ -22,6 +22,9 @@
 //          --https si|no l'HTTPS col certificato di casa (sede/certificato.ps1, solo Windows), per i tablet: resta per i
 //                        giri successivi, e a ogni giro il certificato del server si rifà se serve (indirizzi, scadenza)
 //          --porta-https <porta> (8443)
+//          --stampante "<nome della stampante di Windows>"  la QL-800 delle etichette (pacchetto 3.3): il servizio della
+//                        sede stampa da solo la coda; resta per i giri successivi. --stampante no la toglie: si stampa
+//                        dal browser
 // Solo moduli di Node.js (REQ-003).
 
 'use strict'
@@ -116,6 +119,7 @@ async function main() {
   if (args.rete && !['si', 'no'].includes(args.rete)) throw new Error('--rete vuole "si" oppure "no"')
   if (args.https && !['si', 'no'].includes(args.https)) throw new Error('--https vuole "si" oppure "no"')
   if (args.https === 'si' && !WINDOWS) throw new Error('--https si: il certificato di casa si fa solo su Windows')
+  if (args.stampante === 'true' || args.stampante === '') throw new Error('--stampante vuole il nome della stampante di Windows, per esempio "Brother QL-800", oppure "no"')
   fs.mkdirSync(DATA_DIR, { recursive: true })
 
   step('Collegamento a PostgreSQL')
@@ -222,7 +226,16 @@ async function main() {
       giorni: previous.copia?.giorni || 30,
       mesi: previous.copia?.mesi || 12,
     },
+    // La stampante delle etichette: si sceglie con --stampante e resta; "no" la toglie (pacchetto 3.3)
+    // Con "Microsoft Print to PDF" (prove senza la QL-800) i PDF vanno in una cartella dei dati: senza, Windows
+    // chiederebbe dove salvarli e il servizio resterebbe fermo
+    stampante: args.stampante === 'no' ? null : args.stampante
+      ? { nome: args.stampante, ...(/print to pdf/i.test(args.stampante) ? { cartellaProva: path.join(DATA_DIR, 'etichette-pdf') } : {}) }
+      : previous.stampante || null,
   }, null, 2) + '\n', { mode: 0o600 })
+  const printer = args.stampante === 'no' ? null : args.stampante || previous.stampante?.nome
+  console.log(printer ? `etichette sulla stampante "${printer}": le stampa il servizio della sede`
+    : 'etichette dal browser (per la QL-800: --stampante "Brother QL-800")')
   console.log(`copia di sicurezza ogni notte alle ${previous.copia?.ora || '02:00'} in ` +
     (args.copia ? path.resolve(args.copia) : previous.copia?.cartella || path.join(DATA_DIR, 'copie')))
   console.log(address === '0.0.0.0'

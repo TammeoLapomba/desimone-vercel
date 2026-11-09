@@ -10,7 +10,8 @@
     { "source": "/impostazioni", "destination": "/impostazioni.html" },
     { "source": "/conte", "destination": "/conte.html" },
     { "source": "/catalog-scheda", "destination": "/catalog-scheda.html" },
-    { "source": "/semilavorato-scheda", "destination": "/semilavorato-scheda.html" }
+    { "source": "/semilavorato-scheda", "destination": "/semilavorato-scheda.html" },
+    { "source": "/etichette", "destination": "/etichette.html" }
   ],
   "headers": [
     {

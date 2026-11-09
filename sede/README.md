@@ -205,6 +205,34 @@ Con la migrazione 032, una volta sola, l'app chiede a tutti di rifare l'accesso:
 
 Prima di un aggiornamento conviene fare una copia di sicurezza: Impostazioni → **Copia di sicurezza** → **Copia adesso**.
 
+## Etichette sulla QL-800 (pacchetto 3.3)
+
+Le etichette chieste nell'app (dopo un carico, dalle schede, dall'archivio) vanno in coda. Con la stampante indicata
+in `installa.js`, il servizio della sede le stampa da solo ogni pochi secondi; senza, si stampano dal browser.
+
+1. Collega la **Brother QL-800** al PC server con il cavo USB e installa il suo driver per Windows (dalla chiavetta:
+   il PC non ha internet). In Impostazioni → Bluetooth e dispositivi → **Stampanti e scanner** annota il nome esatto,
+   per esempio `Brother QL-800`.
+2. In **PowerShell come amministratore**:
+
+   ```powershell
+   cd C:\DeSimone\desimone-os
+   $env:PGPASSWORD = "..."
+   node sede\installa.js --dati C:\DeSimone\dati --stampante "Brother QL-800"
+   Restart-Service desimone-sede
+   ```
+
+3. Nell'app chiedi un'etichetta e premi **Stampa adesso**: esce in pochi secondi. La pagina Etichette (da Giacenze)
+   mostra "In stampa" e poi l'archivio. Un errore resta in coda con il motivo ("Stampante non trovata…"): si corregge e
+   si preme **Rimetti in coda**.
+
+La scelta resta per gli aggiornamenti; `--stampante no` la toglie. Il servizio scrive nel log ogni etichetta stampata
+o non stampata. Se il servizio si ferma durante una stampa, al riavvio quell'etichetta è in errore ("Stampa
+interrotta"): guarda se è uscita, poi rimettila in coda o annullala.
+
+**Senza la QL-800**, per provare: `--stampante "Microsoft Print to PDF"`. Ogni richiesta diventa un PDF in
+`C:\DeSimone\dati\etichette-pdf` (le pagine sono A4: quel driver non ha il formato 62×29).
+
 ## Copia di sicurezza (7.2, REQ-I-02)
 
 Ogni notte alle 2 il servizio della sede copia database e foto in una cartella a parte, e controlla che la copia

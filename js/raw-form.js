@@ -4,6 +4,7 @@
 // Per ciò che non ha regole l'amministrazione lo scrive a mano, con i controlli del database (042).
 import { insertRawItem, updateRawItem, getRawItemPhotos, previewRawItem, retirePreview, retireItem, findItemByCode, hasRawMovements } from './supabase.js'
 import { createGallery } from './gallery.js'
+import { openLabelDialog } from './etichetta.js'
 import { showToast, debounce, stockLabel, confirmRetire, parseCm, parseMm } from './utils.js'
 
 let onSuccessCallback = null
@@ -197,6 +198,7 @@ export function openRawItemModal({ item = null, categories = [], rules, corals =
         <span style="font-family:var(--editorial);font-size:12px;color:var(--text-muted);font-style:italic;" id="rstepLabel">Step 1 di 3 — Articolo</span>
         <div style="display:flex;gap:8px;">
           ${isEdit && isAdmin ? '<button type="button" class="btn-danger" id="rbtnRetire">Archivia o elimina</button>' : ''}
+          ${isEdit && item.sku ? '<button type="button" class="btn-ghost" id="rbtnLabel" title="Mette in coda l\'etichetta con i dati salvati">Etichetta</button>' : ''}
           <button class="btn-ghost" id="rbtnBack" style="display:none;">← Indietro</button>
           <button class="btn-primary" id="rbtnNext">Avanti →</button>
         </div>
@@ -557,6 +559,12 @@ export function openRawItemModal({ item = null, categories = [], rules, corals =
   })
 
   // Mai usato e rifacibile dall'app: si elimina. Altrimenti si archivia (CR10): lo decide il database
+  // L'etichetta del semilavorato, con i dati salvati (scheda 3.2)
+  $('rbtnLabel')?.addEventListener('click', () => openLabelDialog({
+    kind: 'semilavorato', id: item.id, code: item.sku, name: item.description, source: 'scheda',
+  }).then(job => { if (job) showToast(`Etichette in coda: ${job.copies}`) })
+    .catch(err => showToast(err.message, 5000)))
+
   $('rbtnRetire')?.addEventListener('click', async () => {
     const btn = $('rbtnRetire')
     btn.disabled = true

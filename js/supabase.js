@@ -5,6 +5,8 @@ import { createClient } from './vendor/supabase-2.117.3.mjs'
 import { createSedeClient } from './sede-client.js'
 
 export const IN_SEDE = typeof SEDE !== 'undefined'
+// Nella sede con la QL-800 (installa.js --stampante): le etichette in coda le stampa il servizio (pacchetto 3.3)
+export const SEDE_PRINTER = IN_SEDE && !!SEDE.stampante
 export const supabase = IN_SEDE ? createSedeClient(SEDE.url) : createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
 
 // Auth helpers
@@ -296,7 +298,7 @@ export async function getCodeCheck({ kind, id }) {
       : supabase.rpc('raw_code_explain', { p_raw_item_id: id }),
     isJewel
       ? supabase.from('articles')
-        .select('name, price_retail, metal_grams, measurements, metal:metals(name), article_materials(material_id, sort_order, pieces, carats, size_mm, size2_mm, size_mode, grams, material:materials(name)), photos(public_url, is_cover)')
+        .select('name, price_retail, metal_grams, measurements, collections(name), product_type:product_types(name), metal:metals(name), article_materials(material_id, sort_order, pieces, carats, size_mm, size2_mm, size_mode, grams, material:materials(name)), photos(public_url, is_cover)')
         .eq('id', id).single()
       : supabase.from('raw_items').select('description, size, unit, raw_photos(public_url, is_cover)').eq('id', id).single()
   ])
@@ -817,7 +819,30 @@ export async function getMovements(f = {}, { offset = 0, limit = 100 } = {}) {
   return data
 }
 
-// Gioiello o semilavorato dal codice (lettore o scritto a mano), anche archiviato (archived: true); null se non c'è
+// Che cosa è stato letto (scheda 3.1): il codice di un articolo, un vecchio QR di STEP (…$protocollo) o un protocollo
+// scritto a mano. La regola è una sola, nel database (043). Risponde { kind, id, code, name, unit, archived, via }, con via
+// 'codice', 'legacy' o 'protocollo'; null se il codice è sconosciuto (REQ-B-02)
+export async function readCode(text) {
+  const { data, error } = await supabase.rpc('read_code', { p_text: text })
+  if (error) throw error
+  return data?.[0] || null
+}
+
+// Giacenza di un articolo in ogni luogo, col nome del luogo: [{ name, pieces, grams }], dal luogo con più merce
+export async function getItemStockByPlace(item) {
+  const [levels, places] = await Promise.all([
+    getItemStock(item),
+    supabase.from('locations').select('id, name'),
+  ])
+  if (places.error) throw places.error
+  const names = new Map(places.data.map(l => [l.id, l.name]))
+  return levels
+    .filter(l => Number(l.pieces) || Number(l.grams))
+    .map(l => ({ name: names.get(l.location_id) || '—', pieces: Number(l.pieces) || 0, grams: Number(l.grams) || 0 }))
+    .sort((a, b) => b.pieces - a.pieces || b.grams - a.grams || a.name.localeCompare(b.name))
+}
+
+// Gioiello o semilavorato con esattamente questo codice, anche archiviato (archived: true); null se non c'è
 export async function findItemByCode(code) {
   const [art, raw] = await Promise.all([
     supabase.from('articles').select('id, sku, name, deleted_at').eq('sku', code).limit(1),
@@ -978,6 +1003,47 @@ export async function setDeviceScale(device, kind, simulatedModel) {
     .upsert({ ...fields, device_id: device.id, active: true }, { onConflict: 'name' })
     .select()
     .single()
+  if (error) throw error
+  return data
+}
+
+// ─── Etichette (scheda 3.2, migrazione 045) ───────────────────
+
+// Chiede un'etichetta: va in coda con ciò che si stampa (REQ-I-01). La prima conferma il codice (confirmCode)
+export async function requestLabel(p) {
+  const { data, error } = await supabase.rpc('print_request', {
+    p_article_id: p.articleId ?? null,
+    p_raw_item_id: p.rawItemId ?? null,
+    p_copies: p.copies,
+    p_name: p.name,
+    p_lines: p.lines ?? [],
+    p_price: p.price ?? null,
+    p_source: p.source,
+    p_movement_id: p.movementId ?? null,
+    p_reprint_of: p.reprintOf ?? null,
+    p_confirm_code: p.confirmCode ?? null,
+    p_weight_g: p.weight ?? null,
+  })
+  if (error) throw error
+  return data
+}
+
+// stampata, errore (con il motivo), annullata, oppure in_coda per riprovare dopo un errore
+export async function setLabelStatus(id, status, error = null) {
+  const { data, error: err } = await supabase.rpc('print_set_status', { p_id: id, p_status: status, p_error: error })
+  if (err) throw err
+  return data
+}
+
+// Coda (in_coda, errore) o archivio (stampata, annullata), dalla più recente. search cerca nel codice e nel nome
+export async function getLabels({ archive = false, search = '', offset = 0, limit = 50 } = {}) {
+  let query = supabase.from('print_jobs')
+    .select('*')
+    .in('status', archive ? ['stampata', 'annullata'] : ['in_coda', 'in_stampa', 'errore'])
+    .order('requested_at', { ascending: !archive })
+  const s = search.trim().replace(/[,()*%]/g, ' ').trim()
+  if (s) query = query.or(`code.ilike.*${s}*,name.ilike.*${s}*`)
+  const { data, error } = await query.range(offset, offset + limit - 1)
   if (error) throw error
   return data
 }

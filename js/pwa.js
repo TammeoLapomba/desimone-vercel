@@ -1,6 +1,7 @@
 // js/pwa.js — Registrazione Service Worker + utils PWA
 import { supabase, getMyRole } from './supabase.js'
 import './account-menu.js'
+import './lettore.js'
 
 // Registra il service worker
 if ('serviceWorker' in navigator) {

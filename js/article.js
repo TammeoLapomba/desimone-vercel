@@ -3,6 +3,7 @@ import { requireAuth, getMyRole, getCollections, getMaterials, getMetals, getPro
 import { showToast, confirmRetire, formatDecimal, priceText, readPrice, readCm } from './utils.js'
 import { initMaterialPicker, initMetalWeight } from './material-picker.js'
 import { createGallery } from './gallery.js'
+import { openLabelDialog } from './etichetta.js'
 
 window.signOutUser = signOut
 
@@ -36,7 +37,8 @@ function renderCodeStatus() {
 async function init() {
   await requireAuth()
   // Solo l'admin può archiviare o eliminare (lo impone anche il database)
-  isAdmin = (await getMyRole()) === 'admin'
+  const role = await getMyRole()
+  isAdmin = role === 'admin'
 
   const params = new URLSearchParams(window.location.search)
   articleId = params.get('id')
@@ -73,6 +75,20 @@ async function init() {
     document.getElementById('f_type').value = currentArticle.product_type_id
     document.getElementById('f_sku').value = currentArticle.sku
     renderCodeStatus()
+
+    // L'etichetta, con i dati salvati (scheda 3.2). Il dev non è un operatore: non la chiede
+    const btnLabel = document.getElementById('btnLabel')
+    btnLabel.hidden = role === 'dev' || !currentArticle.sku
+    btnLabel.addEventListener('click', () => openLabelDialog({
+      kind: 'montato', id: articleId, code: currentArticle.sku, name: currentArticle.name, source: 'scheda',
+    }).then(job => {
+      if (!job) return
+      showToast(`Etichette in coda: ${job.copies}`)
+      if (!currentArticle.code_confirmed_at) {
+        currentArticle.code_confirmed_at = job.requested_at   // la prima etichetta lo ha confermato (AC-03)
+        renderCodeStatus()
+      }
+    }).catch(err => showToast(err.message, 5000)))
 
     // Le foto si salvano subito, senza "Salva Modifiche" (scheda 1.6)
     getArticlePhotos(articleId)

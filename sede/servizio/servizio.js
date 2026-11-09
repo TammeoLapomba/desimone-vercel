@@ -9,11 +9,12 @@
 //   POST /foto-elimina    cancellazione delle foto, solo amministrazione (come la regola della 016)
 //   GET /copia/stato      stato della copia di sicurezza notturna (L-12, copia.js), solo amministrazione
 //   POST /copia/adesso    una copia subito, per esempio prima di un aggiornamento, solo amministrazione
-//   /config.js            dice all'app che è nella sede
+//   /config.js            dice all'app che è nella sede, e se c'è la stampante delle etichette
 //   /certificato          con l'HTTPS: come installare sul tablet l'autorità di casa, e il file (…/ca-desimone.crt)
 //   tutto il resto        le pagine dell'app (P-01), finché non c'è il programma per Windows (P-04)
-// Arriveranno qui, come moduli dello stesso processo (4 GB, D-1): bilancia sulla porta COM (L-09), etichette
-// (QL-800), sincronizzazione dei tablet (L-08), migrazioni (L-14).
+// Senza un percorso: le etichette in coda vanno alla QL-800 (stampa.js, pacchetto 3.3).
+// Arriveranno qui, come moduli dello stesso processo (4 GB, D-1): bilancia sulla porta COM (L-09), sincronizzazione
+// dei tablet (L-08), migrazioni (L-14).
 //
 // Rete: risponde solo al PC stesso e alla rete dell'azienda (indirizzi privati), mai a internet; con "indirizzo"
 // 0.0.0.0 in sede.json (installa.js --rete si) anche ai tablet. Verso fuori si collega solo a questo PC: PostgREST e
@@ -32,6 +33,7 @@ const crypto = require('node:crypto')
 const net = require('node:net')
 const os = require('node:os')
 const { createCopia } = require('./copia.js')
+const { createStampa } = require('./stampa.js')
 
 const CONFIG_PATH = process.argv[2] || process.env.SEDE_CONFIG || path.join(__dirname, 'sede.json')
 const config = JSON.parse(fs.readFileSync(CONFIG_PATH, 'utf8'))
@@ -335,6 +337,10 @@ async function deletePhotos(req, res) {
 
 const copia = createCopia(config, CONFIG_PATH, log)
 
+// ─── Etichette sulla QL-800 (pacchetto 3.3, stampa.js): col ruolo di servizio ─
+
+const stampa = createStampa(config, log, (fn, args) => postgrestRpc(fn, args))
+
 async function backup(req, res, action) {
   const account = await currentAccount(bearerToken(req))
   if (!account) return send(res, 401, { error: 'Accesso richiesto' })
@@ -356,7 +362,7 @@ const TYPES = {
 }
 // Cartelle del repository che non sono l'app: materiale privato e strumenti (come scripts/pubblica-codice.sh)
 const PRIVATE = ['docs', 'bilancia', 'old_software', 'inventory_data', 'supabase', 'sede', 'scripts', 'node_modules']
-const ROUTES = { '/': '/catalog.html', '/semilavorato': '/semilavorato.html', '/catalog-scheda': '/catalog-scheda.html', '/semilavorato-scheda': '/semilavorato-scheda.html', '/movimenti': '/movimenti.html', '/giacenze': '/giacenze.html', '/registro': '/registro.html', '/anagrafiche': '/anagrafiche.html', '/impostazioni': '/impostazioni.html', '/conte': '/conte.html' }
+const ROUTES = { '/': '/catalog.html', '/semilavorato': '/semilavorato.html', '/catalog-scheda': '/catalog-scheda.html', '/semilavorato-scheda': '/semilavorato-scheda.html', '/movimenti': '/movimenti.html', '/giacenze': '/giacenze.html', '/registro': '/registro.html', '/anagrafiche': '/anagrafiche.html', '/impostazioni': '/impostazioni.html', '/conte': '/conte.html', '/etichette': '/etichette.html' }
 
 function serveFile(req, res, file, cache, headers = {}) {
   fs.stat(file, (err, st) => {
@@ -383,7 +389,8 @@ function app(req, res, pathname) {
   if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405, 'Metodo non ammesso')
   if (pathname === '/config.js') {
     // L'app è nella sede: dati, accessi e foto da questo stesso indirizzo
-    return send(res, 200, '// Generato dal servizio della sede (P-07)\nconst SEDE = { url: \'\' }\n',
+    // stampante: le etichette in coda le stampa il servizio, non il browser (pacchetto 3.3)
+    return send(res, 200, `// Generato dal servizio della sede (P-07)\nconst SEDE = { url: '', stampante: ${stampa.attiva} }\n`,
       { 'Content-Type': 'text/javascript; charset=utf-8', 'Cache-Control': 'no-cache' })
   }
   const rel = decodeURIComponent(ROUTES[pathname] || pathname)
@@ -485,6 +492,7 @@ onlyLocal(http.createServer(handle)).listen(port, address, () => {
   if (address === '0.0.0.0') log('dalla rete locale:', lanUrls(port).join(', ') || 'nessuna rete collegata')
 })
 copia.avvia()
+stampa.avvia()
 if (config.https) {
   // Il certificato di casa (installa.js --https si) è un .pfx con la sua password; certificato e chiave .pem vanno
   // ancora bene

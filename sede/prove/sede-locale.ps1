@@ -29,6 +29,7 @@ param([ValidateSet('installa', 'aggiorna', 'avvia', 'ferma', 'stato', 'dati')][s
       [switch]$Pallino,
       [ValidateSet('', 'si', 'no')][string]$Rete = '',
       [ValidateSet('', 'si', 'no')][string]$Https = '',
+      [string]$Stampante = '',
       [string]$Cartella = (Join-Path $env:USERPROFILE 'DeSimoneSede'),
       [string]$Installer = (Join-Path $env:USERPROFILE 'DeSimoneSandbox\installer'),
       [string]$Credenziali = '')
@@ -111,6 +112,7 @@ function Installa {
     $opzioni = @('--dati', $Dati, '--psql', "$Pg\bin\psql.exe")
     if ($Rete) { $opzioni += @('--rete', $Rete) }
     if ($Https) { $opzioni += @('--https', $Https) }
+    if ($Stampante) { $opzioni += @('--stampante', $Stampante) }
     "$($cred.AdminNome)`n$($cred.AdminEmail)`n$($cred.AdminPassword)`n" |
       & $Node sede\installa.js @opzioni
     if ($LASTEXITCODE -ne 0) { throw "installa.js: codice $LASTEXITCODE" }

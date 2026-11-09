@@ -5,7 +5,7 @@
 // database (stock_count_*): contano tutti gli operatori, differenze e conferma solo l'amministrazione (CR16).
 // Chi conta non vede quanto risulta (decisione 5). Ogni lettura si salva subito (decisione 10).
 import {
-  requireAuth, signOut, getMyOperator, getMovementSetup, getMovableItems, getRawCategories, findItemByCode,
+  requireAuth, signOut, getMyOperator, getMovementSetup, getMovableItems, getRawCategories, readCode,
   getStockCounts, getStockCount, openStockCount, setStockCountLine, removeStockCountLine, discardStockCount,
   getStockCountSummary, confirmStockCount,
 } from './supabase.js'
@@ -252,6 +252,10 @@ async function handleCode(raw) {
   if (!text) return
   const item = state.byCode.get(text.toUpperCase())
   if (item) return addReading(item)
+  // Un vecchio QR di STEP o un protocollo scritto a mano (REQ-L-09, scheda 3.1)
+  const other = await readCode(text).catch(() => null)
+  const legacy = other && !other.archived ? state.byCode.get(other.code.toUpperCase()) : null
+  if (legacy) return addReading(legacy)
   const needle = text.toLowerCase()
   const found = [...state.items.values()]
     .filter(i => inPerimeter(i) && (i.code?.toLowerCase().includes(needle) || i.name?.toLowerCase().includes(needle)))
@@ -263,7 +267,6 @@ async function handleCode(raw) {
     $('matches').hidden = false
     return
   }
-  const other = await findItemByCode(text.toUpperCase()).catch(() => null)
   showRead(other?.archived ? `Articolo archiviato: ${other.code}. Può riattivarlo l'amministrazione.`     // REQ-A-08
     : `Codice sconosciuto: ${text}`, 'error')                                                      // REQ-B-02
 }
@@ -458,6 +461,12 @@ function setupListeners() {
 
   $('codeInput').addEventListener('keydown', e => {
     if (e.key === 'Enter') { e.preventDefault(); handleCode($('codeInput').value) }
+  })
+  // Una lettura col cursore fuori dal campo (lettore.js): entra nella conta aperta. Senza conta, la finestra comune
+  document.addEventListener('lettura', e => {
+    if (!state.count || $('codeInput').offsetParent === null) return
+    e.preventDefault()
+    handleCode(e.detail.text)
   })
   $('matches').addEventListener('click', e => {
     const btn = e.target.closest('[data-key]')
