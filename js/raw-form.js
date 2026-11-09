@@ -4,7 +4,7 @@
 // Per ciò che non ha regole l'amministrazione lo scrive a mano, con i controlli del database (042).
 import { insertRawItem, updateRawItem, getRawItemPhotos, previewRawItem, retirePreview, retireItem, findItemByCode, hasRawMovements } from './supabase.js'
 import { createGallery } from './gallery.js'
-import { showToast, debounce, stockLabel, confirmRetire, parseCm } from './utils.js'
+import { showToast, debounce, stockLabel, confirmRetire, parseCm, parseMm } from './utils.js'
 
 let onSuccessCallback = null
 let photoUploader = null
@@ -19,12 +19,12 @@ const hintStyle = 'font-family:var(--editorial);font-size:11px;color:var(--text-
 const SUFFIX_MM = `<span style="position:absolute;right:12px;font-family:var(--editorial);font-size:12px;color:var(--text-muted);">mm</span>`
 const SUFFIX_CM = `<span style="position:absolute;right:12px;font-family:var(--editorial);font-size:12px;color:var(--text-muted);">cm</span>`
 
-// virgola: il punto diventa virgola mentre si scrive, e il valore si legge con parseCm. Le misure in mm restano campi numerici
-const numField = (id, label, suffix, { required = false, value = '', hint = '', virgola = false } = {}) => `
+// Misure in mm e in cm: il punto diventa virgola mentre si scrive, e il valore si legge con parseMm o parseCm
+const numField = (id, label, suffix, { required = false, value = '', hint = '' } = {}) => `
   <div class="form-field">
     <label class="field-label" for="${id}">${label}${required ? ' <span class="field-required">*</span>' : ''}</label>
     <div style="position:relative;display:flex;align-items:center;">
-      <input ${virgola ? 'type="text" autocomplete="off" data-virgola' : 'type="number" min="0" step="0.01"'} class="field-input" id="${id}" inputmode="decimal" value="${value}" style="padding-right:36px;">
+      <input type="text" autocomplete="off" data-virgola class="field-input" id="${id}" inputmode="decimal" value="${value}" style="padding-right:36px;">
       ${suffix}
     </div>
     ${hint ? `<span style="font-family:var(--editorial);font-size:11px;color:var(--text-muted);margin-top:4px;display:block;">${hint}</span>` : ''}
@@ -326,7 +326,7 @@ export function openRawItemModal({ item = null, categories = [], rules, corals =
     } else {
       row.innerHTML = numField('rf_size', 'Misura', SUFFIX_MM, { required: true }) +
                       numField('rf_size_to', 'Fino a', SUFFIX_MM, { hint: 'Solo se è un intervallo (es. 7 – 8 mm)' }) +
-                      `<div id="rf_length_cm_wrap">${numField('rf_length_cm', 'Lunghezza', SUFFIX_CM, { hint: 'Facoltativa, non entra nel codice', virgola: true })}</div>`
+                      `<div id="rf_length_cm_wrap">${numField('rf_length_cm', 'Lunghezza', SUFFIX_CM, { hint: 'Facoltativa, non entra nel codice' })}</div>`
     }
     row.querySelectorAll('input').forEach(el => el.addEventListener('input', onFieldInput))
     if ($('rf_length_cm_wrap')) $('rf_length_cm_wrap').style.display = shape.has_length_cm ? '' : 'none'
@@ -347,10 +347,8 @@ export function openRawItemModal({ item = null, categories = [], rules, corals =
     $('rf_variants_row').querySelectorAll('input').forEach(el => el.addEventListener('change', onFieldInput))
   }
 
-  const val = id => {
-    const v = $(id)?.value
-    return v === undefined || v === '' ? null : Number(v)
-  }
+  // Una misura in mm scritta nel campo: null se è vuota o non vale (lo dice refreshPreview)
+  const val = id => parseMm($(id)?.value).value ?? null
 
   function readFields() {
     const { shape, category } = selected()
@@ -399,9 +397,11 @@ export function openRawItemModal({ item = null, categories = [], rules, corals =
   async function refreshPreview() {
     const f = readFields()
     const seq = ++previewSeq
-    // Una lunghezza che non vale ferma l'articolo, e si dice perché
-    const length = parseCm($('rf_length_cm')?.value)
-    if (selected().shape?.has_length_cm && !length.ok) { preview = null; previewMsg = `Lunghezza: ${length.error}`; showPreview(); return }
+    // Una misura che non vale ferma l'articolo, e si dice perché
+    const wrong = [['rf_size', 'Misura', parseMm], ['rf_size_to', 'Fino a', parseMm], ['rf_base', 'Base', parseMm], ['rf_height', 'Altezza', parseMm],
+      ...(selected().shape?.has_length_cm ? [['rf_length_cm', 'Lunghezza', parseCm]] : [])]
+      .map(([id, label, parse]) => $(id) && { label, parsed: parse($(id).value) }).find(c => c && !c.parsed.ok)
+    if (wrong) { preview = null; previewMsg = `${wrong.label}: ${wrong.parsed.error}`; showPreview(); return }
     if (!readyForCode(f)) { preview = null; previewMsg = ''; showPreview(); return }
     try {
       const r = await previewRawItem(f)

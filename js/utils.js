@@ -92,6 +92,13 @@ export function parseCm(text) {
   return parsed.ok ? parsed : { ok: false, error: 'scrivi un numero maggiore di zero, con al massimo un decimale: per esempio 2,5. Il punto non separa le migliaia.' }
 }
 
+// Misura in mm scritta a mano: fino a 2 decimali e sotto i 10000, come numeric(6,2) nel database. Vuoto vale null.
+// { ok, value } oppure { ok: false, error }
+export function parseMm(text) {
+  const parsed = parseDecimal(text, 2, 10000)
+  return parsed.ok ? parsed : { ok: false, error: 'Scrivi un numero maggiore di zero, con al massimo 2 decimali: per esempio 7,5. Il punto non separa le migliaia.' }
+}
+
 // Un campo in cm al salvataggio. { value } oppure { error, element }
 export function readCm(element, label) {
   const parsed = parseCm(element.value)

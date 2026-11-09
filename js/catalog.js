@@ -1,6 +1,6 @@
 // js/catalog.js
 import { supabase, requireAuth, getMyRole, getCollections, getArticles, insertCollection, retirePreview, retireItem, deleteCollection, signOut } from './supabase.js'
-import { formatPrice, getCoverPhoto, showToast, articleMaterials, articleMaterialLines, articleMetalLine, validateCollection, confirmRetire } from './utils.js'
+import { formatPrice, getCoverPhoto, showToast, articleMaterials, articleMaterialLines, articleMetalLine, validateCollection, confirmRetire, parseEuro } from './utils.js'
 import { initColorSelect } from './color-select.js'
 import { initFilters } from './filters.js'
 import { openArticleModal } from './article-form.js'
@@ -43,7 +43,7 @@ const FILTER_FIELDS = [
   { key: 'stock', label: 'Disponibilità',
     options: () => [['si', 'Disponibili'], ['no', 'Esauriti']],
     test: (a, v) => (stockOf(a) > 0) === (v === 'si') },
-  { key: 'price', label: 'Prezzo', unit: '€', range: true, euro: true, value: a => a.price_retail },
+  { key: 'price', label: 'Prezzo', unit: '€', range: true, parse: parseEuro, value: a => a.price_retail },
 ]
 let filters = null
 

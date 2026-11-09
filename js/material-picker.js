@@ -6,10 +6,10 @@ import { parseDecimal, formatDecimal } from './utils.js'
 const FIELDS = [
   { key: 'pieces',  flag: 'has_pieces', label: 'Numero (pz)', decimals: 0, max: 1000000, hint: 'un intero maggiore di zero, per esempio 5' },
   { key: 'carats',  flag: 'has_carats', label: 'Carati (ct)', decimals: 3, max: 1000, virgola: true, hint: 'fino a 3 decimali, per esempio 0,03' },
-  { key: 'size_mm', flag: 'has_size',   label: 'Misura (mm)', decimals: 2, max: 1000, hint: 'fino a 2 decimali, per esempio 4,5' },
+  { key: 'size_mm', flag: 'has_size',   label: 'Misura (mm)', decimals: 2, max: 1000, virgola: true, hint: 'fino a 2 decimali, per esempio 4,5' },
   { key: 'grams',   flag: 'has_grams',  label: 'Peso (g)',    decimals: 2, max: 100000, virgola: true, hint: 'fino a 2 decimali, per esempio 0,6' },
 ]
-const SECOND_SIZE = { key: 'size2_mm', label: 'Seconda misura', decimals: 2, max: 1000, hint: 'fino a 2 decimali, per esempio 20' }
+const SECOND_SIZE = { key: 'size2_mm', label: 'Seconda misura', decimals: 2, max: 1000, virgola: true, hint: 'fino a 2 decimali, per esempio 20' }
 const METAL_WEIGHT = { decimals: 2, max: 100000 }
 
 const numberInput = ({ key, decimals, virgola }, extra = '') =>

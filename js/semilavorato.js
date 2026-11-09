@@ -1,6 +1,6 @@
 // js/semilavorato.js
 import { requireAuth, getMyRole, getRawCategories, getRawItems, getRawCodeRules, getCorals, createRawCategory, signOut } from './supabase.js'
-import { stockLabel, showToast } from './utils.js'
+import { stockLabel, showToast, parseMm } from './utils.js'
 import { initFilters } from './filters.js'
 import { openRawItemModal } from './raw-form.js'
 import { openArchiveModal } from './archivio.js'
@@ -24,7 +24,7 @@ const FILTER_FIELDS = [
   { key: 'tall', label: 'Alta', all: 'Tutte', options: () => [['si', 'Alte'], ['no', 'Non alte']], test: (i, v) => !!i.is_tall === (v === 'si') },
   { key: 'quality', label: 'Qualità', all: 'Tutte', options: items => distinct(items, i => i.quality).map(v => [v, v]), test: (i, v) => i.quality === v },
   { key: 'finish', label: 'Finitura', all: 'Tutte', options: items => distinct(items, i => i.finish).map(v => [v, v]), test: (i, v) => i.finish === v },
-  { key: 'size', label: 'Misura', range: true, unit: 'mm', value: i => { const n = i.size_from_mm ?? i.base_mm; return n === null || n === undefined ? null : Number(n) } },
+  { key: 'size', label: 'Misura', range: true, unit: 'mm', parse: parseMm, value: i => { const n = i.size_from_mm ?? i.base_mm; return n === null || n === undefined ? null : Number(n) } },
   { key: 'coral', label: 'Corallo', options: items => distinct(items, i => i.coral?.name).map(v => [v, v]), test: (i, v) => i.coral?.name === v },
   { key: 'stock', label: 'Disponibilità',
     options: () => [['si', 'Disponibili'], ['no', 'Esauriti']],
