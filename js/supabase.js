@@ -104,6 +104,63 @@ export const archiveVatRate = vatRateCall('vat_rate_archive')
 export const restoreVatRate = vatRateCall('vat_rate_restore')
 export const deleteVatRate = vatRateCall('vat_rate_delete')
 
+// ─── Clienti registrati e sedi (048, scheda 4.1). Si scrive solo con le funzioni del database ───
+
+export async function getCustomers() {
+  const { data, error } = await supabase.from('customers')
+    .select('id, name, vat_number, archived_at, customer_sites(name, city, is_legal)')
+  if (error) throw error
+  return data.sort((a, b) => a.name.localeCompare(b.name, 'it', { numeric: true }))
+}
+
+export async function getCustomer(id) {
+  const { data, error } = await supabase.from('customers').select('*, customer_sites(*)').eq('id', id).maybeSingle()
+  if (error) throw error
+  return data
+}
+
+// Per tutti gli operatori: solo id e nome (RV-P-01)
+export async function getCustomerNames() {
+  const { data, error } = await supabase.rpc('customer_names')
+  if (error) throw error
+  return data
+}
+
+export async function createCustomer(customer, site) {
+  const { data, error } = await supabase.rpc('customer_create', { p_customer: customer, p_site: site })
+  if (error) throw error
+  return data
+}
+
+export async function updateCustomer(id, customer) {
+  const { error } = await supabase.rpc('customer_update', { p_id: id, p_customer: customer })
+  if (error) throw error
+}
+
+export async function saveCustomerSite(customerId, id, site) {
+  const { data, error } = await supabase.rpc('customer_site_save', { p_customer_id: customerId, p_id: id ?? null, p_site: site })
+  if (error) throw error
+  return data
+}
+
+const customerCall = fn => async id => {
+  const { error } = await supabase.rpc(fn, { p_id: id })
+  if (error) throw error
+}
+export const archiveCustomer = customerCall('customer_archive')
+export const restoreCustomer = customerCall('customer_restore')
+export const deleteCustomer = customerCall('customer_delete')
+export const setLegalSite = customerCall('customer_site_set_legal')
+export const archiveCustomerSite = customerCall('customer_site_archive')
+export const restoreCustomerSite = customerCall('customer_site_restore')
+export const deleteCustomerSite = customerCall('customer_site_delete')
+
+export async function getCustomerChanges(id, limit = 100) {
+  const { data, error } = await supabase.rpc('customer_changes', { p_id: id, p_limit: limit })
+  if (error) throw error
+  return data
+}
+
 export async function getDocumentCounters() {
   const { data, error } = await supabase.rpc('document_counters_list')
   if (error) throw error

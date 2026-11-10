@@ -1,4 +1,4 @@
-const CACHE_NAME = 'desimone-os-v59'
+const CACHE_NAME = 'desimone-os-v60'
 
 const SHELL_ASSETS = [
   '/catalog.html',
@@ -13,6 +13,8 @@ const SHELL_ASSETS = [
   '/catalog-scheda.html',
   '/semilavorato-scheda.html',
   '/etichette.html',
+  '/vendite.html',
+  '/cliente.html',
   '/login.html',
   '/config.js',
   '/css/variables.css',
@@ -25,6 +27,7 @@ const SHELL_ASSETS = [
   '/css/giacenze.css',
   '/css/scheda.css',
   '/css/registro.css',
+  '/css/vendite.css',
   '/js/catalog.js',
   '/js/semilavorato.js',
   '/js/raw-form.js',
@@ -63,6 +66,9 @@ const SHELL_ASSETS = [
   '/js/registro.js',
   '/js/anagrafiche.js',
   '/js/impostazioni.js',
+  '/js/vendite.js',
+  '/js/cliente.js',
+  '/js/clienti.js',
   '/js/bilancia/bilancia.js',
   '/js/bilancia/pesi.js',
   '/js/bilancia/sics.js',

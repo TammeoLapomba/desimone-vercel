@@ -25,9 +25,10 @@ if ('serviceWorker' in navigator) {
   })
 }
 
-// ─── Voce per ruolo: Anagrafiche per il dev (AN-02), Impostazioni per l'amministrazione (scheda 1.5) ─
+// ─── Voci per ruolo: Anagrafiche per il dev (AN-02); Vendite (scheda 4.1) e Impostazioni (scheda 1.5) per l'amministrazione ─
 
 const SETTINGS_ICON = '<line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/>'
+const SALES_ICON = '<path d="M5 3h14v18l-3-2-2 2-2-2-2 2-2-2-3 2z"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="9" y1="12" x2="15" y2="12"/>'
 const ANAGRAFICHE_ICON = '<path d="M20.6 13.4l-7.2 7.2a2 2 0 0 1-2.8 0L3 13V3h10l7.6 7.6a2 2 0 0 1 0 2.8z"/><circle cx="8" cy="8" r="1.2"/>'
 
 async function addRoleMenuItem() {
@@ -36,15 +37,18 @@ async function addRoleMenuItem() {
   const { data: { session } } = await supabase.auth.getSession()
   if (!session) return
   const role = await getMyRole()
-  const page = role === 'dev' ? ['anagrafiche', 'Anagrafiche', ANAGRAFICHE_ICON] : role === 'admin' ? ['impostazioni', 'Impostazioni', SETTINGS_ICON] : null
-  if (!page) return
-  const [key, label, icon] = page
-  const current = window.location.pathname.includes(key)
-  nav.insertAdjacentHTML('beforeend', `
+  const pages = role === 'dev' ? [['anagrafiche', 'Anagrafiche', ANAGRAFICHE_ICON]]
+    : role === 'admin' ? [['vendite', 'Vendite', SALES_ICON], ['impostazioni', 'Impostazioni', SETTINGS_ICON]] : []
+  const path = window.location.pathname
+  for (const [key, label, icon] of pages) {
+    // La scheda del cliente sta sotto Vendite
+    const current = path.includes(key) || (key === 'vendite' && path.startsWith('/cliente'))
+    nav.insertAdjacentHTML('beforeend', `
     <a href="/${key}.html" class="nav-item${current ? ' active' : ''}" ${current ? 'aria-current="page"' : ''} title="${label}">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">${icon}</svg>
       <span class="nav-item-label">${label}</span>
     </a>`)
+  }
 }
 addRoleMenuItem().catch(console.error)
 
@@ -61,6 +65,7 @@ const ICONS = {
   giacenze: '<path d="M9 5H7a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2h-2"/><rect x="9" y="3" width="6" height="4" rx="1"/><line x1="9" y1="12" x2="15" y2="12"/><line x1="9" y1="16" x2="13" y2="16"/>',
   registro: '<line x1="9" y1="6" x2="20" y2="6"/><line x1="9" y1="12" x2="20" y2="12"/><line x1="9" y1="18" x2="20" y2="18"/><circle cx="5" cy="6" r="1"/><circle cx="5" cy="12" r="1"/><circle cx="5" cy="18" r="1"/>',
   anagrafiche: ANAGRAFICHE_ICON,
+  vendite: SALES_ICON,
   impostazioni: SETTINGS_ICON,
   esci: '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/>',
 }
@@ -73,6 +78,7 @@ const PAGES = [
 ]
 const DEV_PAGE = ['anagrafiche', 'Anagr.', '/anagrafiche.html', 'Anagrafiche']
 const ADMIN_PAGE = ['impostazioni', 'Impost.', '/impostazioni.html', 'Impostazioni']
+const SALES_PAGE = ['vendite', 'Vendite', '/vendite.html']
 const svg = name => `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true">${ICONS[name]}</svg>`
 
 export function initMobileNav({ onNewArticle, onOpenDrawer } = {}) {
@@ -80,8 +86,8 @@ export function initMobileNav({ onNewArticle, onOpenDrawer } = {}) {
 
   // La pagina aperta, anche senza .html (/movimenti) o dalla radice (/ = Montato)
   const path = window.location.pathname
-  const current = path === '/' ? 'montato' : ([...PAGES, DEV_PAGE, ADMIN_PAGE].find(([key, , href]) => path.startsWith(href.replace('.html', '')))?.[0]
-    ?? (path.includes('catalog') ? 'montato' : null))
+  const current = path === '/' ? 'montato' : ([...PAGES, DEV_PAGE, ADMIN_PAGE, SALES_PAGE].find(([key, , href]) => path.startsWith(href.replace('.html', '')))?.[0]
+    ?? (path.includes('catalog') ? 'montato' : path.startsWith('/cliente') ? 'vendite' : null))
   const item = ([key, label, href, full]) => `
     <a href="${href}" class="mobile-nav-item${key === current ? ' active' : ''}"${key === current ? ' aria-current="page"' : ''}
        aria-label="${full || label}">${svg(key)}<span>${label}</span></a>`
@@ -101,11 +107,11 @@ export function initMobileNav({ onNewArticle, onOpenDrawer } = {}) {
   // Tornando indietro il browser può rimostrare la pagina com'era: la voce non deve restare scura
   window.addEventListener('pageshow', () => nav.querySelectorAll('.pressed').forEach(a => a.classList.remove('pressed')))
 
-  // Anagrafiche solo con l'account dev, Impostazioni solo con l'amministrazione, prima di Esci
+  // Anagrafiche solo con l'account dev, Vendite e Impostazioni solo con l'amministrazione, prima di Esci
   getMyRole().then(role => {
-    const page = role === 'dev' ? DEV_PAGE : role === 'admin' ? ADMIN_PAGE : null
-    if (!page) return
-    document.getElementById('mobileSignOutBtn').insertAdjacentHTML('beforebegin', item(page))
+    const pages = role === 'dev' ? [DEV_PAGE] : role === 'admin' ? [SALES_PAGE, ADMIN_PAGE] : []
+    if (!pages.length) return
+    document.getElementById('mobileSignOutBtn').insertAdjacentHTML('beforebegin', pages.map(item).join(''))
     nav.classList.add('mobile-nav-seven')
   }).catch(console.error)
 

@@ -11,7 +11,9 @@
     { "source": "/conte", "destination": "/conte.html" },
     { "source": "/catalog-scheda", "destination": "/catalog-scheda.html" },
     { "source": "/semilavorato-scheda", "destination": "/semilavorato-scheda.html" },
-    { "source": "/etichette", "destination": "/etichette.html" }
+    { "source": "/etichette", "destination": "/etichette.html" },
+    { "source": "/vendite", "destination": "/vendite.html" },
+    { "source": "/cliente", "destination": "/cliente.html" }
   ],
   "headers": [
     {

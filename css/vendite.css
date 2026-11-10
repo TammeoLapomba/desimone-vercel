@@ -1,0 +1,16 @@
+/* css/vendite.css — Vendite e scheda del cliente (scheda 4.1) */
+.cli-toolbar { margin: 12px 0 4px; }
+.cli-count { font-family: var(--editorial); font-size: 12px; color: var(--text-muted); margin: 8px 0 0; }
+.cli-link { color: inherit; text-decoration: none; }
+.cli-link:hover { color: var(--coral); text-decoration: underline; }
+.cli-link:focus-visible { outline: 2px solid var(--coral); outline-offset: 2px; }
+.cli-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 16px; margin-bottom: 8px; }
+.cli-grid .cli-full { grid-column: 1 / -1; }
+.cli-grid textarea.field-input { resize: vertical; min-height: 56px; }
+.cli-section-title { font-family: var(--editorial); font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--coral); margin: 8px 0 10px; font-weight: 500; }
+.cli-section-title + .cli-section-title, #customerFields + .cli-section-title { margin-top: 18px; }
+.cli-close { background: none; border: none; cursor: pointer; color: var(--text-muted); padding: 4px; }
+.gia-tag + .gia-tag { margin-left: 6px; }
+@media (max-width: 600px) {
+  .cli-grid { grid-template-columns: minmax(0, 1fr); }
+}
